@@ -9,8 +9,12 @@ authors.workspace = true
 
 [dependencies]
 fp-core = { workspace = true }
-# Deliberately nothing else: the virtual device needs no async runtime, no USB, no
-# serialization. Straight-line async fns + a hand-rolled yield future (core::future).
+# The pure-Rust minutiae matcher a real host-image driver uses to score NBIS templates. The virtual
+# device keeps its non-biometric byte-equality stub; `matcher::nbis_match_score` is the real seam,
+# exercised end-to-end (enroll -> FP3 -> match) by fp-fp3's integration test.
+fp-bozorth3 = { workspace = true }
+# Otherwise deliberately nothing: no async runtime, no USB, no serialization. Straight-line async
+# fns + a hand-rolled yield future (core::future).
 
 [lints]
 workspace = true

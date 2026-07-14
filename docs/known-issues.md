@@ -39,13 +39,21 @@ object-lifetime management). Evaluate at M2.
 - `docker/Dockerfile` `LIBFPRINT_REF=v1.94.10` is pinned to match the vendored `reference/`
   copy so the shim's `bindgen` output is deterministic — this is good practice, not debt.
 
-## FP3 codec: byte-exactness vs. real libfprint (M2)
+## FP3 codec: byte-exactness vs. real libfprint (M2) — VALIDATED
 
-`fp-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven
-**today** two ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`), and byte-for-byte
-equality against **frozen golden fixtures** captured from a known-correct GVariant encoder
-(these live in the codec tests and are permanent oracles — they already caught two real framing
-bugs during the hand-roll). What remains for **M2** is validation against blobs produced by a
-*real* libfprint/fprintd (enroll via the `virtual-image` driver, or read `/var/lib/fprint`
-fixtures) — i.e. confirming interop with the actual on-disk stores, not just internal
-consistency. Tracked here; not a blocker for M1.
+`fp-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven three
+ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`); byte-for-byte equality against
+**frozen golden fixtures** (permanent oracles that caught two real framing bugs during the
+hand-roll); and — as of the M2 work — **byte-identity against a real C libfprint blob**:
+
+- The shim's Docker test (`fp-backend-libfprint`, `tests/virtual.rs`) enrolls on the real
+  `virtual_device` driver and asserts our `to_bytes` output is a **fixed point of libfprint's own
+  `deserialize`/`serialize`** — i.e. byte-identical to libfprint's canonical FP3.
+- The real blob is frozen at `crates/fp-fp3/tests/fixtures/libfprint_virtual_device.fp3`, and
+  `fp-fp3`'s `tests/libfprint_fixture.rs` re-validates decode + byte-exact re-encode **on any
+  platform, without Docker**.
+
+Remaining M2 coverage (not a blocker): capture a real **NBIS** (`virtual-image`) blob too — the
+current fixture is the MOC/`Raw` path; the NBIS payload's byte-compat is covered structurally by the
+golden fixtures and by the end-to-end `fp-fp3` ↔ `fp-bozorth3` seam test, but not yet against a
+real libfprint NBIS serialization.

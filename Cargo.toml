@@ -8,6 +8,7 @@ resolver = "2"
 members = [
     "crates/fp-core",
     "crates/fp-fp3",                # FP3 (de)serialization codec (edge translator; offline)
+    "crates/fp-bozorth3",           # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
     "crates/fp-backend-native",     # pure-Rust virtual device: the first fp-core Backend/Device implementor
     "crates/fp-integration",        # CompositeBackend / CompositeDevice (native-only off Linux)
     # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
@@ -27,6 +28,7 @@ authors = ["libfprint-rs (pure-Rust) contributors"]
 # consumer activates it under a cfg(target_os = "linux") target table).
 fp-core              = { path = "crates/fp-core" }
 fp-fp3               = { path = "crates/fp-fp3" }
+fp-bozorth3          = { path = "crates/fp-bozorth3" }
 fp-backend-native    = { path = "crates/fp-backend-native" }
 fp-backend-libfprint = { path = "crates/fp-backend-libfprint" }
 

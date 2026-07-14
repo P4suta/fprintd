@@ -17,6 +17,9 @@ fp-core = { workspace = true }
 # above the domain model, so it may know a backend for testing; the backend stays
 # unaware of any wire format — ARCHITECTURE.md principle 3).
 fp-backend-native = { workspace = true }
+# The nbis-match seam test also drives the real BOZORTH3 matcher through fp-backend-native's
+# `nbis_match_score`, proving a Print(Nbis) survives FP3 and still scores as a match.
+fp-bozorth3 = { workspace = true }
 
 [lints]
 workspace = true

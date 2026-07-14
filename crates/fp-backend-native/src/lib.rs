@@ -40,6 +40,7 @@
 mod backend;
 mod builder;
 mod device;
+mod matcher;
 mod scenario;
 mod store;
 mod synth;
@@ -48,4 +49,5 @@ mod yield_now;
 pub use backend::VirtualBackend;
 pub use builder::VirtualDeviceBuilder;
 pub use device::VirtualDevice;
+pub use matcher::nbis_match_score;
 pub use scenario::{CaptureOutcome, EnrollScript, FingerId, Scenario};

@@ -96,7 +96,10 @@ fn enroll_then_verify_over_virtual_socket() {
     .expect("enroll should complete");
     feeder.join().unwrap();
 
-    assert_eq!(stages_seen, ENROLL_STAGES as u32, "every stage should report");
+    assert_eq!(
+        stages_seen, ENROLL_STAGES as u32,
+        "every stage should report"
+    );
     assert_eq!(enrolled.finger, Some(Finger::LeftIndex));
     assert!(
         matches!(enrolled.template, Template::Raw(_)),
@@ -109,6 +112,35 @@ fn enroll_then_verify_over_virtual_socket() {
     let bytes = fp_fp3::to_bytes(&enrolled).expect("serialize enrolled print");
     let round_tripped = fp_fp3::from_bytes(&bytes).expect("deserialize enrolled print");
     assert_eq!(round_tripped, enrolled, "FP3 round-trip must be lossless");
+
+    // --- M2: byte-compatibility with real libfprint -----------------------------------------
+    // `enrolled` was decoded from libfprint's own `fp_print_serialize` output (see
+    // `print::fp_to_core`). Our re-encoding must be *byte-identical* to libfprint's canonical FP3,
+    // which we prove by showing our bytes are a fixed point of libfprint's own (de)serialize: if a
+    // single framing byte differed (field order, maybe-string tag, the empty reserved vardict, the
+    // Julian-day sentinel), libfprint would round-trip to different bytes and this would fail.
+    {
+        use libfprint_rs::FpPrint;
+        let lib_canonical = FpPrint::deserialize(&bytes)
+            .expect("libfprint accepts our FP3 bytes")
+            .serialize()
+            .expect("libfprint re-serializes");
+        assert_eq!(
+            bytes, lib_canonical,
+            "fp-fp3 output must be byte-identical to libfprint's canonical FP3"
+        );
+
+        // Freeze the real blob into fp-fp3's fixtures (that crate is cross-platform and owns the
+        // Docker-free native regression, tests/libfprint_fixture.rs). Opt-in so ordinary runs never
+        // touch the source tree.
+        if std::env::var_os("FP3_FREEZE_FIXTURES").is_some() {
+            let dir =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../fp-fp3/tests/fixtures");
+            std::fs::create_dir_all(&dir).expect("create fixtures dir");
+            std::fs::write(dir.join("libfprint_virtual_device.fp3"), &bytes)
+                .expect("write fixture");
+        }
+    }
 
     // --- Verify: same id matches, a different id does not. ----------------------------------
     let feeder = feed(vec![format!("SCAN {FINGER_ID}")]);
@@ -141,8 +173,7 @@ fn block_on<F: Future>(future: F) -> F::Output {
 }
 
 fn noop_waker() -> Waker {
-    const VTABLE: RawWakerVTable =
-        RawWakerVTable::new(|_| RAW, |_| {}, |_| {}, |_| {});
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(|_| RAW, |_| {}, |_| {}, |_| {});
     const RAW: RawWaker = RawWaker::new(std::ptr::null(), &VTABLE);
     // SAFETY: the vtable's clone returns the same no-op RawWaker and wake/drop do nothing, so
     // the waker upholds the Waker contract trivially.

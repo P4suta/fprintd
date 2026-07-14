@@ -59,3 +59,18 @@ description = "Hardware-free enroll+verify against fprintd-rs over its D-Bus con
 # virtual backend and drives Claim -> EnrollStart -> enroll-completed -> VerifyStart ->
 # verify-match -> Release exactly as a client would — the hardware-free daemon verification.
 run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fprintd-rs --test dbus_integration -- --nocapture"
+
+# --- BOZORTH3 matcher oracle: stock NBIS as the black-box score reference ---------------------
+[tasks.clone-ref-nbis]
+description = "Clone stock (public-domain) NIST NBIS for the BOZORTH3 spec/oracle (git-ignored)"
+run = "git clone --depth 1 https://github.com/lessandro/nbis.git reference/nbis-stock || true"
+
+[tasks.bozorth3-oracle]
+description = "Regenerate the BOZORTH3 golden corpus + reference scores from the stock C tool (Docker)"
+# DELIBERATE regeneration: overwrites the frozen fixtures under crates/fp-bozorth3/tests/fixtures.
+# Needs reference/nbis-stock (mise run clone-ref-nbis) and Docker. The `pwd -W` form yields a
+# Windows path for the bind-mount under Git Bash; on Linux it falls back to plain `pwd`.
+run = [
+  "python docker/bozorth3-oracle/gen_corpus.py crates/fp-bozorth3/tests/fixtures",
+  "MSYS_NO_PATHCONV=1 docker run --rm -v \"$(pwd -W 2>/dev/null || pwd)\":/work -w /work gcc:13-bookworm bash docker/bozorth3-oracle/run.sh /work",
+]
