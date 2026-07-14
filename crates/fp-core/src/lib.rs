@@ -26,17 +26,16 @@
 
 #![forbid(unsafe_code)]
 
-mod error;
-mod finger;
-mod feature;
-mod print;
 mod device;
+mod error;
+mod feature;
+mod finger;
+mod print;
 
-pub use error::{Error, RetryReason, Result};
-pub use finger::Finger;
-pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
-pub use print::{EnrollDate, Minutia, Print, Template};
 pub use device::{
-    Backend, Device, DeviceId, DeviceInfo, DriverId, EnrollProgress, IdentifyOutcome,
-    VerifyOutcome,
+    Backend, Device, DeviceId, DeviceInfo, DriverId, EnrollProgress, IdentifyOutcome, VerifyOutcome,
 };
+pub use error::{Error, Result, RetryReason};
+pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
+pub use finger::Finger;
+pub use print::{EnrollDate, Minutia, Print, Template};

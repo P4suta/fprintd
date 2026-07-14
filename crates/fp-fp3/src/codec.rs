@@ -203,7 +203,11 @@ mod tests {
             template: Template::Nbis(vec![
                 vec![minutia(1, 2, 3), minutia(4, 5, 6)],
                 vec![minutia(7, 8, 9)],
-                vec![minutia(10, 11, 12), minutia(13, 14, 15), minutia(-1, -2, -3)],
+                vec![
+                    minutia(10, 11, 12),
+                    minutia(13, 14, 15),
+                    minutia(-1, -2, -3),
+                ],
             ]),
             finger: Some(Finger::RightIndex),
             username: Some("alice".into()),
@@ -211,7 +215,11 @@ mod tests {
             driver: Some(DriverId("goodix".into())),
             device_id: Some(DeviceId("0000".into())),
             device_stored: false,
-            enroll_date: Some(EnrollDate { year: 2026, month: 7, day: 15 }),
+            enroll_date: Some(EnrollDate {
+                year: 2026,
+                month: 7,
+                day: 15,
+            }),
         }
     }
 
@@ -295,9 +303,7 @@ mod tests {
     ];
 
     /// The inner standalone `v` bytes for a RAW `u64` handle (`42u64` + `0x00` + `"t"`).
-    const RAW_INNER_U64: &[u8] = &[
-        0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x74,
-    ];
+    const RAW_INNER_U64: &[u8] = &[0x2a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x74];
 
     // ---- golden byte-exactness --------------------------------------------------------
 
@@ -560,7 +566,11 @@ mod tests {
                 template: Template::Nbis(vec![vec![minutia(5, 5, 5)], vec![minutia(9, 9, 9)]]),
                 finger: Some(Finger::RightLittle),
                 device_stored: true,
-                enroll_date: Some(EnrollDate { year: 1, month: 1, day: 1 }),
+                enroll_date: Some(EnrollDate {
+                    year: 1,
+                    month: 1,
+                    day: 1,
+                }),
                 ..Default::default()
             },
             Print {

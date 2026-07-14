@@ -9,7 +9,6 @@
 //! `RawWaker`, no `unsafe` — enough to drive the composite device's one multi-poll method
 //! (`enroll`, via the native device's single-shot `yield_now`).
 
-
 use std::future::Future;
 use std::pin::pin;
 use std::sync::Arc;

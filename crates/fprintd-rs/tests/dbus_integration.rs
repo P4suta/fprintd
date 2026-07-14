@@ -18,9 +18,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fp_backend_native::{
-    EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder,
-};
+use fp_backend_native::{EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder};
 use fprintd_rs::{Authorizer, Daemon, Store};
 use futures_util::StreamExt;
 use tokio::time::timeout;
@@ -156,7 +154,10 @@ async fn enroll_then_verify_over_dbus() {
 
     // Enroll, waiting for the terminal enroll-completed.
     let mut enroll_stream = device.receive_enroll_status().await.expect("enroll stream");
-    device.enroll_start("left-index-finger").await.expect("enroll start");
+    device
+        .enroll_start("left-index-finger")
+        .await
+        .expect("enroll start");
     let completed = timeout(Duration::from_secs(5), async {
         while let Some(sig) = enroll_stream.next().await {
             let args = sig.args().expect("enroll args");
@@ -177,7 +178,10 @@ async fn enroll_then_verify_over_dbus() {
 
     // Verify, waiting for verify-match.
     let mut verify_stream = device.receive_verify_status().await.expect("verify stream");
-    device.verify_start("left-index-finger").await.expect("verify start");
+    device
+        .verify_start("left-index-finger")
+        .await
+        .expect("verify start");
     let result = timeout(Duration::from_secs(5), async {
         while let Some(sig) = verify_stream.next().await {
             let args = sig.args().expect("verify args");

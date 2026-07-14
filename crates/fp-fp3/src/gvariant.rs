@@ -119,43 +119,71 @@ impl Val {
 
 /// A GVariant `i` (int32): 4 bytes little-endian, alignment 4, fixed-width.
 pub(crate) fn int32(v: i32) -> Val {
-    Val { bytes: v.to_le_bytes().to_vec(), align: 4, fixed: true }
+    Val {
+        bytes: v.to_le_bytes().to_vec(),
+        align: 4,
+        fixed: true,
+    }
 }
 
 /// A GVariant `y` (byte): alignment 1, fixed-width.
 pub(crate) fn byte(v: u8) -> Val {
-    Val { bytes: vec![v], align: 1, fixed: true }
+    Val {
+        bytes: vec![v],
+        align: 1,
+        fixed: true,
+    }
 }
 
 /// A GVariant `b` (boolean): one byte `0x00`/`0x01`, alignment 1, fixed-width.
 pub(crate) fn boolean(v: bool) -> Val {
-    Val { bytes: vec![u8::from(v)], align: 1, fixed: true }
+    Val {
+        bytes: vec![u8::from(v)],
+        align: 1,
+        fixed: true,
+    }
 }
 
 /// A GVariant `s` (string): the UTF-8 bytes plus one `0x00` terminator, alignment 1.
 pub(crate) fn string(s: &str) -> Val {
     let mut bytes = s.as_bytes().to_vec();
     bytes.push(0);
-    Val { bytes, align: 1, fixed: false }
+    Val {
+        bytes,
+        align: 1,
+        fixed: false,
+    }
 }
 
 /// A GVariant `ms` (maybe of a variable-size string). `Nothing` is zero bytes; `Just` is
 /// the string's serialized bytes followed by one extra `0x00`.
 pub(crate) fn maybe_string(s: Option<&str>) -> Val {
     match s {
-        None => Val { bytes: Vec::new(), align: 1, fixed: false },
+        None => Val {
+            bytes: Vec::new(),
+            align: 1,
+            fixed: false,
+        },
         Some(s) => {
             let mut bytes = s.as_bytes().to_vec();
             bytes.push(0); // the string's own terminator
             bytes.push(0); // the maybe's presence byte
-            Val { bytes, align: 1, fixed: false }
+            Val {
+                bytes,
+                align: 1,
+                fixed: false,
+            }
         }
     }
 }
 
 /// The empty `a{sv}` reserved vardict: always zero bytes, alignment 8.
 pub(crate) fn empty_vardict() -> Val {
-    Val { bytes: Vec::new(), align: 8, fixed: false }
+    Val {
+        bytes: Vec::new(),
+        align: 8,
+        fixed: false,
+    }
 }
 
 /// A GVariant `ai` (array of fixed-width int32): elements concatenated, no framing table
@@ -165,7 +193,11 @@ pub(crate) fn int32_array(xs: &[i32]) -> Val {
     for &x in xs {
         bytes.extend_from_slice(&x.to_le_bytes());
     }
-    Val { bytes, align: 4, fixed: false }
+    Val {
+        bytes,
+        align: 4,
+        fixed: false,
+    }
 }
 
 /// A GVariant `a T` for variable-width `T`: each element padded to `elem_align`, then a
@@ -173,7 +205,11 @@ pub(crate) fn int32_array(xs: &[i32]) -> Val {
 /// array is zero bytes.
 pub(crate) fn array(elems: Vec<Val>, elem_align: usize) -> Val {
     if elems.is_empty() {
-        return Val { bytes: Vec::new(), align: elem_align, fixed: false };
+        return Val {
+            bytes: Vec::new(),
+            align: elem_align,
+            fixed: false,
+        };
     }
     let mut body = Vec::new();
     let mut ends = Vec::with_capacity(elems.len());
@@ -186,7 +222,11 @@ pub(crate) fn array(elems: Vec<Val>, elem_align: usize) -> Val {
     for &end in &ends {
         push_offset(&mut body, end, width);
     }
-    Val { bytes: body, align: elem_align, fixed: false }
+    Val {
+        bytes: body,
+        align: elem_align,
+        fixed: false,
+    }
 }
 
 /// A GVariant tuple `(...)`: members laid out in order, each padded to its alignment; a
@@ -207,13 +247,21 @@ pub(crate) fn tuple(members: Vec<Val>, align: usize) -> Val {
     }
     if members.iter().all(|m| m.fixed) {
         pad(&mut body, align);
-        return Val { bytes: body, align, fixed: true };
+        return Val {
+            bytes: body,
+            align,
+            fixed: true,
+        };
     }
     let width = chosen_offset_size(body.len(), var_ends.len());
     for &end in var_ends.iter().rev() {
         push_offset(&mut body, end, width);
     }
-    Val { bytes: body, align, fixed: false }
+    Val {
+        bytes: body,
+        align,
+        fixed: false,
+    }
 }
 
 /// A GVariant `v` (variant): the child's serialized bytes, a `0x00` separator, then the
@@ -222,13 +270,21 @@ pub(crate) fn variant(child: Val, signature: &[u8]) -> Val {
     let mut bytes = child.bytes;
     bytes.push(0);
     bytes.extend_from_slice(signature);
-    Val { bytes, align: 8, fixed: false }
+    Val {
+        bytes,
+        align: 8,
+        fixed: false,
+    }
 }
 
 /// A `v` whose already-serialized bytes are supplied verbatim (a driver's opaque, standalone
 /// variant preserved byte-for-byte). Alignment 8.
 pub(crate) fn raw_variant(bytes: Vec<u8>) -> Val {
-    Val { bytes, align: 8, fixed: false }
+    Val {
+        bytes,
+        align: 8,
+        fixed: false,
+    }
 }
 
 // ---- reading --------------------------------------------------------------------------
@@ -243,7 +299,10 @@ pub(crate) struct Spec {
 impl Spec {
     /// A fixed-width member of the given alignment and byte size.
     pub(crate) const fn fixed(align: usize, size: usize) -> Spec {
-        Spec { align, size: Some(size) }
+        Spec {
+            align,
+            size: Some(size),
+        }
     }
 
     /// A variable-width member of the given alignment.

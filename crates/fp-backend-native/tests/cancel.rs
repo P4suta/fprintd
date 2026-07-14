@@ -25,7 +25,8 @@ fn dropping_enroll_cancels_without_committing() {
     {
         let mut on_progress = |_p| {};
         // `Box::pin` makes the (non-Unpin) enroll future `Unpin` so `poll_n` can drive it.
-        let mut fut = Box::pin(dev.enroll(Print::new_for_enroll(Finger::LeftThumb), &mut on_progress));
+        let mut fut =
+            Box::pin(dev.enroll(Print::new_for_enroll(Finger::LeftThumb), &mut on_progress));
         let outcome = poll_n(&mut fut, 2);
         assert!(outcome.is_none()); // still mid-enrollment after two polls
         drop(fut); // <- cancellation
@@ -36,7 +37,8 @@ fn dropping_enroll_cancels_without_committing() {
     assert!(dev.is_open());
 
     // A fresh enrollment now completes and stores.
-    let print = block_on(dev.enroll(Print::new_for_enroll(Finger::LeftThumb), &mut |_p| {})).unwrap();
+    let print =
+        block_on(dev.enroll(Print::new_for_enroll(Finger::LeftThumb), &mut |_p| {})).unwrap();
     assert!(print.device_stored);
     assert_eq!(dev.stored_prints().len(), 1);
 }

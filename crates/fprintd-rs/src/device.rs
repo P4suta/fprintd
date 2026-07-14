@@ -276,7 +276,12 @@ impl Device {
         let sender = sender_of(&hdr)?;
 
         // Claim needs authorization for verify OR enroll.
-        if self.authz.check(&sender, PolkitAction::Verify).await.is_err() {
+        if self
+            .authz
+            .check(&sender, PolkitAction::Verify)
+            .await
+            .is_err()
+        {
             self.authz.check(&sender, PolkitAction::Enroll).await?;
         }
         let user = resolve_user(conn, &sender, username, &self.authz).await?;
@@ -284,7 +289,9 @@ impl Device {
         {
             let mut guard = self.claim.lock().unwrap();
             if guard.is_some() {
-                return Err(DaemonError::AlreadyInUse("Device was already claimed".into()));
+                return Err(DaemonError::AlreadyInUse(
+                    "Device was already claimed".into(),
+                ));
             }
             *guard = Some(Session {
                 sender: sender.clone(),
@@ -294,7 +301,11 @@ impl Device {
 
         // Open the sensor on the actor thread.
         let (reply_tx, reply_rx) = oneshot::channel();
-        if let Err(e) = self.handle.send(DeviceCommand::Open { reply: reply_tx }).await {
+        if let Err(e) = self
+            .handle
+            .send(DeviceCommand::Open { reply: reply_tx })
+            .await
+        {
             *self.claim.lock().unwrap() = None;
             return Err(e);
         }
@@ -302,7 +313,9 @@ impl Device {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
                 *self.claim.lock().unwrap() = None;
-                Err(DaemonError::Internal(format!("Open failed with error: {e}")))
+                Err(DaemonError::Internal(format!(
+                    "Open failed with error: {e}"
+                )))
             }
             Err(_) => {
                 *self.claim.lock().unwrap() = None;
@@ -326,7 +339,9 @@ impl Device {
         }
 
         let (reply_tx, reply_rx) = oneshot::channel();
-        self.handle.send(DeviceCommand::Close { reply: reply_tx }).await?;
+        self.handle
+            .send(DeviceCommand::Close { reply: reply_tx })
+            .await?;
         let _ = reply_rx.await;
 
         *self.claim.lock().unwrap() = None;
@@ -373,7 +388,9 @@ impl Device {
                 .collect();
 
             if gallery.is_empty() {
-                return Err(DaemonError::NoEnrolledPrints("No fingerprints enrolled".into()));
+                return Err(DaemonError::NoEnrolledPrints(
+                    "No fingerprints enrolled".into(),
+                ));
             } else if let [only] = gallery.as_slice() {
                 let (finger, print) = only.clone();
                 VerifyOp::Single { print, finger }
@@ -480,8 +497,11 @@ impl Device {
     // --- signals (bodyless: emitted via the generated associated functions) -----------
 
     #[zbus(signal)]
-    async fn verify_status(emitter: &SignalEmitter<'_>, result: &str, done: bool)
-        -> zbus::Result<()>;
+    async fn verify_status(
+        emitter: &SignalEmitter<'_>,
+        result: &str,
+        done: bool,
+    ) -> zbus::Result<()>;
 
     #[zbus(signal)]
     async fn verify_finger_selected(
@@ -496,8 +516,11 @@ impl Device {
     ) -> zbus::Result<()>;
 
     #[zbus(signal)]
-    async fn enroll_status(emitter: &SignalEmitter<'_>, result: &str, done: bool)
-        -> zbus::Result<()>;
+    async fn enroll_status(
+        emitter: &SignalEmitter<'_>,
+        result: &str,
+        done: bool,
+    ) -> zbus::Result<()>;
 }
 
 impl Device {
@@ -508,7 +531,9 @@ impl Device {
             .store
             .list_fingers(user, &self.info.driver, &self.info.id);
         if fingers.is_empty() {
-            return Err(DaemonError::NoEnrolledPrints("No fingerprint enrolled".into()));
+            return Err(DaemonError::NoEnrolledPrints(
+                "No fingerprint enrolled".into(),
+            ));
         }
         for finger in fingers {
             self.store
@@ -617,7 +642,10 @@ async fn identify_loop(
 
         match result {
             Ok(Ok(outcome)) => {
-                let matched_finger = outcome.match_index.and_then(|i| gallery.get(i)).map(|(f, _)| *f);
+                let matched_finger = outcome
+                    .match_index
+                    .and_then(|i| gallery.get(i))
+                    .map(|(f, _)| *f);
                 if let Some(finger) = matched_finger {
                     let _ =
                         Device::verify_finger_matched(&emitter, names::finger_dbus_name(finger))
@@ -759,9 +787,8 @@ async fn resolve_user(
 ) -> Result<String, DaemonError> {
     let own = caller_username(conn, sender).await;
     if requested.is_empty() {
-        return own.ok_or_else(|| {
-            DaemonError::Internal("could not determine caller's username".into())
-        });
+        return own
+            .ok_or_else(|| DaemonError::Internal("could not determine caller's username".into()));
     }
     if own.as_deref() == Some(requested) {
         return Ok(requested.to_string());

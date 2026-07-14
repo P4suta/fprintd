@@ -15,7 +15,8 @@ fn moc_with_enrollment(id: u64) -> (fp_backend_native::VirtualDevice, Print) {
         .scenario(Scenario::new().enroll(EnrollScript::default().produces(FingerId(id))))
         .build();
     block_on(dev.open()).unwrap();
-    let print = block_on(dev.enroll(Print::new_for_enroll(Finger::RightRing), &mut |_p| {})).unwrap();
+    let print =
+        block_on(dev.enroll(Print::new_for_enroll(Finger::RightRing), &mut |_p| {})).unwrap();
     (dev, print)
 }
 
@@ -52,7 +53,10 @@ fn storage_unsupported_on_host() {
     let mut dev = VirtualDeviceBuilder::host_image_sensor().build();
     block_on(dev.open()).unwrap();
 
-    assert!(matches!(block_on(dev.list_prints()), Err(Error::NotSupported)));
+    assert!(matches!(
+        block_on(dev.list_prints()),
+        Err(Error::NotSupported)
+    ));
     assert!(matches!(
         block_on(dev.delete_print(&Print::default())),
         Err(Error::NotSupported)

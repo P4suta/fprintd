@@ -126,9 +126,13 @@ impl Device for LibfprintDevice {
         let mut scanned = FpPrint::new(&self.dev);
         self.cancel = Some(Cancellable::new());
 
-        let result =
-            self.dev
-                .identify_sync::<()>(&fps, self.cancel.as_ref(), None, None, Some(&mut scanned));
+        let result = self.dev.identify_sync::<()>(
+            &fps,
+            self.cancel.as_ref(),
+            None,
+            None,
+            Some(&mut scanned),
+        );
 
         self.cancel = None;
         let matched = result.map_err(convert::from_gerror)?;

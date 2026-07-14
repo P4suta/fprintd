@@ -74,20 +74,61 @@ mod tests {
     #[test]
     fn anchors_match_glib() {
         // GLib's g_date: 0001-01-01 is Julian day 1; the Unix epoch is 719163.
-        assert_eq!(to_julian(EnrollDate { year: 1, month: 1, day: 1 }), 1);
-        assert_eq!(to_julian(EnrollDate { year: 1970, month: 1, day: 1 }), 719_163);
+        assert_eq!(
+            to_julian(EnrollDate {
+                year: 1,
+                month: 1,
+                day: 1
+            }),
+            1
+        );
+        assert_eq!(
+            to_julian(EnrollDate {
+                year: 1970,
+                month: 1,
+                day: 1
+            }),
+            719_163
+        );
         // One modern date, cross-checked against a known g_date value.
-        assert_eq!(to_julian(EnrollDate { year: 2026, month: 7, day: 15 }), 739_812);
+        assert_eq!(
+            to_julian(EnrollDate {
+                year: 2026,
+                month: 7,
+                day: 15
+            }),
+            739_812
+        );
     }
 
     #[test]
     fn date_conversion_roundtrips() {
         let dates = [
-            EnrollDate { year: 1, month: 1, day: 1 },
-            EnrollDate { year: 1970, month: 1, day: 1 },
-            EnrollDate { year: 2000, month: 2, day: 29 }, // leap day
-            EnrollDate { year: 2026, month: 7, day: 15 },
-            EnrollDate { year: 2999, month: 12, day: 31 },
+            EnrollDate {
+                year: 1,
+                month: 1,
+                day: 1,
+            },
+            EnrollDate {
+                year: 1970,
+                month: 1,
+                day: 1,
+            },
+            EnrollDate {
+                year: 2000,
+                month: 2,
+                day: 29,
+            }, // leap day
+            EnrollDate {
+                year: 2026,
+                month: 7,
+                day: 15,
+            },
+            EnrollDate {
+                year: 2999,
+                month: 12,
+                day: 31,
+            },
         ];
         for d in dates {
             assert_eq!(from_julian(to_julian(d)), Some(d));

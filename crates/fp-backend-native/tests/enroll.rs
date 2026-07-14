@@ -11,7 +11,10 @@ use fp_backend_native::{EnrollScript, FingerId, Scenario, VirtualDeviceBuilder};
 use fp_core::{Device, DriverId, EnrollProgress, Error, Finger, Print, RetryReason, Template};
 
 /// Enroll a finger, collecting the progress reports along the way.
-fn enroll(dev: &mut fp_backend_native::VirtualDevice, finger: Finger) -> (fp_core::Result<Print>, Vec<EnrollProgress>) {
+fn enroll(
+    dev: &mut fp_backend_native::VirtualDevice,
+    finger: Finger,
+) -> (fp_core::Result<Print>, Vec<EnrollProgress>) {
     let mut log = Vec::new();
     let result = {
         let mut on_progress = |p: EnrollProgress| log.push(p);
@@ -48,11 +51,13 @@ fn host_completes_five_stages() {
 fn retry_then_complete() {
     // A retry, then the sensor completes the five stages normally.
     let mut dev = VirtualDeviceBuilder::host_image_sensor()
-        .scenario(Scenario::new().enroll(
-            EnrollScript::default()
-                .produces(FingerId(3))
-                .retry(RetryReason::NotCentered),
-        ))
+        .scenario(
+            Scenario::new().enroll(
+                EnrollScript::default()
+                    .produces(FingerId(3))
+                    .retry(RetryReason::NotCentered),
+            ),
+        )
         .build();
     block_on(dev.open()).unwrap();
 
