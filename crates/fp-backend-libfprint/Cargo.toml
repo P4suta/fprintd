@@ -1,0 +1,28 @@
+[package]
+name = "fp-backend-libfprint"
+description = "M1 shim: implements fp-core's Backend/Device by dynamically linking the C libfprint via the libfprint-rs FFI binding. Linux-only, !Send."
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+# Every dependency is gated to Linux so the (Windows) workspace stays lean and resolvable:
+# on any other target this crate compiles to an empty module (see the `#![cfg]` in lib.rs)
+# and needs none of the glib/libfprint stack.
+[target.'cfg(target_os = "linux")'.dependencies]
+fp-core = { workspace = true }
+fp-fp3 = { workspace = true }
+libfprint-rs = "=0.3.1"
+libfprint-sys = "=0.2.0"
+glib = "0.21"
+gio = "0.21"
+
+[features]
+# Opt-in integration test that drives the real libfprint `virtual_device` driver over its
+# debug socket. Off by default because it needs libfprint built with the virtual drivers and
+# the `FP_VIRTUAL_DEVICE` environment contract; enabled in the Docker verification stage.
+virtual = []
+
+[lints]
+workspace = true

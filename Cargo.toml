@@ -1,0 +1,42 @@
+## Virtual workspace manifest for the fprintd-compatible pure-Rust fingerprint stack.
+## (The repo directory is named `libfprint-rs` for historical reasons, but the crate
+##  names deliberately avoid that — the existing crates.io `libfprint-rs` is the C FFI
+##  binding we depend on as the M1 shim backend. See docs/ and the plan file.)
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/fp-core",
+    "crates/fp-fp3",                # FP3 (de)serialization codec (edge translator; offline)
+    "crates/fp-backend-native",     # pure-Rust virtual device: the first fp-core Backend/Device implementor
+    "crates/fp-integration",        # CompositeBackend / CompositeDevice (native-only off Linux)
+    # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
+    # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
+    "crates/fp-backend-libfprint",  # M1 shim over the C libfprint via the libfprint-rs FFI crate
+    "crates/fprintd-rs",            # M1 zbus daemon speaking net.reactivated.Fprint
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.82"
+license = "MIT OR Apache-2.0"   # fp-core is clean-room original code; any NBIS-derived crate carries its own (public-domain) notice
+authors = ["libfprint-rs (pure-Rust) contributors"]
+
+[workspace.dependencies]
+# Internal crates (path deps; a Linux-only shim path entry pulls nothing until a
+# consumer activates it under a cfg(target_os = "linux") target table).
+fp-core              = { path = "crates/fp-core" }
+fp-fp3               = { path = "crates/fp-fp3" }
+fp-backend-native    = { path = "crates/fp-backend-native" }
+fp-backend-libfprint = { path = "crates/fp-backend-libfprint" }
+
+[profile.release]
+lto = "thin"
+
+# One strict lint policy for the whole workspace; every crate opts in with
+# `[lints] workspace = true`. Clippy warnings are hard errors, so a plain `cargo clippy`
+# (or `cargo build`) is as strict as CI. Crate-specific needs are handled tightly and
+# locally: `#![forbid(unsafe_code)]` in the pure crates, and a single scoped
+# `#[allow(async_fn_in_trait)]` on the two core traits — not blanket per-crate allows.
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }

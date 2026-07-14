@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The dev image bind-mounts the repo; nothing is COPYed in. This only keeps the
+# build context (sent to the daemon) tiny — target/ and reference/ can be huge.
+target/
+reference/
+.git/
+.idea/
+.vscode/
+**/*.rs.bk
+mise.local.toml
+.mise.local.toml
+Thumbs.db
+.DS_Store

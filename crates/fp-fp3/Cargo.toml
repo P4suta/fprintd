@@ -1,0 +1,22 @@
+[package]
+name = "fp-fp3"
+description = "FP3 fingerprint-template (de)serialization: fprintd/libfprint's \"FP3\" GVariant on-disk format <-> fp-core's Print domain model."
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The GVariant framing is hand-rolled in `src/gvariant.rs`; this crate is a self-contained
+# edge crystal over `fp-core` alone (plus std). No serialization library, no derives.
+fp-core = { workspace = true }
+
+[dev-dependencies]
+# The end-to-end enroll -> FP3 -> verify round-trip test lives here (this crate sits
+# above the domain model, so it may know a backend for testing; the backend stays
+# unaware of any wire format — ARCHITECTURE.md principle 3).
+fp-backend-native = { workspace = true }
+
+[lints]
+workspace = true

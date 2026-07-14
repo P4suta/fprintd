@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# REUSE bulk annotations for files that carry no inline SPDX header
+# (manifests, config, docs). Source files (*.rs) carry their own headers.
+# `reference/` and `target/` are git-ignored, hence outside `reuse lint`.
+
+version = 1
+
+[[annotations]]
+path = [
+    "Cargo.toml",
+    "crates/**/Cargo.toml",
+    "mise.toml",
+    ".gitignore",
+    "**/*.md",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 libfprint-rs (pure-Rust) contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"

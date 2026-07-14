@@ -1,0 +1,18 @@
+# Rust
+/target/
+**/*.rs.bk
+# Cargo.lock: keep unlocked while the workspace is libs-only; commit it once we ship a bin
+Cargo.lock
+
+# Upstream references cloned for reading/measurement (populate via `mise run clone-ref`)
+/reference/
+
+# mise local overrides
+/mise.local.toml
+/.mise.local.toml
+
+# Editor / OS
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db

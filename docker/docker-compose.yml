@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The Linux dev/verify container. The repo is bind-mounted at /work; named
+# volumes cache the Rust build tree and cargo registry so rebuilds are fast.
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: fp-rs-dev
+    working_dir: /work
+    volumes:
+      - ..:/work
+      - fp-target:/work/target
+      - fp-cargo-registry:/cargo/registry
+    environment:
+      CARGO_HOME: /cargo
+      G_MESSAGES_DEBUG: all
+    # Keep the container alive for `docker compose run`-style one-shots.
+    command: ["bash"]
+
+volumes:
+  fp-target:
+  fp-cargo-registry:

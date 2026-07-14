@@ -1,0 +1,16 @@
+[package]
+name = "fp-backend-native"
+description = "Pure-Rust fp-core backend: an in-memory, deterministic virtual fingerprint device for offline testing of enroll/verify/identify and the fprintd daemon. Real USB/SPI drivers land here later."
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+fp-core = { workspace = true }
+# Deliberately nothing else: the virtual device needs no async runtime, no USB, no
+# serialization. Straight-line async fns + a hand-rolled yield future (core::future).
+
+[lints]
+workspace = true

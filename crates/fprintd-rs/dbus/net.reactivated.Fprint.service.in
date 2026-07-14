@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[D-BUS Service]
+Name=net.reactivated.Fprint
+Exec=@LIBEXECDIR@/fprintd
+User=root
+SystemdService=fprintd.service

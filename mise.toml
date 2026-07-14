@@ -1,0 +1,61 @@
+# mise-managed toolchain for this project.
+# Extends the global config at ~/.config/mise/config.toml (global tools stay available:
+# rust, just, taplo, typos, lefthook, gh, ripgrep, fd, ...). This file only adds/pins
+# what THIS project needs so the dev environment is reproducible.
+
+[tools]
+rust = "stable"          # matches the global `rust = "stable"` symlink
+tokei = "latest"         # SLOC measurement for the M0 ground-truth estimate
+uv = "latest"            # runs the REUSE license linter via uvx (see `mise run reuse`)
+
+[env]
+# Where upstream C/Rust references are cloned for reading + SLOC measurement.
+# Kept out of the workspace (see .gitignore); populate with `mise run clone-ref`.
+REFERENCE_DIR = "reference"
+
+[tasks.clone-ref]
+description = "M0: shallow-clone upstream libfprint + the existing libfprint-rs FFI binding for reading/measurement"
+run = [
+  "git clone --depth 1 https://gitlab.freedesktop.org/libfprint/libfprint.git reference/libfprint || git clone --depth 1 https://github.com/3v1n0/libfprint.git reference/libfprint",
+  "git clone --depth 1 https://gitlab.freedesktop.org/libfprint/fprintd.git reference/fprintd || true",
+  "git clone --depth 1 https://github.com/AlvaroParker/libfprint-rs.git reference/libfprint-rs-binding || true",
+]
+
+[tasks.sloc]
+description = "M0: measure upstream libfprint SLOC by subsystem (drivers / nbis / core) with tokei"
+run = [
+  "echo '== libfprint (whole) =='",
+  "tokei reference/libfprint/libfprint",
+  "echo '== drivers/ ==' && tokei reference/libfprint/libfprint/drivers",
+  "echo '== nbis/ ==' && tokei reference/libfprint/libfprint/nbis",
+]
+
+[tasks.reuse]
+description = "Check REUSE/SPDX license compliance"
+# `--with charset-normalizer` gives reuse a pure-Python encoding detector, so it
+# needs no native libmagic (required on Windows; harmless on Linux with `file`).
+run = "uvx --with charset-normalizer reuse lint"
+
+# --- Docker: build + verify the Linux-only crates (shim, daemon) -------------
+# The repo runs on Windows; the shim (C libfprint FFI) and daemon (system D-Bus)
+# are Linux-only, so they are built and verified inside a container that has
+# libfprint (with virtual drivers) compiled from source. See docker/.
+
+[tasks.docker-build]
+description = "Build the Linux dev/verify image (pinned libfprint w/ virtual drivers)"
+run = "docker compose -f docker/docker-compose.yml build"
+
+[tasks.docker-test]
+description = "Run the whole workspace test suite (incl. Linux-only crates) in the container"
+run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test --workspace --all-features"
+
+[tasks.docker-shell]
+description = "Interactive shell in the Linux dev container (repo bind-mounted at /work)"
+run = "docker compose -f docker/docker-compose.yml run --rm dev bash"
+
+[tasks.docker-daemon-verify]
+description = "Hardware-free enroll+verify against fprintd-rs over its D-Bus contract"
+# The integration test stands up the real daemon on a private bus (its own dbus-daemon) with a
+# virtual backend and drives Claim -> EnrollStart -> enroll-completed -> VerifyStart ->
+# verify-match -> Release exactly as a client would — the hardware-free daemon verification.
+run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fprintd-rs --test dbus_integration -- --nocapture"

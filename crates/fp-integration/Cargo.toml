@@ -1,0 +1,20 @@
+[package]
+name = "fp-integration"
+description = "The only crate that knows every backend: CompositeBackend / CompositeDevice routing native Rust and the libfprint shim under one fp-core Backend."
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+fp-core = { workspace = true }
+fp-backend-native = { workspace = true }
+
+# The libfprint shim is Linux-only and !Send; it is a dependency only when we build for
+# Linux, so the Native arm (and this whole crate) compiles cleanly on any host.
+[target.'cfg(target_os = "linux")'.dependencies]
+fp-backend-libfprint = { workspace = true }
+
+[lints]
+workspace = true
