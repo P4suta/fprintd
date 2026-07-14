@@ -163,22 +163,26 @@ The returned integer is the BOZORTH3 match score — a raw count of correspondin
 normalization. The CLI compares it against a caller-chosen threshold (no built-in accept/reject
 constant; `DEFAULT_MAX_MATCH_SCORE = 400` only caps the *printed* value).
 
-### Reproduction guarantee & the f32 boundary residual
+### Reproduction guarantee & the ±1 residual (a reference-side UB, proven)
 
 `crates/fp-bozorth3` reproduces stock NBIS scores, verified pair-for-pair against the C tool
 (`tests/golden.rs`, corpus in `tests/fixtures/`, oracle via `mise run bozorth3-oracle`):
 
 - **Stages 1–2 are bit-identical** — the `(probe_web_len, gallery_web_len, num_edges)` triple matches
   the reference exactly on every pair tested, including the near-boundary ones. So the compatibility
-  tables — and the edge angles from f32 `atanf` — reproduce the reference's math library exactly.
+  tables — and the edge angles from f32 `atanf` — reproduce the reference exactly.
 - **The score is exact on every non-trivial match**, up to the largest, most cluster-heavy cases.
-- **A few tiny near-tolerance pairs differ by ±1.** With identical compatibility tables, the
-  divergence is isolated to a stage-3 f32 comparison where a single edge sits exactly on the 11°
-  rotation-consistency threshold; f32 rounding tips it into or out of the cluster differently than
-  the reference build. This is the inherent limit of reproducing an algorithm whose *only*
-  specification is float-dependent C output — the reference score is itself math-library-relative at
-  that boundary. It is bounded to ±1 and enumerated in the golden test; on a sub-20-minutia print,
-  where match thresholds are ~40, it is operationally irrelevant.
+- **A few tiny near-tolerance pairs differ by ±1 — because the *reference itself* is not
+  deterministic there.** This was traced to a genuine **undefined behaviour in the stock C**: in a
+  rare boundary path `bz_match_score` reads uninitialized stack locals (`avv[]` / `rr[]`, flagged as
+  not-re-zeroed in the stage-3 spec above), so its score depends on build layout. Concretely, the
+  same source, same compiler and flags, scores `jit_10s2` as **10** when the object files are linked
+  in the reference `Makefile`'s order and as **9** when linked alphabetically — an unambiguous link
+  order dependence. `fp-bozorth3` is deterministic (it zero-initializes and never reads an unwritten
+  slot); its value equals one valid C build and differs by ≤1 from the other. The golden fixtures pin
+  the `mise run bozorth3-oracle` (reference-order) build, and the ≤1-divergent pairs are enumerated
+  in the golden test. On a sub-20-minutia print, where match thresholds are ~40, ±1 is operationally
+  irrelevant — and here it is not even a well-defined reference value to match.
 
 ---
 

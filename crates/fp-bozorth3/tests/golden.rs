@@ -15,22 +15,25 @@
 //! The compatibility tables (stages 1–2) are **bit-identical** to the reference (verified: the
 //! `(probe_web_len, gallery_web_len, num_edges)` triple matches exactly), and the score matches
 //! **exactly** on every non-trivial match — including the largest, most cluster-heavy ones. A
-//! handful of tiny near-tolerance-boundary pairs can differ by **±1**: inside stage-3 clustering a
-//! single edge sits exactly on the 11° rotation-consistency threshold, and f32 arithmetic tips it
-//! into or out of the cluster differently than the reference build. This is the inherent
-//! float-reproducibility limit of an algorithm whose only spec is float-dependent C output; ±1 on a
-//! sub-20-minutia print is operationally irrelevant (match thresholds are ~40). Those pairs are
-//! enumerated in [`KNOWN_FLOAT_BOUNDARY`]; every other pair must match to the integer.
+//! handful of tiny near-tolerance-boundary pairs can differ by **±1**, because the *reference itself
+//! is not deterministic there*: stock `bz_match_score` reads uninitialized stack locals in a rare
+//! boundary path (undefined behaviour), so its score is build-dependent — the same source+compiler
+//! scores these pairs differently depending only on object-file link order (see
+//! `docs/bozorth3-algorithm.md`). `fp-bozorth3` is deterministic; its value equals one valid C build
+//! and is ≤1 from the other. Those pairs are enumerated in [`REFERENCE_UNSTABLE`]; every other pair
+//! must match to the integer, and no divergence may exceed 1 — a precise regression guard, not a
+//! blanket tolerance.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use fp_bozorth3::{match_score, Minutia};
 
-/// Pairs that diverge from the reference by exactly ±1 due to a stage-3 f32 tolerance-boundary
-/// tip (see the module docs). Any *new* divergence, or a divergence larger than 1, fails the test —
-/// so this list is a precise regression guard, not a blanket tolerance.
-const KNOWN_FLOAT_BOUNDARY: &[&str] = &["jit_10s2", "jitedge_10s2", "jit_12s2"];
+/// Pairs where the stock C reference is itself build-nondeterministic (uninitialized-read UB in
+/// `bz_match_score`), so its score is only defined up to ±1. Our deterministic result may differ
+/// from the committed (reference-link-order) fixture by 1 here. Any *new* divergence, or one larger
+/// than 1, fails the test.
+const REFERENCE_UNSTABLE: &[&str] = &["jit_10s2", "jitedge_10s2", "jit_12s2"];
 
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -87,11 +90,11 @@ fn matches_stock_nbis_scores_exactly() {
                 .unwrap_or_else(|| panic!("no expected score for {tag}")),
         );
 
-        let allowed = KNOWN_FLOAT_BOUNDARY.contains(&tag);
+        let allowed = REFERENCE_UNSTABLE.contains(&tag);
         if got == want {
             exact += 1;
         } else if allowed && (got - want).abs() <= 1 {
-            // Enumerated float-boundary case: within the documented ±1 tolerance. OK.
+            // Reference is UB-nondeterministic here; within the documented ±1. OK.
         } else {
             mismatches.push(format!(
                 "{tag}: got {got}, want {want}{}",
@@ -116,8 +119,8 @@ fn matches_stock_nbis_scores_exactly() {
     // Regression guard: the vast majority must be bit-exact (only the small enumerated set may
     // differ, and only by ±1). If a real bug crept in, many pairs would diverge and this trips.
     assert!(
-        exact >= checked - KNOWN_FLOAT_BOUNDARY.len(),
+        exact >= checked - REFERENCE_UNSTABLE.len(),
         "only {exact}/{checked} pairs were bit-exact; expected at least {}",
-        checked - KNOWN_FLOAT_BOUNDARY.len()
+        checked - REFERENCE_UNSTABLE.len()
     );
 }
