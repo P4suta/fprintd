@@ -128,9 +128,10 @@ hard line between two very different activities:
 
 Consequences:
 
-- **NBIS port**, if/when we do one, comes from **stock upstream public-domain NBIS**, never
-  from libfprint's patched `nbis/` (its `g_`-prefixing and patches are LGPL). Or we FFI-wrap
-  the C.
+- **NBIS port** — realized as **`fp-bozorth3`** (the BOZORTH3 matcher). It is written from
+  **stock upstream public-domain NBIS** (see `docs/bozorth3-algorithm.md`), never from libfprint's
+  patched `nbis/` (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock
+  C tool. A future MINDTCT port would join it as a sibling PD crate.
 - **The shim** (`fp-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
   permits this from any-licensed code (unlike GPL); LGPL obligations attach only to
   distributing the linked whole, not to our source.
@@ -147,12 +148,12 @@ License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication
 |---|---|---|
 | `fp-core`, native-driver own code, `fp-fp3`, `fprintd-rs` | `MIT OR Apache-2.0` | inline SPDX header on every source file |
 | `fp-backend-libfprint` (shim) | `MIT OR Apache-2.0` (our source) | *dynamically* links libfprint; **binary** redistribution honors LGPL-2.1 §6 — the system `.so` is replaceable, so it is auto-satisfied |
+| `fp-bozorth3` (BOZORTH3 matcher) | `LicenseRef-NBIS-PD` (public domain) | isolated PD crate, zero deps; original from stock NBIS, score-verified black-box against the C tool; text under `LICENSES/` |
 | a genuinely libfprint-derived driver, *if ever* | `LGPL-2.1-or-later` | isolated crate; carries its own SPDX header |
-| an NBIS port, *if ever* | public domain | isolated crate; SPDX id `LicenseRef-NBIS-PD` (+ its text under `LICENSES/`) |
 
-The bottom two rows describe code that does not exist yet; the split is pre-committed so a
-future contribution has an obvious, quarantined home and never contaminates the permissive
-core.
+`fp-bozorth3` realizes the pre-committed NBIS-PD quarantine (the first non-permissive crate); the
+LGPL row still describes code that does not exist yet. The split keeps any such contribution in an
+obvious, quarantined home so it never contaminates the permissive core.
 
 *(Not legal advice; the maintainers confirm specifics before release.)*
 
@@ -162,8 +163,9 @@ core.
 |---|---|---|---|
 | `fp-core` | domain model + `Backend`/`Device` traits | any | **none** |
 | `fp-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fp-core` only** — GVariant hand-rolled |
+| `fp-bozorth3` | BOZORTH3 minutiae matcher (public-domain NBIS port) | any | **none** — self-contained PD arithmetic kernel |
 | `fp-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
-| `fp-backend-native` | pure-Rust drivers + USB/SPI transport (+ optional NBIS) | Linux (USB) | `nusb`, async runtime |
+| `fp-backend-native` | pure-Rust drivers + USB/SPI transport (host-image matching via `fp-bozorth3`) | Linux (USB) | `nusb`, async runtime |
 | *integration* (`fp-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
 | `fprintd-rs` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
 
