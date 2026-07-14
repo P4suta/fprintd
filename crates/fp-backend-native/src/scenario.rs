@@ -20,7 +20,7 @@
 //!     .enroll(EnrollScript::default().produces(FingerId(7)).retry(RetryReason::NotCentered).advance());
 //! ```
 
-use fp_core::RetryReason;
+use fp_core::{RetryReason, Template};
 
 /// Opaque identity of a finger, for tests.
 ///
@@ -81,6 +81,12 @@ pub struct Scenario {
     pub(crate) enroll: EnrollScript,
     pub(crate) presented: Option<FingerId>,
     pub(crate) force_data_full: bool,
+    /// Real minutiae the *host-image* path enrolls (overrides the synthetic [`crate::synth`]
+    /// template). Set with [`Scenario::enroll_real`] to drive genuine BOZORTH3 matching.
+    pub(crate) enroll_template: Option<Template>,
+    /// Real minutiae presented as the live scan for verify/identify (a distinct capture from the
+    /// enrolled one). Set with [`Scenario::present_real`].
+    pub(crate) presented_template: Option<Template>,
 }
 
 impl Scenario {
@@ -104,6 +110,20 @@ impl Scenario {
     /// Force the next enrollment to report on-device storage as full ([`fp_core::Error::DataFull`]).
     pub fn storage_full(mut self) -> Self {
         self.force_data_full = true;
+        self
+    }
+
+    /// Enroll this **real** template (host-image minutiae) instead of the synthetic stub, so a
+    /// device built with [`crate::VirtualDeviceBuilder::bozorth3_matching`] exercises genuine
+    /// matching. Pair with [`Scenario::present_real`] for a distinct verify capture.
+    pub fn enroll_real(mut self, template: Template) -> Self {
+        self.enroll_template = Some(template);
+        self
+    }
+
+    /// Present this **real** template as the live scan for the next verify/identify.
+    pub fn present_real(mut self, template: Template) -> Self {
+        self.presented_template = Some(template);
         self
     }
 }

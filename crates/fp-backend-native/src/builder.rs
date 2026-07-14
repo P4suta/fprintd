@@ -37,6 +37,9 @@ pub struct VirtualDeviceBuilder {
     surfaces_scan: bool,
     capacity: Option<usize>,
     scenario: Scenario,
+    /// `Some(threshold)` switches NBIS matching from the synthetic byte-equality stub to the real
+    /// [`fp_bozorth3`] matcher (score `>= threshold` is a match). `None` keeps the deterministic stub.
+    match_threshold: Option<u32>,
 }
 
 impl VirtualDeviceBuilder {
@@ -56,6 +59,7 @@ impl VirtualDeviceBuilder {
             surfaces_scan: true,
             capacity: None,
             scenario: Scenario::new(),
+            match_threshold: None,
         }
     }
 
@@ -82,6 +86,7 @@ impl VirtualDeviceBuilder {
             surfaces_scan: false,
             capacity: Some(10),
             scenario: Scenario::new(),
+            match_threshold: None,
         }
     }
 
@@ -124,6 +129,14 @@ impl VirtualDeviceBuilder {
         self
     }
 
+    /// Match NBIS templates with the **real** [`fp_bozorth3`] matcher (score `>= threshold` matches),
+    /// instead of the default synthetic byte-equality. Pair with [`Scenario::enroll_real`] /
+    /// [`Scenario::present_real`] to feed genuine minutiae; `Raw`/MOC templates stay byte-compared.
+    pub fn bozorth3_matching(mut self, threshold: u32) -> Self {
+        self.match_threshold = Some(threshold);
+        self
+    }
+
     /// The id this builder will assign — the override, or the driver name by default.
     pub(crate) fn effective_id(&self) -> DeviceId {
         self.id
@@ -148,6 +161,7 @@ impl VirtualDeviceBuilder {
             self.surfaces_scan,
             self.capacity,
             self.scenario.clone(),
+            self.match_threshold,
         )
     }
 }

@@ -42,6 +42,13 @@ pub struct VirtualDevice {
     store: PrintStore,
     /// Scenario override: make the next enroll report storage full regardless of `store`.
     force_data_full: bool,
+    /// `Some(threshold)` ⇒ NBIS templates are matched by the real [`fp_bozorth3`] matcher
+    /// (score `>= threshold`); `None` ⇒ the synthetic byte-equality stub ([`crate::synth`]).
+    match_threshold: Option<u32>,
+    /// Real minutiae the host-image path enrolls, overriding the synthetic template.
+    enroll_template: Option<Template>,
+    /// Real minutiae presented as the live scan (a distinct capture from the enrolled one).
+    presented_template: Option<Template>,
 }
 
 impl VirtualDevice {
@@ -52,6 +59,7 @@ impl VirtualDevice {
         surfaces_scan: bool,
         capacity: Option<usize>,
         scenario: Scenario,
+        match_threshold: Option<u32>,
     ) -> Self {
         VirtualDevice {
             info,
@@ -63,6 +71,9 @@ impl VirtualDevice {
             enroll: scenario.enroll,
             store: PrintStore::new(capacity),
             force_data_full: scenario.force_data_full,
+            match_threshold,
+            enroll_template: scenario.enroll_template,
+            presented_template: scenario.presented_template,
         }
     }
 
@@ -133,6 +144,30 @@ impl VirtualDevice {
             ..Print::default()
         }
     }
+
+    /// The template presented as the live scan: the scenario's real capture if one was set, else
+    /// the synthetic template for the presented finger id.
+    fn scan_template(&self) -> Option<Template> {
+        self.presented_template
+            .clone()
+            .or_else(|| self.presented.map(|id| template_for(self.kind, id)))
+    }
+
+    /// Whether `scanned` matches `enrolled`. With a `match_threshold` set and both sides NBIS, this
+    /// is the **real** BOZORTH3 score `>= threshold` ([`crate::matcher`]); otherwise it is the
+    /// synthetic byte-equality stub ([`crate::synth::matches`]) — the default, and the only path for
+    /// `Raw`/MOC handles.
+    fn match_templates(&self, enrolled: &Template, scanned: &Template) -> bool {
+        match self.match_threshold {
+            Some(threshold)
+                if matches!(enrolled, Template::Nbis(_))
+                    && matches!(scanned, Template::Nbis(_)) =>
+            {
+                crate::matcher::nbis_match_score(enrolled, scanned) >= threshold
+            }
+            _ => matches(enrolled, scanned),
+        }
+    }
 }
 
 impl Device for VirtualDevice {
@@ -165,7 +200,9 @@ impl Device for VirtualDevice {
             return Err(Error::DataFull);
         }
 
-        let want = template_for(self.kind, self.enroll.produces.unwrap_or(FingerId(0)));
+        let want = self.enroll_template.clone().unwrap_or_else(|| {
+            template_for(self.kind, self.enroll.produces.unwrap_or(FingerId(0)))
+        });
         if self.info.features.contains(DeviceFeature::DUPLICATES_CHECK)
             && self.store.contains_template(&want)
         {
@@ -230,10 +267,10 @@ impl Device for VirtualDevice {
         self.guard_open()?;
         self.need(DeviceFeature::VERIFY)?;
 
-        let scanned = self.presented.map(|id| template_for(self.kind, id));
+        let scanned = self.scan_template();
         let matched = scanned
             .as_ref()
-            .is_some_and(|s| matches(&enrolled.template, s));
+            .is_some_and(|s| self.match_templates(&enrolled.template, s));
         let scanned = if self.surfaces_scan {
             scanned.map(|t| self.scan_print(t))
         } else {
@@ -247,10 +284,12 @@ impl Device for VirtualDevice {
         self.guard_open()?;
         self.need(DeviceFeature::IDENTIFY)?;
 
-        let scanned = self.presented.map(|id| template_for(self.kind, id));
-        let match_index = scanned
-            .as_ref()
-            .and_then(|s| gallery.iter().position(|p| matches(&p.template, s)));
+        let scanned = self.scan_template();
+        let match_index = scanned.as_ref().and_then(|s| {
+            gallery
+                .iter()
+                .position(|p| self.match_templates(&p.template, s))
+        });
         let scanned = if self.surfaces_scan {
             scanned.map(|t| self.scan_print(t))
         } else {
