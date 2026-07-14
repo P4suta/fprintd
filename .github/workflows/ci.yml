@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# CI: strict lints + tests everywhere the code is meant to run.
+#
+#  * `check`  — the pure-Rust crates on Windows and macOS. There the Linux-only shim and daemon
+#               compile to (near-)empty crates, so a full `--workspace` build needs no libfprint;
+#               this run covers fp-core, fp-fp3, fp-bozorth3 (BOZORTH3 golden + M2 FP3 fixture,
+#               both Docker-free), fp-backend-native and fp-integration, and proves the stack builds
+#               on a non-Linux dev box (the project's actual development environment).
+#  * `linux`  — the authoritative Linux verification inside the pinned libfprint container: the shim
+#               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
+#               the fprintd-rs D-Bus daemon end-to-end. This is where the Linux-only crates are lint
+#               and test gated.
+#  * `reuse`  — SPDX/REUSE license compliance.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Rustfmt
+        run: cargo fmt --all --check
+      - name: Clippy (workspace, all targets)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test (workspace)
+        run: cargo test --workspace
+
+  linux:
+    name: linux verify (Docker + libfprint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the pinned libfprint dev image
+        run: docker compose -f docker/docker-compose.yml build
+      - name: Clippy + test the whole workspace (incl. shim & daemon)
+        run: |
+          docker compose -f docker/docker-compose.yml run --rm dev \
+            bash -c 'cargo clippy --workspace --all-targets --all-features -- -D warnings && \
+                     cargo test --workspace --all-features'
+      - name: Shim vs. real libfprint virtual_device (incl. M2 FP3 byte-identity)
+        run: |
+          docker compose -f docker/docker-compose.yml run --rm dev \
+            cargo test -p fp-backend-libfprint --features virtual --test virtual
+
+  reuse:
+    name: reuse lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: fsfe/reuse-action@v5
