@@ -49,5 +49,5 @@ mod yield_now;
 pub use backend::VirtualBackend;
 pub use builder::VirtualDeviceBuilder;
 pub use device::VirtualDevice;
-pub use matcher::nbis_match_score;
+pub use matcher::{nbis_identify, nbis_match_score};
 pub use scenario::{CaptureOutcome, EnrollScript, FingerId, Scenario};

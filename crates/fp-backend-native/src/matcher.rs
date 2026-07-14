@@ -40,6 +40,24 @@ pub fn nbis_match_score(enrolled: &Template, scanned: &Template) -> u32 {
     best
 }
 
+/// Identify (1:N): the `gallery` index whose enrolled template best matches `scanned` and clears
+/// `threshold`, or `None` if none does.
+///
+/// This is the host-image `identify` semantics: score the probe against each enrolled template
+/// ([`nbis_match_score`]) and take the strongest above the driver threshold. Ties resolve to the
+/// **lowest** index (first-best), so the result is deterministic.
+#[must_use]
+pub fn nbis_identify(scanned: &Template, gallery: &[Template], threshold: u32) -> Option<usize> {
+    let mut best: Option<(usize, u32)> = None;
+    for (i, enrolled) in gallery.iter().enumerate() {
+        let score = nbis_match_score(enrolled, scanned);
+        if score >= threshold && best.is_none_or(|(_, b)| score > b) {
+            best = Some((i, score));
+        }
+    }
+    best.map(|(i, _)| i)
+}
+
 /// Convert one domain minutia to the matcher's xyt triple (an interoperability fact, not coupling).
 #[inline]
 fn to_bz(m: &fp_core::Minutia) -> fp_bozorth3::Minutia {

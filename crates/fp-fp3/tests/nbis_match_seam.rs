@@ -13,7 +13,7 @@
 //! synthetic finger (small jitter) and confirm it clears a threshold, while an unrelated finger does
 //! not.
 
-use fp_backend_native::nbis_match_score;
+use fp_backend_native::{nbis_identify, nbis_match_score};
 use fp_core::{Minutia, Print, Template};
 
 /// A conventional BOZORTH3 accept threshold; a same-finger recapture clears it comfortably while an
@@ -109,6 +109,30 @@ fn enrolled_nbis_print_survives_fp3_and_matches_via_bozorth3() {
     assert!(
         same > different,
         "self ({same}) must beat cross ({different})"
+    );
+}
+
+#[test]
+fn identify_picks_the_matching_gallery_entry() {
+    // A gallery of three unrelated enrolled fingers, plus a probe that is a jittered recapture of
+    // the middle one. Identify must return index 1 (and None when the probe is a fourth finger).
+    let gallery: Vec<Template> = [11, 22, 33]
+        .iter()
+        .map(|&seed| Template::Nbis(vec![synth(40, seed)]))
+        .collect();
+
+    let probe_of_1 = Template::Nbis(vec![jitter(&synth(40, 22), 5)]);
+    assert_eq!(
+        nbis_identify(&probe_of_1, &gallery, THRESHOLD),
+        Some(1),
+        "identify should find the recaptured finger at index 1"
+    );
+
+    let stranger = Template::Nbis(vec![synth(40, 999)]);
+    assert_eq!(
+        nbis_identify(&stranger, &gallery, THRESHOLD),
+        None,
+        "an unenrolled finger must identify to nobody"
     );
 }
 
