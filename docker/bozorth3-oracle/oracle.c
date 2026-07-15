@@ -11,7 +11,7 @@
  * "tag<TAB>score" so the score is produced by exactly the same code path the stock tool uses.
  *
  * This is a verification oracle only; it is compiled and run inside Docker (see run.sh), never
- * shipped. Its output is frozen into crates/fp-bozorth3/tests/fixtures/expected.tsv.
+ * shipped. Its output is frozen into crates/fprint-bozorth3/tests/fixtures/expected.tsv.
  */
 #include <stdio.h>
 #include <stdlib.h>

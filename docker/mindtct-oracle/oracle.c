@@ -53,7 +53,7 @@
  *
  * A `<name>.manifest` sidecar supplies "width height ppi" for each image. This is a verification
  * oracle only; it is compiled and run inside Docker (see run.sh), never shipped. Its output is frozen
- * into crates/fp-mindtct/tests/fixtures by a later phase.
+ * into crates/fprint-mindtct/tests/fixtures by a later phase.
  */
 #include <stdio.h>
 #include <stdlib.h>

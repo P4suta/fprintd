@@ -22,7 +22,7 @@ SPDX-License-Identifier = "MIT OR Apache-2.0"
 # BOZORTH3 golden corpus: synthetic .xyt inputs plus the stock-NBIS reference scores. Frozen test
 # oracles for the public-domain matcher; declared under its SPDX id (they carry no inline header).
 [[annotations]]
-path = ["crates/fp-bozorth3/tests/fixtures/**"]
+path = ["crates/fprint-bozorth3/tests/fixtures/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "NIST NBIS — U.S. Government work, public domain (title 17 §105)"
 SPDX-License-Identifier = "LicenseRef-NBIS-PD"
@@ -30,7 +30,7 @@ SPDX-License-Identifier = "LicenseRef-NBIS-PD"
 # MINDTCT golden corpus: grayscale fingerprint images plus the stock-NBIS reference xyt output.
 # Frozen test oracles for the public-domain detector; declared under its SPDX id (no inline header).
 [[annotations]]
-path = ["crates/fp-mindtct/tests/fixtures/**"]
+path = ["crates/fprint-mindtct/tests/fixtures/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "NIST NBIS — U.S. Government work, public domain (title 17 §105)"
 SPDX-License-Identifier = "LicenseRef-NBIS-PD"
@@ -38,7 +38,7 @@ SPDX-License-Identifier = "LicenseRef-NBIS-PD"
 # Real-libfprint FP3 blob, frozen as an interop fixture (a wire-format fact — a byte layout — not
 # copyrightable expression; see ARCHITECTURE.md §Provenance & licensing).
 [[annotations]]
-path = ["crates/fp-fp3/tests/fixtures/**"]
+path = ["crates/fprint-fp3/tests/fixtures/**"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 libfprint-rs (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"

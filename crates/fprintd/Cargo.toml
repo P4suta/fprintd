@@ -1,0 +1,47 @@
+[package]
+name = "fprintd"
+description = "Pure-Rust fingerprint daemon speaking the net.reactivated.Fprint D-Bus contract (fprintd-compatible)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+# Held back from crates.io for now: a system daemon is delivered by distro packaging (systemd
+# units, D-Bus policy, PolicyKit actions), the way upstream fprintd is — nobody `cargo install`s
+# their fingerprint daemon. The library layer below is what crates.io is for. Flipping this on
+# later costs one line; the name is reserved by nothing but our own restraint.
+publish = false
+
+[[bin]]
+name = "fprintd"
+path = "src/main.rs"
+
+# All real dependencies are Linux-only: the daemon talks to the system D-Bus,
+# PolicyKit and logind, and drives the libfprint shim. Gating them here keeps the
+# Windows workspace lean — on non-Linux the crate compiles down to a stub `main`.
+[target.'cfg(target_os = "linux")'.dependencies]
+fprint-core = { workspace = true }
+fprint-fp3 = { workspace = true }
+fprint-backend-libfprint = { workspace = true }
+# zbus must use its tokio integration so interface handlers run in the tokio runtime the
+# daemon is built on (the verify/enroll pumps `tokio::spawn` from inside handlers).
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = [
+    "rt",
+    "rt-multi-thread",
+    "sync",
+    "macros",
+    "signal",
+    "time",
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+fprint-backend-native = { workspace = true }
+# Only the D-Bus integration test uses `futures_util::StreamExt` to drain signal streams.
+futures-util = "0.3"
+
+[lints]
+workspace = true

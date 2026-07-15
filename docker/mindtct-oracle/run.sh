@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="${1:-/work}"
 STOCK="$ROOT/reference/nbis-stock"
 SRC="$STOCK/mindtct"
-FIX="$ROOT/crates/fp-mindtct/tests/fixtures"
+FIX="$ROOT/crates/fprint-mindtct/tests/fixtures"
 BIN="/tmp/mindtct-oracle"
 GENINC="/tmp/mindtct-geninc"
 

@@ -3,8 +3,8 @@
 #
 # Linux dev + verification image for the pure-Rust fingerprint stack.
 #
-# It exists to build and test the Linux-only crates (fp-backend-libfprint shim,
-# fprintd-rs daemon) and to run hardware-free enroll/verify against libfprint's
+# It exists to build and test the Linux-only crates (fprint-backend-libfprint shim,
+# fprintd daemon) and to run hardware-free enroll/verify against libfprint's
 # *virtual* drivers. The repo itself is NOT copied in — it is bind-mounted at
 # /work at run time (see docker/docker-compose.yml), so the image is reusable
 # across code changes and the build context stays tiny.

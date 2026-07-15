@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT="${1:-/work}"
 SRC="$ROOT/reference/nbis-stock/bozorth3"
-FIX="$ROOT/crates/fp-bozorth3/tests/fixtures"
+FIX="$ROOT/crates/fprint-bozorth3/tests/fixtures"
 BIN="/tmp/bozorth3-oracle"
 
 if [ ! -d "$SRC" ]; then

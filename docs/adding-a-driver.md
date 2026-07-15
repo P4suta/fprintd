@@ -13,8 +13,8 @@ If you'd like to try, here is where to plug in.
 ## The capture seam
 
 A native, host-image sensor is expressed as one small async trait,
-[`FrameSource`](../crates/fp-backend-native/src/frame_source.rs), in
-`fp-backend-native`:
+[`FrameSource`](../crates/fprint-backend-native/src/frame_source.rs), in
+`fprint-backend-native`:
 
 ```rust
 pub trait FrameSource {
@@ -27,22 +27,22 @@ pub trait FrameSource {
 Your driver's whole job is to turn hardware into a grayscale `Frame`. Everything
 downstream is already built and verified:
 
-- [`ImageDevice<S: FrameSource>`](../crates/fp-backend-native/src/image_device.rs)
-  drives your source and is a complete `fp_core::Device` (enroll / verify / identify).
-- [`detector`](../crates/fp-backend-native/src/detector.rs) runs `fp-mindtct`
-  (frame → minutiae) and [`matcher`](../crates/fp-backend-native/src/matcher.rs)
-  runs `fp-bozorth3` (minutiae → score). Both are golden bit-exact.
+- [`ImageDevice<S: FrameSource>`](../crates/fprint-backend-native/src/image_device.rs)
+  drives your source and is a complete `fprint_core::Device` (enroll / verify / identify).
+- [`detector`](../crates/fprint-backend-native/src/detector.rs) runs `fprint-mindtct`
+  (frame → minutiae) and [`matcher`](../crates/fprint-backend-native/src/matcher.rs)
+  runs `fprint-bozorth3` (minutiae → score). Both are golden bit-exact.
 
-So a new driver is *just* a `FrameSource` — you do not touch `fp-core`, the daemon,
+So a new driver is *just* a `FrameSource` — you do not touch `fprint-core`, the daemon,
 or the matcher.
 
 ## Reference template
 
 Three `FrameSource` implementors already exist to copy from:
 
-- [`SyntheticFrameSource`](../crates/fp-backend-native/src/sources/synthetic.rs) and
-  [`FileFrameSource`](../crates/fp-backend-native/src/sources/file.rs) — hardware-free.
-- [`UsbFrameSource`](../crates/fp-backend-native/src/usb/source.rs) — an **experimental,
+- [`SyntheticFrameSource`](../crates/fprint-backend-native/src/sources/synthetic.rs) and
+  [`FileFrameSource`](../crates/fprint-backend-native/src/sources/file.rs) — hardware-free.
+- [`UsbFrameSource`](../crates/fprint-backend-native/src/usb/source.rs) — an **experimental,
   hardware-unverified** worked example for the Validity VFS5011, layered as
   `proto` (pure framing) → `transport` (the `nusb` seam) → `source` (the driver) →
   `vfs5011` (device constants). Its protocol values are placeholders marked

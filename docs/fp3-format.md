@@ -8,7 +8,7 @@ and any `FpPrint` serialized by libfprint/fprintd.
 > GVariant type signature you must match to be compatible — not copyrightable expression.
 > The facts were read from upstream `libfprint/fp-print.c` (`fp_print_serialize` /
 > `fp_print_deserialize`, LGPL-2.1+) purely to document the format. Our codec
-> (`crates/fp-fp3`) is written **originally from this spec**, not transliterated from the C
+> (`crates/fprint-fp3`) is written **originally from this spec**, not transliterated from the C
 > source. See `ARCHITECTURE.md` §Provenance & Licensing.
 
 ## Container
@@ -32,7 +32,7 @@ and any `FpPrint` serialized by libfprint/fprintd.
 | 1 | `s` | driver | driver id the template is bound to |
 | 2 | `s` | device_id | device id |
 | 3 | `b` | device_stored | true ⇒ this print is only a handle to an on-sensor template (MOC) |
-| 4 | `y` | finger | `FpFinger` byte (see `fp-core::Finger`: 0=unknown, 1..=10) |
+| 4 | `y` | finger | `FpFinger` byte (see `fprint-core::Finger`: 0=unknown, 1..=10) |
 | 5 | `ms` | username | maybe-string |
 | 6 | `ms` | description | maybe-string |
 | 7 | `i` | enroll_date | GLib **Julian day** (`g_date_get_julian`), or `G_MININT32` (= `i32::MIN`) if unset/invalid |
@@ -44,13 +44,13 @@ and any `FpPrint` serialized by libfprint/fprintd.
 **NBIS (type = 2).** The variant holds type `(a(aiaiai))` — a tuple with a single field,
 an array of samples; each sample is `(aiaiai)` = three **equal-length** `int32` arrays
 `(xcol, ycol, thetacol)`, one sample per enrolled capture. Maps to
-`fp-core::Template::Nbis(Vec<Vec<Minutia>>)` where each inner `Vec<Minutia>` is one sample
+`fprint-core::Template::Nbis(Vec<Vec<Minutia>>)` where each inner `Vec<Minutia>` is one sample
 and a `Minutia { x, y, theta }` is one index across the three arrays.
 
 **RAW (type = 1).** The variant holds the driver's own opaque GVariant (`print->data`) —
 an arbitrary type chosen per driver. For match-on-chip prints this is typically a small
 handle. Byte-compatible round-tripping must preserve the exact inner variant (type
-signature + data), so `fp-core::Template::Raw` carries it as the opaque serialized variant.
+signature + data), so `fprint-core::Template::Raw` carries it as the opaque serialized variant.
 
 **UNDEFINED (type = 0).** Not serialized in practice (a print before enrollment).
 
@@ -68,7 +68,7 @@ edge helper, not the FP3 codec.
 ## Verification plan
 
 - **Self-consistency (offline, now):** `Print → encode → decode → Print` round-trips in
-  `crates/fp-fp3` tests.
+  `crates/fprint-fp3` tests.
 - **Byte-compatibility (needs Linux/libfprint):** capture real `FP3` blobs (enroll via the
   `virtual-image` driver, or read `/var/lib/fprint` fixtures), then assert our decode
   matches and our re-encode is byte-identical. Tracked as an M2 fixture task.

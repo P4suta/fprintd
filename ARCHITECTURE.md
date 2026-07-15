@@ -24,21 +24,21 @@ library underneath.
 ## The layering (and the one rule)
 
 ```
-  fprintd-rs (bin)        net.reactivated.Fprint over zbus, PolicyKit, /var/lib/fprint
+  fprintd (bin)        net.reactivated.Fprint over zbus, PolicyKit, /var/lib/fprint
         │                 Daemon<CompositeBackend>; one actor thread per device
         ▼
   integration crate       the ONLY layer that knows every backend
         │                 CompositeBackend / enum CompositeDevice { Native, Shim }
         ▼
-  fp-backend-* (leaves)   fp-backend-libfprint (FFI shim, !Send) · fp-backend-native
-        │                 each implements fp-core's traits
+  fprint-backend-* (leaves)  fprint-backend-libfprint (FFI shim, !Send) · fprint-backend-native
+        │                    each implements fprint-core's traits
         ▼
-  fp-core (lib)           the crystal: domain model + Backend/Device traits
-                          zero dependencies · #![forbid(unsafe_code)]
+  fprint-core (lib)          the crystal: domain model + Backend/Device traits
+                             zero dependencies · #![forbid(unsafe_code)]
 ```
 
-**The one rule: dependencies flow only toward the leaves.** `fp-core` knows nothing
-about any backend, any transport, any wire format. Backends know `fp-core`. The
+**The one rule: dependencies flow only toward the leaves.** `fprint-core` knows nothing
+about any backend, any transport, any wire format. Backends know `fprint-core`. The
 integration crate knows the backends. The daemon knows the integration crate. There
 is never an arrow pointing back up. This is what keeps the core a crystal.
 
@@ -47,10 +47,10 @@ is never an arrow pointing back up. This is what keeps the core a crystal.
 ## Principles
 
 1. **Dependency inversion, without exception.** See the rule above. If a change would
-   make `fp-core` reference an implementor, the design is wrong — lift the coupling to
+   make `fprint-core` reference an implementor, the design is wrong — lift the coupling to
    the integration crate instead.
 
-2. **The core is a zero-dependency crystal.** `fp-core` is pure domain types and traits,
+2. **The core is a zero-dependency crystal.** `fprint-core` is pure domain types and traits,
    with `#![forbid(unsafe_code)]`. No async runtime, no USB, no serialization library,
    no bitflags crate. Those all live in leaves.
 
@@ -83,7 +83,7 @@ is never an arrow pointing back up. This is what keeps the core a crystal.
 
 ### Dispatch: native `async fn` in trait, static, in the core
 
-`fp-core`'s `Device`/`Backend` traits use native async fn (stabilized in Rust 1.75) with
+`fprint-core`'s `Device`/`Backend` traits use native async fn (stabilized in Rust 1.75) with
 static dispatch. We deliberately do **not** put `dyn` or `async-trait` in the core:
 
 - Native AFIT is the modern recommendation for *defining* an async trait, gives backend
@@ -144,11 +144,11 @@ hard line between two very different activities:
 
 Consequences:
 
-- **NBIS port** — realized as **`fp-bozorth3`** (the BOZORTH3 matcher). It is written from
+- **NBIS port** — realized as **`fprint-bozorth3`** (the BOZORTH3 matcher). It is written from
   **stock upstream public-domain NBIS** (see `docs/bozorth3-algorithm.md`), never from libfprint's
   patched `nbis/` (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock
-  C tool. The MINDTCT port has since joined it as a sibling PD crate, **`fp-mindtct`**.
-- **The shim** (`fp-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
+  C tool. The MINDTCT port has since joined it as a sibling PD crate, **`fprint-mindtct`**.
+- **The shim** (`fprint-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
   permits this from any-licensed code (unlike GPL); LGPL obligations attach only to
   distributing the linked whole, not to our source.
 - Any code that genuinely *is* derived from libfprint (e.g. if we ever port a specific
@@ -162,12 +162,12 @@ License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication
 
 | crate(s) | SPDX license | note |
 |---|---|---|
-| `fp-core`, native-driver own code, `fp-fp3`, `fprintd-rs` | `MIT OR Apache-2.0` | inline SPDX header on every source file |
-| `fp-backend-libfprint` (shim) | `MIT OR Apache-2.0` (our source) | *dynamically* links libfprint; **binary** redistribution honors LGPL-2.1 §6 — the system `.so` is replaceable, so it is auto-satisfied |
-| `fp-bozorth3` (BOZORTH3 matcher) | `LicenseRef-NBIS-PD` (public domain) | isolated PD crate, zero deps; original from stock NBIS, score-verified black-box against the C tool; text under `LICENSES/` |
+| `fprint-core`, native-driver own code, `fprint-fp3`, `fprintd` | `MIT OR Apache-2.0` | inline SPDX header on every source file |
+| `fprint-backend-libfprint` (shim) | `MIT OR Apache-2.0` (our source) | *dynamically* links libfprint; **binary** redistribution honors LGPL-2.1 §6 — the system `.so` is replaceable, so it is auto-satisfied |
+| `fprint-bozorth3` (BOZORTH3 matcher) | `LicenseRef-NBIS-PD` (public domain) | isolated PD crate, zero deps; original from stock NBIS, score-verified black-box against the C tool; text under `LICENSES/` |
 | a genuinely libfprint-derived driver, *if ever* | `LGPL-2.1-or-later` | isolated crate; carries its own SPDX header |
 
-`fp-bozorth3` realizes the pre-committed NBIS-PD quarantine (the first non-permissive crate); the
+`fprint-bozorth3` realizes the pre-committed NBIS-PD quarantine (the first non-permissive crate); the
 LGPL row still describes code that does not exist yet. The split keeps any such contribution in an
 obvious, quarantined home so it never contaminates the permissive core.
 
@@ -177,18 +177,18 @@ obvious, quarantined home so it never contaminates the permissive core.
 
 | crate | role | platform | deps of note |
 |---|---|---|---|
-| `fp-core` | domain model + `Backend`/`Device` traits | any | **none** |
-| `fp-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fp-core` only** — GVariant hand-rolled |
-| `fp-bozorth3` | BOZORTH3 minutiae matcher (public-domain NBIS port) | any | **none** — self-contained PD arithmetic kernel |
-| `fp-mindtct` | MINDTCT minutiae detector (public-domain NBIS port) | any | **none** — self-contained PD image-processing kernel |
-| `fp-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
-| `fp-backend-native` | virtual device + host-image matching (image→minutiae→match via `fp-mindtct`/`fp-bozorth3`); an **experimental** USB capture seam behind the `usb` feature | any | `fp-mindtct`, `fp-bozorth3`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
-| *integration* (`fp-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
-| `fprintd-rs` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
+| `fprint-core` | domain model + `Backend`/`Device` traits | any | **none** |
+| `fprint-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fprint-core` only** — GVariant hand-rolled |
+| `fprint-bozorth3` | BOZORTH3 minutiae matcher (public-domain NBIS port) | any | **none** — self-contained PD arithmetic kernel |
+| `fprint-mindtct` | MINDTCT minutiae detector (public-domain NBIS port) | any | **none** — self-contained PD image-processing kernel |
+| `fprint-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
+| `fprint-backend-native` | virtual device + host-image matching (image→minutiae→match via `fprint-mindtct`/`fprint-bozorth3`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-mindtct`, `fprint-bozorth3`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
+| *integration* (`fprint-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
+| `fprintd` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
 
-Wire formats live only in edge modules, never in `fp-core`. **FP3** (de)serialization is a
-**hand-rolled GVariant codec** in `fp-fp3` — no serialization crate, so that edge crystal
-depends on `fp-core` alone (its correctness is pinned by frozen golden-byte fixtures). Only the
+Wire formats live only in edge modules, never in `fprint-core`. **FP3** (de)serialization is a
+**hand-rolled GVariant codec** in `fprint-fp3` — no serialization crate, so that edge crystal
+depends on `fprint-core` alone (its correctness is pinned by frozen golden-byte fixtures). Only the
 **D-Bus** side uses `zvariant`, and it comes transitively through `zbus`; the daemon has no
 direct `zvariant` dependency.
 
@@ -201,5 +201,5 @@ direct `zvariant` dependency.
 - A dlopen/plugin ABI for third-party drivers — when a native driver *is* contributed it
   goes in-tree (libfprint's compiled-in model is fine); we don't add a plugin boundary.
 - C-ABI drop-in compatibility with `libfprint.so`.
-- Windows/macOS runtime support (the daemon targets Linux; `fp-core` merely compiles
+- Windows/macOS runtime support (the daemon targets Linux; `fprint-core` merely compiles
   anywhere).

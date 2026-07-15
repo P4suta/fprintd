@@ -1,15 +1,15 @@
 # The BOZORTH3 minutiae matcher (spec)
 
 This is a **factual, implementation-ready description of the BOZORTH3 fingerprint matching
-algorithm**, extracted so `crates/fp-bozorth3` can reproduce the stock tool's integer match
+algorithm**, extracted so `crates/fprint-bozorth3` can reproduce the stock tool's integer match
 scores **exactly**.
 
 > **Provenance & license note.** BOZORTH3 is part of the **NIST NBIS** package, a work of the
 > U.S. Federal Government that is **in the public domain** (title 17 §105 — see the header of
-> `bozorth3/src/lib/bozorth3/bozorth3.c`). This spec, and `fp-bozorth3`, are written from the
+> `bozorth3/src/lib/bozorth3/bozorth3.c`). This spec, and `fprint-bozorth3`, are written from the
 > **stock upstream NBIS** source (cloned to `reference/nbis-stock/`, git-ignored), **not** from
 > libfprint's patched `nbis/` copy — whose modifications carry libfprint's LGPL-2.1+ terms. Because
-> NBIS is public domain, `fp-bozorth3` may follow the reference arithmetic faithfully; it is
+> NBIS is public domain, `fprint-bozorth3` may follow the reference arithmetic faithfully; it is
 > quarantined under SPDX `LicenseRef-NBIS-PD` so it never touches the permissive core. See
 > `ARCHITECTURE.md` §Provenance & licensing.
 
@@ -25,7 +25,7 @@ A print is a list of minutiae, each an integer triple `xyt`:
 - `x`, `y` — pixel coordinates (origin top-left).
 - `t` (theta) — ridge direction in **integer degrees**, range `0..=359`.
 
-Our domain type `fp_core::Minutia { x, y, theta }` maps 1:1 onto this triple; `fp-bozorth3`
+Our domain type `fprint_core::Minutia { x, y, theta }` maps 1:1 onto this triple; `fprint-bozorth3`
 defines its own identical `Minutia` (the xyt triple is an interoperability fact — the matcher
 crate stays dependency-free, and the consumer converts).
 
@@ -38,7 +38,7 @@ crate stays dependency-free, and the consumer converts).
    (`sort_x_y` → `qsort`). This ordering is **load-bearing**: stage 1 relies on it for an early
    `break` (below).
 
-`fp-bozorth3` reproduces: cap to `max` (default 150), then stable sort by `(x, y)` ascending.
+`fprint-bozorth3` reproduces: cap to `max` (default 150), then stable sort by `(x, y)` ascending.
 (Quality-based pruning is only reachable with a quality column, which `Template::Nbis` does not
 carry; we cap in input order then sort.)
 
@@ -96,7 +96,7 @@ pair `(k, j)` with `k < j` (indices 0-based into the sorted list):
    The `+400` on the 6th column (and the k/j point ids being 1-based) encode which endpoint owns
    which beta; stage 2 decodes it.
 6. **Keep the table sorted** by the first three columns `(distance, beta_min, beta_max)` via an
-   insertion (binary-search + shift of a pointer list). `fp-bozorth3` builds the rows then sorts by
+   insertion (binary-search + shift of a pointer list). `fprint-bozorth3` builds the rows then sorts by
    `(col0, col1, col2)` — the row order after sorting is what matters, and ties preserve prior order.
 
 Table capacity is 20000 rows (`(200²)/2`); NBIS stops at 19999. Our cap of 200 minutiae keeps us
@@ -132,7 +132,7 @@ Output `colp[0..edge_pair_index]` is the sorted compatibility list; the count is
 ## Stage 3 — clustering & match score (`bz_match_score`, `bz_sift`, `bz_final_loop`)
 
 Consumes the sorted compatibility list `colp` (each row `[Δθ, probe_k, probe_j, gallery_a,
-gallery_b]`) and produces the integer score. Ported faithfully; `crates/fp-bozorth3/src/cluster.rs`
+gallery_b]`) and produces the integer score. Ported faithfully; `crates/fprint-bozorth3/src/cluster.rs`
 keeps a `// PORT:` note at each of the two behaviour-preserving deviations from the C.
 
 - **Guard.** If either print has `< MIN_COMPUTABLE_BOZORTH_MINUTIAE` (10) minutiae → `0`.
@@ -165,7 +165,7 @@ constant; `DEFAULT_MAX_MATCH_SCORE = 400` only caps the *printed* value).
 
 ### Reproduction guarantee & the ±1 residual (a reference-side UB, proven)
 
-`crates/fp-bozorth3` reproduces stock NBIS scores, verified pair-for-pair against the C tool
+`crates/fprint-bozorth3` reproduces stock NBIS scores, verified pair-for-pair against the C tool
 (`tests/golden.rs`, corpus in `tests/fixtures/`, oracle via `mise run bozorth3-oracle`):
 
 - **Stages 1–2 are bit-identical** — the `(probe_web_len, gallery_web_len, num_edges)` triple matches
@@ -178,7 +178,7 @@ constant; `DEFAULT_MAX_MATCH_SCORE = 400` only caps the *printed* value).
   not-re-zeroed in the stage-3 spec above), so its score depends on build layout. Concretely, the
   same source, same compiler and flags, scores `jit_10s2` as **10** when the object files are linked
   in the reference `Makefile`'s order and as **9** when linked alphabetically — an unambiguous link
-  order dependence. `fp-bozorth3` is deterministic (it zero-initializes and never reads an unwritten
+  order dependence. `fprint-bozorth3` is deterministic (it zero-initializes and never reads an unwritten
   slot); its value equals one valid C build and differs by ≤1 from the other. The golden fixtures pin
   the `mise run bozorth3-oracle` (reference-order) build, and the ≤1-divergent pairs are enumerated
   in the golden test. On a sub-20-minutia print, where match thresholds are ~40, ±1 is operationally
@@ -186,11 +186,11 @@ constant; `DEFAULT_MAX_MATCH_SCORE = 400` only caps the *printed* value).
 
 ---
 
-## Consuming `fp-bozorth3` for verify (fp-core seam)
+## Consuming `fprint-bozorth3` for verify (fprint-core seam)
 
 `Template::Nbis` is `Vec<Vec<Minutia>>` — one inner vector per enrolled capture sample. libfprint/
 NBIS verify runs the probe scan against **each** enrolled sample and takes the **maximum** score,
-comparing it to a driver threshold. `fp-bozorth3` therefore exposes a single-pair
+comparing it to a driver threshold. `fprint-bozorth3` therefore exposes a single-pair
 `match_score(&[Minutia], &[Minutia]) -> u32`; the consumer takes the max over samples and applies a
 **documented threshold** (to be pinned from stock NBIS + libfprint usage, then verified black-box).
 
@@ -201,6 +201,6 @@ comparing it to a driver threshold. `fp-bozorth3` therefore exposes a single-pai
 - **Golden vectors (offline, permanent oracle).** In Docker, build the **stock NBIS `bozorth3`**
   CLI, run it over a fixed corpus of `.xyt` pairs (matching / non-matching / edge cases: empty,
   single, `< 10`, at the 200 cap), capture the integer scores, and freeze `{input xyt, score}` into
-  `crates/fp-bozorth3/tests/fixtures/`. `cargo test -p fp-bozorth3` then asserts `match_score`
+  `crates/fprint-bozorth3/tests/fixtures/`. `cargo test -p fprint-bozorth3` then asserts `match_score`
   equals the C score **exactly**, with no Docker required for regression.
 - **Regeneration** is a documented `mise` task so the corpus stays reproducible.

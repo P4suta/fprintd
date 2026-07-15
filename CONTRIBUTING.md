@@ -10,12 +10,12 @@ the shape of everything.
 
 ## The one rule
 
-> **Dependencies flow only toward the leaves.** `fp-core` knows nothing about any
-> backend, transport, or wire format. Backends know `fp-core`. The integration crate
+> **Dependencies flow only toward the leaves.** `fprint-core` knows nothing about any
+> backend, transport, or wire format. Backends know `fprint-core`. The integration crate
 > knows the backends. The daemon knows the integration crate. There is never an arrow
 > pointing back up.
 
-This is the core norm for every change. If a patch would make `fp-core` reference a
+This is the core norm for every change. If a patch would make `fprint-core` reference a
 backend, a runtime, a USB stack, or a serialization format, the design is wrong —
 lift the coupling up to the integration crate instead. Keeping the core a
 zero-dependency, `#![forbid(unsafe_code)]` crystal is what makes the rest possible.
@@ -66,5 +66,5 @@ By participating you agree to uphold our [Code of Conduct](CODE_OF_CONDUCT.md).
 Unless you explicitly state otherwise, any contribution you intentionally submit for
 inclusion in the work, as defined in the Apache-2.0 license, shall be dual licensed as
 `MIT OR Apache-2.0`, without any additional terms or conditions. Contributions to the
-public-domain NBIS crates (`fp-bozorth3`, `fp-mindtct`) follow those crates' own
+public-domain NBIS crates (`fprint-bozorth3`, `fprint-mindtct`) follow those crates' own
 notices.

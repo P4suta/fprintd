@@ -12,9 +12,9 @@ basis for the original Rust implementations.
 - [`fp3-format.md`](fp3-format.md) — the FP3 on-disk template format: magic, the
   GVariant type signature, NBIS/RAW payloads, MOC user-id layout.
 - [`bozorth3-algorithm.md`](bozorth3-algorithm.md) — the BOZORTH3 matcher: input
-  coordinate system, constants, stages, and bit-exactness notes (realized as `fp-bozorth3`).
+  coordinate system, constants, stages, and bit-exactness notes (realized as `fprint-bozorth3`).
 - [`mindtct-algorithm.md`](mindtct-algorithm.md) — the MINDTCT detector: the
-  nine-stage pipeline, `lfsparms_V2` parameters, and xyt output (realized as `fp-mindtct`).
+  nine-stage pipeline, `lfsparms_V2` parameters, and xyt output (realized as `fprint-mindtct`).
 
 ## Contributor guide
 

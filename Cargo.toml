@@ -1,42 +1,47 @@
 ## Virtual workspace manifest for the fprintd-compatible pure-Rust fingerprint stack.
-## (The repo directory is named `libfprint-rs` for historical reasons, but the crate
-##  names deliberately avoid that — the existing crates.io `libfprint-rs` is the C FFI
-##  binding we depend on as the M1 shim backend. See docs/ and the plan file.)
+##
+## Naming follows the ripgrep shape: the tool is `fprintd` (this repo, and the daemon
+## crate), the libraries under it are the domain family `fprint-*` — they are fingerprint
+## libraries, not daemon parts, and `fprint-core` knows nothing about the daemon.
+## `libfprint-rs` on crates.io is the C FFI binding we *depend on* as the shim backend,
+## not this project; we speak fprintd's D-Bus contract, not libfprint's C ABI.
 
 [workspace]
 resolver = "2"
 members = [
-    "crates/fp-core",
-    "crates/fp-fp3",                # FP3 (de)serialization codec (edge translator; offline)
-    "crates/fp-bozorth3",           # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
-    "crates/fp-mindtct",            # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
-    "crates/fp-backend-native",     # pure-Rust virtual device: the first fp-core Backend/Device implementor
-    "crates/fp-integration",        # CompositeBackend / CompositeDevice (native-only off Linux)
+    "crates/fprint-core",
+    "crates/fprint-fp3",                # FP3 (de)serialization codec (edge translator; offline)
+    "crates/fprint-bozorth3",           # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
+    "crates/fprint-mindtct",            # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
+    "crates/fprint-backend-native",     # pure-Rust virtual device: the first fprint-core Backend/Device implementor
+    "crates/fprint-integration",        # CompositeBackend / CompositeDevice (native-only off Linux)
     # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
     # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
-    "crates/fp-backend-libfprint",  # M1 shim over the C libfprint via the libfprint-rs FFI crate
-    "crates/fprintd-rs",            # M1 zbus daemon speaking net.reactivated.Fprint
+    "crates/fprint-backend-libfprint",  # M1 shim over the C libfprint via the libfprint-rs FFI crate
+    "crates/fprintd",            # M1 zbus daemon speaking net.reactivated.Fprint
 ]
 
 [workspace.package]
 version = "0.1.0"               # first shape worth showing the world; all crates inherit via `version.workspace = true`
 edition = "2021"
 rust-version = "1.82"
-license = "MIT OR Apache-2.0"   # fp-core is clean-room original code; any NBIS-derived crate carries its own (public-domain) notice
+license = "MIT OR Apache-2.0"   # fprint-core is clean-room original code; any NBIS-derived crate carries its own (public-domain) notice
 authors = ["Yasunobu Sakashita <crates.tank733@slmails.com>"]
-# repository = "https://github.com/…"  # TODO: set once the public remote exists (the repo name is not
-#                                      # the directory name — cf. webpkit), then add
-#                                      # `repository.workspace = true` to each crate.
+repository = "https://github.com/P4suta/fprintd"
 
 [workspace.dependencies]
-# Internal crates (path deps; a Linux-only shim path entry pulls nothing until a
-# consumer activates it under a cfg(target_os = "linux") target table).
-fp-core              = { path = "crates/fp-core" }
-fp-fp3               = { path = "crates/fp-fp3" }
-fp-bozorth3          = { path = "crates/fp-bozorth3" }
-fp-mindtct           = { path = "crates/fp-mindtct" }
-fp-backend-native    = { path = "crates/fp-backend-native" }
-fp-backend-libfprint = { path = "crates/fp-backend-libfprint" }
+# Internal crates. Published members carry `version` alongside `path`: crates.io rejects a
+# path-only dependency, so a published crate's deps must resolve on the registry too.
+fprint-core              = { path = "crates/fprint-core", version = "0.1.0" }
+fprint-fp3               = { path = "crates/fprint-fp3", version = "0.1.0" }
+fprint-bozorth3          = { path = "crates/fprint-bozorth3", version = "0.1.0" }
+fprint-mindtct           = { path = "crates/fprint-mindtct", version = "0.1.0" }
+# Deliberately version-less: this crate is `publish = false`, and it is a *dev*-dependency of
+# the published `fprint-fp3`. Cargo includes only dev-dependencies that specify a version, so
+# leaving it out is what lets it be stripped from the published tarball. Adding a `version`
+# here would drag an unpublished crate into fprint-fp3's manifest and break `cargo publish`.
+fprint-backend-native    = { path = "crates/fprint-backend-native" }
+fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version = "0.1.0" }
 
 [profile.release]
 lto = "thin"

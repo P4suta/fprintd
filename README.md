@@ -1,9 +1,9 @@
-# libfprint-rs
+# fprintd
 
 A modern, GObject-free, **pure-Rust** fingerprint stack that speaks fprintd's
 D-Bus contract (`net.reactivated.Fprint`), so the existing Linux desktop / PAM
 login stack (pam_fprintd, GNOME/KDE settings) runs on it unchanged — plus a
-clean, embeddable `fp-core` library underneath.
+clean, embeddable `fprint-core` library underneath.
 
 > **North star: we don't rebuild fprintd — we coexist with it.** We speak the
 > ecosystem's real contract, keep the C **libfprint** underneath as a dynamically
@@ -14,19 +14,19 @@ clean, embeddable `fp-core` library underneath.
 
 ## Crates
 
-Dependencies flow only toward the leaves; `fp-core` knows nothing about any
+Dependencies flow only toward the leaves; `fprint-core` knows nothing about any
 backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
 
 | crate | role | platform |
 |---|---|---|
-| [`fp-core`](crates/fp-core) | the crystal: device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
-| [`fp-fp3`](crates/fp-fp3) | FP3 on-disk template (de)serialization — a hand-rolled GVariant codec (edge translator) | any |
-| [`fp-bozorth3`](crates/fp-bozorth3) | BOZORTH3 minutiae matcher — self-contained public-domain NBIS port | any |
-| [`fp-mindtct`](crates/fp-mindtct) | MINDTCT minutiae detector — self-contained public-domain NBIS port | any |
-| [`fp-backend-native`](crates/fp-backend-native) | virtual device + host-image matching; an **experimental** USB capture seam behind the `usb` feature | any |
-| [`fp-backend-libfprint`](crates/fp-backend-libfprint) | the shim: dynamically links the C libfprint via the `libfprint-rs` FFI crate | Linux |
-| [`fp-integration`](crates/fp-integration) | `CompositeBackend` / `CompositeDevice` — the one layer that knows every backend | any |
-| [`fprintd-rs`](crates/fprintd-rs) | the `net.reactivated.Fprint` daemon (zbus + PolicyKit) | Linux |
+| [`fprint-core`](crates/fprint-core) | the crystal: device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
+| [`fprint-fp3`](crates/fprint-fp3) | FP3 on-disk template (de)serialization — a hand-rolled GVariant codec (edge translator) | any |
+| [`fprint-bozorth3`](crates/fprint-bozorth3) | BOZORTH3 minutiae matcher — self-contained public-domain NBIS port | any |
+| [`fprint-mindtct`](crates/fprint-mindtct) | MINDTCT minutiae detector — self-contained public-domain NBIS port | any |
+| [`fprint-backend-native`](crates/fprint-backend-native) | virtual device + host-image matching; an **experimental** USB capture seam behind the `usb` feature | any |
+| [`fprint-backend-libfprint`](crates/fprint-backend-libfprint) | the shim: dynamically links the C libfprint via the `libfprint-rs` FFI crate | Linux |
+| [`fprint-integration`](crates/fprint-integration) | `CompositeBackend` / `CompositeDevice` — the one layer that knows every backend | any |
+| [`fprintd`](crates/fprintd) | the `net.reactivated.Fprint` daemon (zbus + PolicyKit) | Linux |
 
 ## Status
 
@@ -34,9 +34,9 @@ Honest about what is verified and what is not:
 
 | layer | state |
 |---|---|
-| **Crystal + arithmetic kernels + codec** (`fp-core`, `fp-fp3`, `fp-bozorth3`, `fp-mindtct`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint. All offline, no hardware. |
-| **Shim daemon** (`fprintd-rs` + `fp-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
-| **Native** (`fp-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is an **experimental, hardware-unverified invitation** — see below. |
+| **Crystal + arithmetic kernels + codec** (`fprint-core`, `fprint-fp3`, `fprint-bozorth3`, `fprint-mindtct`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint. All offline, no hardware. |
+| **Shim daemon** (`fprintd` + `fprint-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
+| **Native** (`fprint-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is an **experimental, hardware-unverified invitation** — see below. |
 
 **Native drivers are an open invitation, not a goal.** Reaching parity with
 libfprint's driver estate is explicitly a non-goal ([`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -78,7 +78,7 @@ is expected to pass. Provenance is kept clean by matching only *interoperability
 facts* (enum values, wire-format signatures, D-Bus names) and never
 transliterating LGPL implementation code. A backend that links the C
 **libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only; the
-public-domain NBIS ports (`fp-bozorth3`, `fp-mindtct`) live in separately-licensed
+public-domain NBIS ports (`fprint-bozorth3`, `fprint-mindtct`) live in separately-licensed
 crates isolated from the `MIT OR Apache-2.0` core. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
 

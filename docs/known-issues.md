@@ -11,17 +11,17 @@ sites carry an `// UPSTREAM(...)` / `// TRACKED(...)` marker pointing back here.
 
 ## libfprint-rs 0.3.1 FFI-binding workarounds (shim only)
 
-The `fp-backend-libfprint` shim links the C libfprint through the crates.io `libfprint-rs`
+The `fprint-backend-libfprint` shim links the C libfprint through the crates.io `libfprint-rs`
 0.3.1 binding. Four workarounds exist because that binding version under-delivers. All are
 isolated to the shim, `// SAFETY:`-documented, and **pinned to `=0.3.1` / `=0.2.0`** (see
 below) so a patch release cannot silently change the behavior they depend on.
 
 | id | site | what | removal condition |
 |---|---|---|---|
-| **M2-A** | `crates/fp-backend-libfprint/src/convert.rs` (`device_name`) | 0.3.1's `FpDevice::name()` wraps the *transfer-none* `fp_device_get_name` with `from_glib_full` → tries to free a string it doesn't own → panics on the virtual driver. We read the name ourselves with correct transfer-none semantics via raw FFI. | Binding fixes the transfer annotation → delete `device_name`, use `dev.name()`. |
-| **M2-B** | `crates/fp-backend-libfprint/src/storage.rs` (whole module) | 0.3.1's `list_prints`/`delete_print`/`clear_storage` wrappers are `unimplemented!()`. We call the C `fp_device_*_sync` entry points directly through `libfprint-sys` and translate GLib ownership at the boundary. | Binding implements the wrappers → replace the raw module with binding calls. |
-| **M2-C** | `crates/fp-backend-libfprint/src/convert.rs` (non-x86 `features`) | The binding gates its safe `features()` iterator to `x86`/`x86_64`; other arches need a raw `fp_device_get_features` FFI call. | Binding drops the arch gate. (Also: exercise aarch64 in CI so the fallback doesn't rot.) |
-| **M2-D** | `crates/fp-backend-libfprint/src/convert.rs` (error domains) | The binding never wrapped `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so we introduce local zero-cost `ErrorDomain` markers and `as`-cast the enums (discriminants are interop facts). | Binding exports typed error domains → drop the local markers. |
+| **M2-A** | `crates/fprint-backend-libfprint/src/convert.rs` (`device_name`) | 0.3.1's `FpDevice::name()` wraps the *transfer-none* `fp_device_get_name` with `from_glib_full` → tries to free a string it doesn't own → panics on the virtual driver. We read the name ourselves with correct transfer-none semantics via raw FFI. | Binding fixes the transfer annotation → delete `device_name`, use `dev.name()`. |
+| **M2-B** | `crates/fprint-backend-libfprint/src/storage.rs` (whole module) | 0.3.1's `list_prints`/`delete_print`/`clear_storage` wrappers are `unimplemented!()`. We call the C `fp_device_*_sync` entry points directly through `libfprint-sys` and translate GLib ownership at the boundary. | Binding implements the wrappers → replace the raw module with binding calls. |
+| **M2-C** | `crates/fprint-backend-libfprint/src/convert.rs` (non-x86 `features`) | The binding gates its safe `features()` iterator to `x86`/`x86_64`; other arches need a raw `fp_device_get_features` FFI call. | Binding drops the arch gate. (Also: exercise aarch64 in CI so the fallback doesn't rot.) |
+| **M2-D** | `crates/fprint-backend-libfprint/src/convert.rs` (error domains) | The binding never wrapped `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so we introduce local zero-cost `ErrorDomain` markers and `as`-cast the enums (discriminants are interop facts). | Binding exports typed error domains → drop the local markers. |
 
 **Longer-term option:** three of these four already reach *past* the binding into `libfprint-sys`.
 If that trend continues, the shim could depend on `libfprint-sys` directly and drop the
@@ -41,19 +41,19 @@ object-lifetime management). Evaluate at M2.
 
 ## FP3 codec: byte-exactness vs. real libfprint (M2) — VALIDATED
 
-`fp-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven three
+`fprint-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven three
 ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`); byte-for-byte equality against
 **frozen golden fixtures** (permanent oracles that caught two real framing bugs during the
 hand-roll); and — as of the M2 work — **byte-identity against a real C libfprint blob**:
 
-- The shim's Docker test (`fp-backend-libfprint`, `tests/virtual.rs`) enrolls on the real
+- The shim's Docker test (`fprint-backend-libfprint`, `tests/virtual.rs`) enrolls on the real
   `virtual_device` driver and asserts our `to_bytes` output is a **fixed point of libfprint's own
   `deserialize`/`serialize`** — i.e. byte-identical to libfprint's canonical FP3.
-- The real blob is frozen at `crates/fp-fp3/tests/fixtures/libfprint_virtual_device.fp3`, and
-  `fp-fp3`'s `tests/libfprint_fixture.rs` re-validates decode + byte-exact re-encode **on any
+- The real blob is frozen at `crates/fprint-fp3/tests/fixtures/libfprint_virtual_device.fp3`, and
+  `fprint-fp3`'s `tests/libfprint_fixture.rs` re-validates decode + byte-exact re-encode **on any
   platform, without Docker**.
 
 Remaining M2 coverage (not a blocker): capture a real **NBIS** (`virtual-image`) blob too — the
 current fixture is the MOC/`Raw` path; the NBIS payload's byte-compat is covered structurally by the
-golden fixtures and by the end-to-end `fp-fp3` ↔ `fp-bozorth3` seam test, but not yet against a
+golden fixtures and by the end-to-end `fprint-fp3` ↔ `fprint-bozorth3` seam test, but not yet against a
 real libfprint NBIS serialization.

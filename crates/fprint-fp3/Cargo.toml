@@ -1,0 +1,26 @@
+[package]
+name = "fprint-fp3"
+description = "FP3 fingerprint-template (de)serialization: fprintd/libfprint's \"FP3\" GVariant on-disk format <-> fprint-core's Print domain model."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+# The GVariant framing is hand-rolled in `src/gvariant.rs`; this crate is a self-contained
+# edge crystal over `fprint-core` alone (plus std). No serialization library, no derives.
+fprint-core = { workspace = true }
+
+[dev-dependencies]
+# The end-to-end enroll -> FP3 -> verify round-trip test lives here (this crate sits
+# above the domain model, so it may know a backend for testing; the backend stays
+# unaware of any wire format — ARCHITECTURE.md principle 3).
+fprint-backend-native = { workspace = true }
+# The nbis-match seam test also drives the real BOZORTH3 matcher through fprint-backend-native's
+# `nbis_match_score`, proving a Print(Nbis) survives FP3 and still scores as a match.
+fprint-bozorth3 = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,16 +1,16 @@
 # The MINDTCT minutiae detector (spec)
 
 This is a **factual, implementation-ready description of the MINDTCT fingerprint minutiae-detection
-algorithm**, extracted so `crates/fp-mindtct` can reproduce the stock tool's `xyt` output
+algorithm**, extracted so `crates/fprint-mindtct` can reproduce the stock tool's `xyt` output
 **exactly**. It is a skeleton: the top-level pipeline and the bit-exactness rules are pinned here;
 the per-stage detail is filled in alongside the code.
 
 > **Provenance & license note.** MINDTCT is part of the **NIST NBIS** package, a work of the U.S.
 > Federal Government that is **in the public domain** (title 17 §105 — see the header of every
-> `mindtct/src/lib/mindtct/*.c`). This spec, and `fp-mindtct`, are written from the **stock upstream
+> `mindtct/src/lib/mindtct/*.c`). This spec, and `fprint-mindtct`, are written from the **stock upstream
 > NBIS** source (`reference/nbis-stock/mindtct/`, git-ignored), **not** from libfprint's patched
 > `nbis/mindtct/` copy — whose modifications carry libfprint's LGPL-2.1+ terms. Because NBIS is
-> public domain, `fp-mindtct` may follow the reference arithmetic faithfully; it is quarantined
+> public domain, `fprint-mindtct` may follow the reference arithmetic faithfully; it is quarantined
 > under SPDX `LicenseRef-NBIS-PD` so it never touches the permissive core. See `ARCHITECTURE.md`
 > §Provenance & licensing.
 
@@ -23,7 +23,7 @@ top-level entry point is `detect.c:lfs_detect_minutiae_V2` (L426).
 ## Inputs & coordinate conventions
 
 The input is an 8-bit grayscale image (row-major, one byte per pixel, `0` = black, `255` = white),
-its width and height in pixels, and its scan resolution in ppi. `fp-mindtct` wraps this as
+its width and height in pixels, and its scan resolution in ppi. `fprint-mindtct` wraps this as
 [`GrayImage`]; several thresholds are resolution-relative.
 
 The output is a list of minutiae in NIST `xyt` form, each an integer 4-tuple:
@@ -33,7 +33,7 @@ The output is a list of minutiae in NIST `xyt` form, each an integer 4-tuple:
   counter-clockwise (the `lfs2nist` representation; the M1 variant differs by a 180° offset).
 - `quality` — a reliability estimate (higher is better).
 
-Our domain type `fp_core::Minutia` maps onto this tuple; `fp-mindtct` defines its own identical
+Our domain type `fprint_core::Minutia` maps onto this tuple; `fprint-mindtct` defines its own identical
 [`Minutia`] (the xyt triple is an interoperability fact — the detector crate stays dependency-free,
 and the consumer converts).
 
@@ -64,7 +64,7 @@ The stock `_V2` entry point runs these steps in order (arguments elided):
 9. **Wrap up** — `gray2bin(1,255,0,…)` restores the binary image to `{0,255}`; the maps, binary
    image, dimensions, and minutiae list are returned.
 
-`fp-mindtct::detect_minutiae` reproduces steps 2–9 and then applies the `xyt` conversion below;
+`fprint-mindtct::detect_minutiae` reproduces steps 2–9 and then applies the `xyt` conversion below;
 `debug_maps` exposes the step-4/5 intermediates for verification.
 
 ---
@@ -72,7 +72,7 @@ The stock `_V2` entry point runs these steps in order (arguments elided):
 ## Bit-exactness
 
 Reproducing the stock `xyt` output to the integer requires reproducing the reference's rounding,
-precision, and ordering **verbatim**. The rules (see `crates/fp-mindtct/src/num.rs`):
+precision, and ordering **verbatim**. The rules (see `crates/fprint-mindtct/src/num.rs`):
 
 - **`sround` = round-half-away-from-zero.** `lfs.h`: `sround(x) = (int)((x<0) ? x-0.5 : x+0.5)`,
   i.e. bias by `copysign(0.5, x)` then truncate toward zero: `(x + copysign(0.5, x)).trunc() as i32`.
@@ -88,7 +88,7 @@ precision, and ordering **verbatim**. The rules (see `crates/fp-mindtct/src/num.
 - **DFT `cos`/`sin` (a libm risk).** `dft.c` fills the waveform tables with `cos`/`sin` **without**
   `trunc_dbl_precision`. Different libm implementations can differ in the last ULP, which can flip a
   downstream `sround`. This is the main cross-platform hazard; the golden oracle pins one libm and
-  any divergence is characterized there (mirroring the `fp-bozorth3` ±1 discipline).
+  any divergence is characterized there (mirroring the `fprint-bozorth3` ±1 discipline).
 
 ---
 
@@ -138,7 +138,7 @@ if (t < 0) t += 360;                                     // fold into 0..=359
 ```
 
 The **M1 mode** (`lfs2m1_minutia_XYT`) is identical except `t = (90 - sround(…)) % 360` — a 180°
-offset (M1 points *into* the ridge, NIST points *out*). `fp-mindtct` emits the `lfs2nist` form by
+offset (M1 points *into* the ridge, NIST points *out*). `fprint-mindtct` emits the `lfs2nist` form by
 default; the M1 offset is a documented switch at the `xyt` seam.
 
 ---
@@ -148,6 +148,6 @@ default; the M1 offset is a documented switch at the `xyt` seam.
 - **Golden vectors (offline, permanent oracle).** In Docker, build the **stock NBIS `mindtct`** CLI,
   run it over a fixed corpus of grayscale images, capture the `.xyt` output (and, with `-m1`/map
   dumps, the intermediate maps), and freeze `{input image, xyt, maps}` into
-  `crates/fp-mindtct/tests/fixtures/`. `cargo test -p fp-mindtct` then asserts `detect_minutiae`
+  `crates/fprint-mindtct/tests/fixtures/`. `cargo test -p fprint-mindtct` then asserts `detect_minutiae`
   (and `debug_maps`) reproduce the C output; the stage-by-stage map dumps localize any divergence.
 - **Regeneration** is a documented `mise` task so the corpus stays reproducible.

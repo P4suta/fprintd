@@ -29,13 +29,13 @@ WebP純Rust `image-webp` を **1ユニット**（ghloc 9.3k / code-only 概ね ~
   ただし *1行あたりの難度* は WebP より高い（RFCのようなビット厳密仕様も適合ベクタも無く、
   検証は C 実装との出力差分のみ）。**BOZORTH3(1.2k)から着手が最も費用対効果が高い**。
 - **コア接着 9.8k C → Rustでは数k**（`FpiSsm`＋`GMainLoop`＋`*_sync`ネストループを async/await＋state enum で置換）。
-- **fprintd-rs が再実装する daemon ロジック ≈5k C** → 小さい。zbus/polkit/ファイル保存の plumbing が主。
+- **fprintd が再実装する daemon ロジック ≈5k C** → 小さい。zbus/polkit/ファイル保存の plumbing が主。
 - **ドライバ層 52.7k code（.c 32k＋.h 20k、~28 hw ドライバ）** → 有界でなく、物理デバイス依存。見積り不能軸のまま。
 
 ## 確定した含意
 
 1. **算術核はWebP1本分規模**＝小チームで完走可能・ハード不要でオフライン検証可能。当初想定より軽い。
-2. **fprintd-rs の中身は薄い**＝M1（shim-first で世界向けレイヤ検証）は現実的に速い。
+2. **fprintd の中身は薄い**＝M1（shim-first で世界向けレイヤ検証）は現実的に速い。
 3. **重いのはドライバだけ**という結論は不変。だから MOC 優先＋shim-first が正しい。
 4. libfprint には `virtual-image`/`virtual-device`/`virtual-device-storage` ドライバがある
    → **実機ゼロでも Docker コンテナ内で enroll/verify フローと D-Bus 契約を検証できる**（M1加速）。

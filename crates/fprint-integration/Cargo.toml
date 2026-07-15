@@ -1,0 +1,25 @@
+[package]
+name = "fprint-integration"
+description = "The only crate that knows every backend: CompositeBackend / CompositeDevice routing native Rust and the libfprint shim under one fprint-core Backend."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+# Internal: composition glue. It depends on `fprint-backend-native` (itself unpublished), and no
+# shipped artifact consumes it — the daemon talks to the shim directly. Publishing it would mean
+# publishing the test backend too, for a crate that is pure internal architecture.
+publish = false
+
+[dependencies]
+fprint-core = { workspace = true }
+fprint-backend-native = { workspace = true }
+
+# The libfprint shim is Linux-only and !Send; it is a dependency only when we build for
+# Linux, so the Native arm (and this whole crate) compiles cleanly on any host.
+[target.'cfg(target_os = "linux")'.dependencies]
+fprint-backend-libfprint = { workspace = true }
+
+[lints]
+workspace = true

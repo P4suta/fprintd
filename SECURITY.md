@@ -26,19 +26,19 @@ with you and credit you unless you prefer otherwise.
 
 In scope:
 
-- **Template handling and storage** — the FP3 codec (`fp-fp3`) parsing untrusted
+- **Template handling and storage** — the FP3 codec (`fprint-fp3`) parsing untrusted
   or attacker-influenced template bytes, and the `/var/lib/fprint` layout the
   daemon writes (permissions, path handling, cross-user leakage).
-- **The D-Bus surface** (`fprintd-rs`) — PolicyKit action enforcement, client
+- **The D-Bus surface** (`fprintd`) — PolicyKit action enforcement, client
   isolation, and any way to bypass or confuse a verify/identify result.
-- **The FFI boundary** in the shim (`fp-backend-libfprint`) and `unsafe` in any
+- **The FFI boundary** in the shim (`fprint-backend-libfprint`) and `unsafe` in any
   transport leaf.
-- **The arithmetic kernels** (`fp-bozorth3`, `fp-mindtct`) — panics, unbounded
+- **The arithmetic kernels** (`fprint-bozorth3`, `fprint-mindtct`) — panics, unbounded
   memory/CPU, or match scores that diverge from NBIS in a way affecting security.
 
 Out of scope:
 
-- The **experimental USB capture seam** (`fp-backend-native`'s `usb` module). Its
+- The **experimental USB capture seam** (`fprint-backend-native`'s `usb` module). Its
   protocol values are unverified placeholders and it cannot talk to real hardware;
   it is a worked example, not a shipping driver.
 - Weaknesses inherent to fingerprint biometrics as an authentication factor
