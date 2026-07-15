@@ -52,7 +52,7 @@
  *                  prunes; step 6 may adjust a surviving minutia's position/direction in place).
  *
  * A `<name>.manifest` sidecar supplies "width height ppi" for each image. This is a verification
- * oracle only; it is compiled and run inside Docker (see run.sh), never shipped. Its output is frozen
+ * oracle only; it is compiled and run inside Docker (see xtask/src/oracle.rs), never shipped. Its output is frozen
  * into crates/fprint-mindtct/tests/fixtures by a later phase.
  */
 #include <stdio.h>

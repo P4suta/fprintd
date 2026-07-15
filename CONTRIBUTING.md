@@ -52,7 +52,8 @@ mise run mindtct-oracle  # DELIBERATE: regenerates frozen golden fixtures
 
 Tasks that only run one command live in `mise.toml`. Anything that has to *decide*
 something belongs in `xtask/` (`cargo xtask <task>`), where a compiler and clippy can
-see it: shell quoted inside TOML is read by nothing and rots quietly.
+see it: shell quoted inside TOML is read by nothing and rots quietly. The oracle tasks
+were exactly that, and had stopped working on Windows without anyone noticing.
 
 ## License hygiene
 

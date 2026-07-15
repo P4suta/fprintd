@@ -66,29 +66,18 @@ description = "Check the systemd unit against real systemd: it parses, and Alias
 # said, and that is a program. See xtask/src/main.rs.
 run = "cargo xtask unit-verify"
 
-# --- BOZORTH3 matcher oracle: stock NBIS as the black-box score reference ---------------------
+# --- NBIS oracles: the stock C tools as the ground truth our ports are checked against --------
+# Both are DELIBERATE regeneration of frozen goldens, need reference/nbis-stock and Docker, and
+# live in xtask/ because they have to compile C, pick sources and judge output. See xtask/src/oracle.rs.
+
 [tasks.clone-ref-nbis]
-description = "Clone stock (public-domain) NIST NBIS for the BOZORTH3 spec/oracle (git-ignored)"
+description = "Clone stock (public-domain) NIST NBIS for the BOZORTH3/MINDTCT oracles (git-ignored)"
 run = "git clone --depth 1 https://github.com/lessandro/nbis.git reference/nbis-stock || true"
 
 [tasks.bozorth3-oracle]
-description = "Regenerate the BOZORTH3 golden corpus + reference scores from the stock C tool (Docker)"
-# DELIBERATE regeneration: overwrites the frozen fixtures under crates/fprint-bozorth3/tests/fixtures.
-# Needs reference/nbis-stock (mise run clone-ref-nbis) and Docker. The `pwd -W` form yields a
-# Windows path for the bind-mount under Git Bash; on Linux it falls back to plain `pwd`.
-run = [
-  "python docker/bozorth3-oracle/gen_corpus.py crates/fprint-bozorth3/tests/fixtures",
-  "MSYS_NO_PATHCONV=1 docker run --rm -v \"$(pwd -W 2>/dev/null || pwd)\":/work -w /work gcc:13-bookworm bash docker/bozorth3-oracle/run.sh /work",
-]
+description = "DELIBERATE: regenerate the BOZORTH3 golden corpus + scores from the stock C tool"
+run = "cargo xtask bozorth3-oracle"
 
-# --- MINDTCT detector oracle: stock NBIS as the ground-truth minutiae/map reference -----------
 [tasks.mindtct-oracle]
-description = "Regenerate the MINDTCT golden corpus + reference minutiae/maps from the stock C tool (Docker)"
-# DELIBERATE regeneration: writes the frozen fixtures under crates/fprint-mindtct/tests/fixtures (synthetic
-# raw grayscale images + per-image .xyt minutiae and .dm/.lcm/.lfm/.hcm/.brw intermediate maps). Needs
-# reference/nbis-stock (mise run clone-ref-nbis) and Docker. The `pwd -W` form yields a Windows path
-# for the bind-mount under Git Bash; on Linux it falls back to plain `pwd`.
-run = [
-  "python docker/mindtct-oracle/gen_corpus.py crates/fprint-mindtct/tests/fixtures",
-  "MSYS_NO_PATHCONV=1 docker run --rm -v \"$(pwd -W 2>/dev/null || pwd)\":/work -w /work gcc:13-bookworm bash docker/mindtct-oracle/run.sh /work",
-]
+description = "DELIBERATE: regenerate the MINDTCT golden corpus + minutiae/maps from the stock C tool"
+run = "cargo xtask mindtct-oracle"

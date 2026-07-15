@@ -10,7 +10,7 @@
  * (bozorth_main). It reads a pairs manifest ("tag probe.xyt gallery.xyt" per line) and prints
  * "tag<TAB>score" so the score is produced by exactly the same code path the stock tool uses.
  *
- * This is a verification oracle only; it is compiled and run inside Docker (see run.sh), never
+ * This is a verification oracle only; it is compiled and run inside Docker (see xtask/src/oracle.rs), never
  * shipped. Its output is frozen into crates/fprint-bozorth3/tests/fixtures/expected.tsv.
  */
 #include <stdio.h>

@@ -5,7 +5,7 @@
 #
 # Writes a set of headerless raw 8-bit grayscale "fingerprint" images plus, per image, a
 # `<name>.manifest` sidecar ("width height ppi") and a corpus-level `manifest.txt` index listing
-# one image basename per line. The stock NBIS `mindtct` oracle (Docker, see oracle.c/run.sh) reads
+# one image basename per line. The stock NBIS `mindtct` oracle (Docker, see oracle.c + xtask/src/oracle.rs) reads
 # these exact bytes and freezes its minutiae (`.xyt`) and intermediate maps into the fixtures, so the
 # outputs become a permanent cross-implementation oracle for the pure-Rust port.
 #
