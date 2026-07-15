@@ -1,0 +1,13 @@
+grating_160x160_s1
+grating_160x160_s2
+grating_192x224_s1
+grating_192x224_s2
+grating_256x256_s1
+grating_256x256_s2
+loop_200x240
+whorl_208x208_s1
+whorl_208x208_s2
+uniform_128x128
+gradient_128x128
+small_56x56
+small_72x64
