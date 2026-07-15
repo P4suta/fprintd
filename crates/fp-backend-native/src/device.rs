@@ -285,10 +285,16 @@ impl Device for VirtualDevice {
         self.need(DeviceFeature::IDENTIFY)?;
 
         let scanned = self.scan_template();
-        let match_index = scanned.as_ref().and_then(|s| {
-            gallery
+        let match_index = scanned.as_ref().and_then(|s| match self.match_threshold {
+            // With a threshold and an NBIS scan, identify through the real BOZORTH3 matcher (1:N,
+            // strongest above threshold) — mirroring `verify`'s `match_templates` NBIS branch.
+            Some(t) if matches!(s, Template::Nbis(_)) => {
+                let templates: Vec<Template> = gallery.iter().map(|p| p.template.clone()).collect();
+                crate::matcher::nbis_identify(s, &templates, t)
+            }
+            _ => gallery
                 .iter()
-                .position(|p| self.match_templates(&p.template, s))
+                .position(|p| self.match_templates(&p.template, s)),
         });
         let scanned = if self.surfaces_scan {
             scanned.map(|t| self.scan_print(t))

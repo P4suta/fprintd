@@ -41,15 +41,32 @@ mod backend;
 mod builder;
 mod detector;
 mod device;
+mod frame;
+mod frame_source;
+mod image_backend;
+mod image_device;
 mod matcher;
 mod scenario;
+mod sources;
 mod store;
 mod synth;
+#[cfg(test)]
+mod test_exec;
+mod usb;
 mod yield_now;
 
 pub use backend::VirtualBackend;
 pub use builder::VirtualDeviceBuilder;
 pub use detector::{extract_minutiae, template_from_images};
 pub use device::VirtualDevice;
+pub use frame::Frame;
+pub use frame_source::{Capture, FrameSource};
+pub use image_backend::ImageBackend;
+pub use image_device::ImageDevice;
 pub use matcher::{nbis_identify, nbis_match_score};
 pub use scenario::{CaptureOutcome, EnrollScript, FingerId, Scenario};
+pub use sources::{FileFrameSource, SyntheticFrameSource};
+/// The real `nusb`-backed transport is public only when the `usb` feature is on.
+#[cfg(feature = "usb")]
+pub use usb::NusbTransport;
+pub use usb::{UsbFrameSource, UsbTransport};

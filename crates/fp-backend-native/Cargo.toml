@@ -7,6 +7,14 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+# Off by default: a default build (Windows/pure) pulls no USB stack at all. `usb` activates the real
+# `nusb`-backed transport (`NusbTransport`); the protocol, driver, and mock-driven tests are always
+# built and need no feature. `hwtest` gates any test that requires a physical sensor to be present.
+default = []
+usb = ["dep:nusb"]
+hwtest = []
+
 [dependencies]
 fp-core = { workspace = true }
 # The pure-Rust minutiae matcher a real host-image driver uses to score NBIS templates. The virtual
@@ -17,8 +25,12 @@ fp-bozorth3 = { workspace = true }
 # public-domain xyt output is converted to `fp_core::Minutia` in `detector`, closing the
 # image -> minutiae -> match loop (see `detector`, exercised end-to-end by tests/end_to_end.rs).
 fp-mindtct = { workspace = true }
-# Otherwise deliberately nothing: no async runtime, no USB, no serialization. Straight-line async
-# fns + a hand-rolled yield future (core::future).
+# The real USB transport, behind the optional `usb` feature only: a default build resolves the crate
+# graph but compiles no USB code. Our wrapper is `#![forbid(unsafe_code)]`; nusb's internal `unsafe`
+# is nusb's concern, quarantined to the leaf transport as `ARCHITECTURE.md` requires.
+nusb = { version = "0.1", optional = true }
+# Otherwise deliberately nothing: no async runtime, no serialization. Straight-line async fns + a
+# hand-rolled yield future (core::future).
 
 [lints]
 workspace = true
