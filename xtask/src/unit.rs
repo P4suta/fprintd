@@ -4,9 +4,9 @@
 
 //! Checking the systemd unit by giving it to systemd.
 
-use std::fmt::Write as _;
 use std::path::Path;
-use std::process::Command;
+
+use crate::docker::Session;
 
 /// Where the daemon's binary is assumed to live when verifying the unit. Only the substitution
 /// has to be real; nothing is executed.
@@ -14,12 +14,15 @@ const LIBEXECDIR: &str = "/usr/libexec";
 /// A stock distro image: the project's own dev image has no systemd, and this task needs nothing
 /// else from it.
 const UNIT_VERIFY_IMAGE: &str = "debian:bookworm";
+/// Where our unit is installed, and where `Alias=fprintd.service` must land to shadow upstream's.
+const UNIT_PATH: &str = "/etc/systemd/system/fprintd-rs.service";
+const ALIAS_PATH: &str = "/etc/systemd/system/fprintd.service";
 
 /// The first `@PLACEHOLDER@` left in `s`, if any.
 ///
 /// Matches the autotools convention the template follows — `@`, then upper-case, digits or
-/// underscores, then `@`. Deliberately not "contains an `@`": systemd's own syntax is full of
-/// them (`SystemCallFilter=@system-service`), and a check that cries wolf gets deleted.
+/// underscores, then `@`. Not "contains an `@`": systemd's own syntax is full of them
+/// (`SystemCallFilter=@system-service`).
 fn unsubstituted_placeholder(s: &str) -> Option<String> {
     let mut from = 0;
     while let Some(open) = s[from..].find('@').map(|i| i + from) {
@@ -39,13 +42,9 @@ fn unsubstituted_placeholder(s: &str) -> Option<String> {
     None
 }
 
-/// Check the systemd unit, in the only way that actually proves anything: by giving it to systemd.
+/// Check the systemd unit by giving it to systemd. Neither claim can be checked any other way:
 ///
-/// Two claims are otherwise unfalsifiable, and one of them has already been wrong once — the unit
-/// shipped without an `[Install]` section for a while, which meant it could not be `systemctl
-/// enable`d at all.
-///
-/// 1. `systemd-analyze verify` — the unit is well-formed.
+/// 1. `systemd-analyze verify` — the unit is well-formed and `systemctl enable` will accept it.
 /// 2. `systemctl enable fprintd-rs` creates `/etc/systemd/system/fprintd.service` pointing at it.
 ///    That symlink *is* the coexistence design (ARCHITECTURE.md §Coexistence): it outranks
 ///    upstream's unit in `/usr/lib`, so D-Bus activation reaches us, and `disable` hands the seat
@@ -53,9 +52,8 @@ fn unsubstituted_placeholder(s: &str) -> Option<String> {
 pub fn verify(root: &Path) -> Result<(), String> {
     let template = root.join("crates/fprintd/dbus/fprintd-rs.service.in");
 
-    // The `@LIBEXECDIR@` substitution a build system would do, done here instead of by sed. This
-    // is also the only place that knows the template needs substituting at all, which is worth
-    // it being findable.
+    // The `@LIBEXECDIR@` substitution packaging will do. This is the only place that knows the
+    // template needs substituting at all, so it is worth being findable.
     let unit = std::fs::read_to_string(&template)
         .map_err(|e| format!("read {}: {e}", template.display()))?
         .replace("@LIBEXECDIR@", LIBEXECDIR);
@@ -72,75 +70,47 @@ pub fn verify(root: &Path) -> Result<(), String> {
     let staged = staging.join("fprintd-rs.service");
     std::fs::write(&staged, &unit).map_err(|e| format!("write {}: {e}", staged.display()))?;
 
-    // The container half stays small on purpose: it installs systemd and reports, and every
-    // judgement about what it reported is made below, in Rust. apt is silenced on both streams so
-    // that anything left on stderr came from systemd and nothing else.
-    //
-    // `install -m644`, not `cp`: the staging directory is a bind mount, which on a Windows host
-    // presents every file as executable, and systemd rightly complains about an executable unit.
-    // 644 is also what packaging will use, so the check runs against the real thing.
-    let script = "set -e
-apt-get update -qq > /dev/null 2>&1
-apt-get install -y -qq systemd > /dev/null 2>&1
-mkdir -p /usr/libexec
-install -m755 /dev/null /usr/libexec/fprintd-rs
-install -m644 /staging/fprintd-rs.service /etc/systemd/system/fprintd-rs.service
-systemd-analyze verify fprintd-rs.service
-systemctl enable fprintd-rs > /dev/null 2>&1
-readlink /etc/systemd/system/fprintd.service || echo '<no alias link>'";
-
+    let session = Session::start(UNIT_VERIFY_IMAGE)?;
     println!("xtask: verifying the unit against real systemd in {UNIT_VERIFY_IMAGE} ...");
-    let output = Command::new("docker")
-        .arg("run")
-        .arg("--rm")
-        // No MSYS_NO_PATHCONV, and no `pwd -W`: we are not in a shell, so nothing rewrites this.
-        .arg("-v")
-        .arg(format!("{}:/staging:ro", staging.display()))
-        .arg(UNIT_VERIFY_IMAGE)
-        .arg("bash")
-        .arg("-c")
-        .arg(script)
-        .output()
-        .map_err(|e| format!("spawn docker: {e} (is Docker running?)"))?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    // One command per step, so the systemd-analyze check below can be exact: nothing else is
+    // writing to that stream.
+    session.exec(&["apt-get", "update", "-qq"])?;
+    session.exec(&["apt-get", "install", "-y", "-qq", "systemd"])?;
+    session.exec(&["mkdir", "-p", "/usr/libexec"])?;
+    session.exec(&["install", "-m755", "/dev/null", "/usr/libexec/fprintd-rs"])?;
 
-    if !output.status.success() {
-        let mut msg = String::new();
-        let _ = write!(
-            msg,
-            "the unit did not verify (docker exited {})",
-            output.status
-        );
-        if !stderr.trim().is_empty() {
-            let _ = write!(msg, "\n--- stderr ---\n{}", stderr.trim());
-        }
-        if !stdout.trim().is_empty() {
-            let _ = write!(msg, "\n--- stdout ---\n{}", stdout.trim());
-        }
-        return Err(msg);
-    }
+    session.copy_in(&staged, UNIT_PATH)?;
+    // `docker cp` carries the host's mode, and a Windows host calls everything executable, which
+    // systemd rejects for a unit. 644 is what packaging installs.
+    session.exec(&["chmod", "644", UNIT_PATH])?;
 
-    // `systemd-analyze verify` is a poor citizen: it reports problems on stderr and still exits
-    // 0 for some of them, so a green exit code is not on its own an answer.
-    if !stderr.trim().is_empty() {
+    let verify = session.exec(&["systemd-analyze", "verify", "fprintd-rs.service"])?;
+    // `systemd-analyze verify` is a poor citizen: it reports some problems on stderr and still
+    // exits 0, so a green status is not on its own an answer.
+    if !verify.stderr.trim().is_empty() {
         return Err(format!(
             "systemd reported problems with the unit:\n{}",
-            stderr.trim()
+            verify.stderr.trim()
         ));
     }
-
-    let alias = stdout.lines().last().unwrap_or_default().trim();
-    if alias != "/etc/systemd/system/fprintd-rs.service" {
-        return Err(format!(
-            "`systemctl enable fprintd-rs` did not take the seat: \
-             /etc/systemd/system/fprintd.service is {alias}, expected a link to our unit. \
-             Check that the unit still has `[Install] Alias=fprintd.service`."
-        ));
-    }
-
     println!("xtask: unit verifies clean");
-    println!("xtask: alias takes the seat: /etc/systemd/system/fprintd.service -> {alias}");
+
+    session.exec(&["systemctl", "enable", "fprintd-rs"])?;
+
+    // A non-link is the answer here, not an error, so ask rather than assert.
+    let (linked, link) = session.try_exec(&["readlink", ALIAS_PATH])?;
+    if !linked || link.line() != UNIT_PATH {
+        return Err(format!(
+            "`systemctl enable fprintd-rs` did not take the seat: {ALIAS_PATH} is {}, expected a \
+             link to {UNIT_PATH}. Check that the unit still has `[Install] Alias=fprintd.service`.",
+            if linked { link.line() } else { "not a symlink" }
+        ));
+    }
+
+    println!(
+        "xtask: alias takes the seat: {ALIAS_PATH} -> {}",
+        link.line()
+    );
     Ok(())
 }

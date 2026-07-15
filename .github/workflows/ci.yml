@@ -13,9 +13,8 @@
 #               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
 #               the fprintd D-Bus daemon end-to-end. This is where the Linux-only crates are lint
 #               and test gated.
-#  * `unit`   — the systemd unit, against real systemd. It parses, and `Alias=` actually takes the
-#               seat from upstream's unit — the whole coexistence design rests on that symlink, and
-#               the unit shipped un-enableable once already. See xtask/src/unit.rs.
+#  * `unit`   — the systemd unit, against real systemd: it parses, and `Alias=` takes the seat from
+#               upstream's unit. The coexistence design rests on that symlink. See xtask/src/unit.rs.
 #  * `msrv`   — the published pure crates on the declared 1.82. Every other job runs latest stable,
 #               so without this a broken MSRV goes unnoticed. The three crates that link the C
 #               libfprint stack declare 1.85 themselves (the pinned FFI binding is
@@ -73,11 +72,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the pinned libfprint dev image
         run: docker compose -f docker/docker-compose.yml build
-      - name: Clippy + test the whole workspace (incl. shim & daemon)
-        run: |
-          docker compose -f docker/docker-compose.yml run --rm dev \
-            bash -c 'cargo clippy --workspace --all-targets --all-features -- -D warnings && \
-                     cargo test --workspace --all-features'
+      # Separate steps, so a failure names itself.
+      - name: Clippy the whole workspace (incl. shim & daemon)
+        run: >
+          docker compose -f docker/docker-compose.yml run --rm dev
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test the whole workspace (incl. shim & daemon)
+        run: >
+          docker compose -f docker/docker-compose.yml run --rm dev
+          cargo test --workspace --all-features
       # Already covered by --all-features above; named separately because these two are the M2
       # FP3 byte-identity proof against the real C library — Raw via virtual_device, NBIS via
       # virtual_image — and a silent loss of either would matter.

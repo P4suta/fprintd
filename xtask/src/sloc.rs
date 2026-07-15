@@ -37,8 +37,6 @@ pub fn measure(root: &Path) -> Result<(), String> {
         if !dir.is_dir() {
             return Err(format!("{} not found in the checkout", dir.display()));
         }
-        // A `println!`, not an `echo` in a task runner: this label used to be single-quoted
-        // shell in mise.toml, and printed with its quotes on Windows, where cmd.exe runs it.
         println!("\n== {label} ==");
         let status = Command::new("tokei")
             .arg(&dir)

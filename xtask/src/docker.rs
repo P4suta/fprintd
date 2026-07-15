@@ -4,17 +4,34 @@
 
 //! Running things in containers, without going through a shell.
 //!
-//! The shell is the whole point. `mise.toml`'s Docker tasks carry `MSYS_NO_PATHCONV=1` and
-//! `$(pwd -W 2>/dev/null || pwd)` because a bind-mount path routed through Git Bash gets
-//! rewritten on its way to Docker — and those tasks then fail anyway on this project's Windows
-//! dev box, because mise runs them through `cmd.exe`, which understands neither. Spawning
-//! Docker with [`std::process::Command`] enters no shell at all, so a path is just a path.
+//! No argument built here is parsed by `sh`, which is what keeps a bind-mount path portable: a
+//! path handed to [`std::process::Command`] reaches Docker as written, on any host.
+//!
+//! Two shapes, because `docker run --rm` keeps nothing:
+//!
+//! * [`Run`] — one command, one container, gone. Enough when the container is a compiler.
+//! * [`Session`] — a container held open so several commands can build on each other. Each step
+//!   is its own process with its own exit status and its own stderr, so a failure says which
+//!   step failed and nothing has to be silenced to keep a stream readable.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Where the repository is mounted inside every container this module starts.
 pub const WORK: &str = "/work";
+
+/// What a command in a container said.
+pub struct Output {
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl Output {
+    /// stdout with trailing whitespace removed — the common case for a one-line answer.
+    pub fn line(&self) -> &str {
+        self.stdout.trim()
+    }
+}
 
 /// A container invocation with the repository mounted at [`WORK`].
 pub struct Run {
@@ -91,6 +108,97 @@ impl Run {
             ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+}
+
+/// A container held open, so a sequence of commands can share its filesystem.
+///
+/// Removed on drop, so a failure leaves nothing behind for the next run to trip over.
+pub struct Session {
+    name: String,
+}
+
+impl Session {
+    /// Start `image` doing nothing, under a name unique to this process.
+    ///
+    /// `sleep` rather than the image's entrypoint: we want a filesystem to work in, not whatever
+    /// the image thinks it is for. It is a timeout, not a schedule — the container is removed as
+    /// soon as the task is done, and the ceiling only matters if the task is killed.
+    pub fn start(image: &str) -> Result<Session, String> {
+        let name = format!("fprintd-xtask-{}", std::process::id());
+        // A leftover from a killed run would collide; clear it without caring if it is there.
+        let _ = Command::new("docker").args(["rm", "-f", &name]).output();
+
+        let out = Command::new("docker")
+            .args(["run", "-d", "--name", &name, image, "sleep", "600"])
+            .output()
+            .map_err(|e| format!("spawn docker: {e} (is Docker running?)"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "could not start {image}: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+        Ok(Session { name })
+    }
+
+    /// Run one command in the container. `Err` if it could not be run or exited non-zero.
+    pub fn exec(&self, argv: &[&str]) -> Result<Output, String> {
+        let (ok, out) = self.try_exec(argv)?;
+        if !ok {
+            let mut msg = format!("`{}` failed in the container", argv.join(" "));
+            if !out.stderr.trim().is_empty() {
+                msg.push_str(&format!("\n{}", out.stderr.trim()));
+            }
+            return Err(msg);
+        }
+        Ok(out)
+    }
+
+    /// As [`Session::exec`], but a non-zero exit is an answer rather than an error — for commands
+    /// whose failure means something (`readlink` on a path that is not a link, say).
+    pub fn try_exec(&self, argv: &[&str]) -> Result<(bool, Output), String> {
+        let mut cmd = Command::new("docker");
+        cmd.arg("exec").arg(&self.name).args(argv);
+        let out = cmd
+            .output()
+            .map_err(|e| format!("docker exec {}: {e}", argv.join(" ")))?;
+        Ok((
+            out.status.success(),
+            Output {
+                stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+                stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+            },
+        ))
+    }
+
+    /// Copy a host file into the container.
+    ///
+    /// `docker cp` rather than a bind mount: a mount from a Windows host presents every file as
+    /// executable, and some things care about a file's mode.
+    pub fn copy_in(&self, host: &Path, dest: &str) -> Result<(), String> {
+        let out = Command::new("docker")
+            .arg("cp")
+            .arg(host)
+            .arg(format!("{}:{dest}", self.name))
+            .output()
+            .map_err(|e| format!("docker cp: {e}"))?;
+        if !out.status.success() {
+            return Err(format!(
+                "could not copy {} into the container: {}",
+                host.display(),
+                String::from_utf8_lossy(&out.stderr).trim()
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        let _ = Command::new("docker")
+            .args(["rm", "-f", &self.name])
+            .output();
     }
 }
 

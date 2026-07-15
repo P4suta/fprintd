@@ -14,16 +14,11 @@ uv = "latest"            # runs the REUSE license linter via uvx (see `mise run 
 REFERENCE_DIR = "reference"
 
 [tasks.clone-ref]
-description = "M0: shallow-clone upstream libfprint + the existing libfprint-rs FFI binding for reading/measurement"
-run = [
-  "git clone --depth 1 https://gitlab.freedesktop.org/libfprint/libfprint.git reference/libfprint || git clone --depth 1 https://github.com/3v1n0/libfprint.git reference/libfprint",
-  "git clone --depth 1 https://gitlab.freedesktop.org/libfprint/fprintd.git reference/fprintd || true",
-  "git clone --depth 1 https://github.com/AlvaroParker/libfprint-rs.git reference/libfprint-rs-binding || true",
-]
+description = "M0: shallow-clone upstream libfprint + fprintd + the libfprint-rs FFI binding for reading/measurement"
+run = "cargo xtask clone-ref"
 
 [tasks.sloc]
 description = "M0: measure upstream libfprint SLOC by subsystem (drivers / nbis / core) with tokei"
-# In xtask/ because the labels were shell-quoted here, and printed with their quotes on Windows.
 run = "cargo xtask sloc"
 
 [tasks.reuse]
@@ -58,17 +53,15 @@ run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fp
 
 [tasks.unit-verify]
 description = "Check the systemd unit against real systemd: it parses, and Alias= takes the seat"
-# The logic lives in xtask/, not here: it has to substitute @LIBEXECDIR@ and judge what systemd
-# said, and that is a program. See xtask/src/main.rs.
 run = "cargo xtask unit-verify"
 
 # --- NBIS oracles: the stock C tools as the ground truth our ports are checked against --------
-# Both are DELIBERATE regeneration of frozen goldens, need reference/nbis-stock and Docker, and
-# live in xtask/ because they have to compile C, pick sources and judge output. See xtask/src/oracle.rs.
+# Both are DELIBERATE regeneration of frozen goldens, and need reference/nbis-stock + Docker.
+# See xtask/src/oracle.rs.
 
 [tasks.clone-ref-nbis]
 description = "Clone stock (public-domain) NIST NBIS for the BOZORTH3/MINDTCT oracles (git-ignored)"
-run = "git clone --depth 1 https://github.com/lessandro/nbis.git reference/nbis-stock || true"
+run = "cargo xtask clone-ref-nbis"
 
 [tasks.bozorth3-oracle]
 description = "DELIBERATE: regenerate the BOZORTH3 golden corpus + scores from the stock C tool"

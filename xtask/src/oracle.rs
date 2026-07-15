@@ -6,9 +6,8 @@
 //!
 //! Both oracles follow the same shape: a deterministic Python generator writes the inputs, the
 //! stock NBIS implementation is compiled in a gcc container and run over them, and its output is
-//! frozen as the fixtures our Rust ports are tested against. The generators stay in Python —
-//! they are code, they are byte-reproducible by construction, and rewriting a golden generator
-//! buys nothing but a chance to corrupt the goldens.
+//! frozen as the fixtures our Rust ports are tested against. Any change here must leave the
+//! regenerated fixtures byte-identical, or it has moved the goldens rather than reproduced them.
 //!
 //! Regeneration is deliberate: it overwrites frozen fixtures that exist to catch drift. Only run
 //! it when you mean to.
@@ -166,7 +165,7 @@ fn compile(root: &Path, oracle: Oracle, stock: &Path) -> Result<PathBuf, String>
 /// pulls in the whole detect path, and the oracle's second driver re-calls the same individual
 /// functions to emit the per-stage `.brwpre` / `.rmin` goldens.
 ///
-/// Sorted, because a shell glob is sorted and this replaced one: link order is an input.
+/// Sorted: `read_dir` does not promise an order, and link order is an input to a golden.
 fn mindtct_lib_sources(dir: &Path) -> Result<Vec<PathBuf>, String> {
     const CLI_ONLY: [&str; 3] = ["to_type9.c", "update.c", "results.c"];
 

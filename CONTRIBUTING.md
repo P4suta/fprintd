@@ -52,10 +52,9 @@ mise run mindtct-oracle
 ```
 
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
-(`cargo xtask <task>`), where a compiler and clippy can see it. This is not style. The
-oracle tasks were shell quoted inside TOML, and had silently stopped running on Windows
-entirely — their Python half still regenerated identical bytes, so `git status` looked
-exactly like success.
+(`cargo xtask <task>`), where a compiler and clippy can see it. Shell quoted inside a
+task runner is read by nothing, and runs under whichever shell the runner picked —
+`cmd.exe` on Windows, `sh` in CI.
 
 ## License hygiene
 
