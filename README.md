@@ -5,12 +5,14 @@ D-Bus contract (`net.reactivated.Fprint`), so the existing Linux desktop / PAM
 login stack (pam_fprintd, GNOME/KDE settings) runs on it unchanged — plus a
 clean, embeddable `fprint-core` library underneath.
 
-> **North star: we don't rebuild fprintd — we coexist with it.** We speak the
-> ecosystem's real contract, keep the C **libfprint** underneath as a dynamically
-> linked shim, and layer on top the simple, modern mechanism today's Rust makes
-> possible. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design and
-> rationale — including the prime directive that *architectural beauty is the
-> supreme value of this project.*
+> **North star: we coexist with the fprintd ecosystem.** This daemon does
+> reimplement fprintd, but it speaks the ecosystem's real contract instead of
+> replacing it, keeps the C **libfprint** underneath as a dynamically linked
+> shim, and depends on the fprintd package for pam_fprintd, the D-Bus policy and
+> the PolicyKit actions. On top of that it layers the simple, modern mechanism
+> today's Rust makes possible. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
+> full design and rationale — including the prime directive that *architectural
+> beauty is the supreme value of this project.*
 
 ## Crates
 

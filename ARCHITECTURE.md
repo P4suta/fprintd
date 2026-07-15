@@ -5,14 +5,21 @@ D-Bus contract (`net.reactivated.Fprint`) so the existing Linux desktop/PAM logi
 stack runs on it unchanged — while giving applications a clean, embeddable Rust
 library underneath.
 
-> **North star: we don't rebuild fprintd — we coexist with it.**
-> The goal is not to replace or out-compete the existing Linux fingerprint
-> ecosystem (fprintd's D-Bus contract, libfprint's driver estate). It is to
-> *speak that contract*, keep the C **libfprint** underneath as a dynamically
-> linked shim, and layer on top of it the simple, modern, genuinely nice-to-use
-> mechanism that today's Rust makes possible. Native drivers are **not** a goal
-> we measure ourselves against — they are an open invitation anyone can take up
-> through the capture seam.
+> **North star: we coexist with the fprintd ecosystem.**
+> This daemon does reimplement fprintd; what it does not do is compete with the
+> ecosystem around it. It *speaks* fprintd's D-Bus contract rather than replacing
+> it, keeps the C **libfprint** underneath as a dynamically linked shim rather
+> than reimplementing its driver estate, and depends on the fprintd package for
+> pam_fprintd, the D-Bus policy and the PolicyKit actions rather than shipping
+> rivals to them. On top of that it layers the simple, modern, genuinely
+> nice-to-use mechanism that today's Rust makes possible. Native drivers are
+> **not** a goal we measure ourselves against — they are an open invitation
+> anyone can take up through the capture seam.
+>
+> Two fingerprint daemons cannot run at once: there is one sensor, one
+> `/var/lib/fprint`, and a D-Bus name has one owner. So coexistence does not mean
+> running alongside upstream's daemon. It means being installable beside it and
+> taking the seat only when the administrator says so — see §Coexistence.
 
 > **Prime directive: architectural beauty is the supreme value of this project.**
 > When a decision trades beauty for speed, breadth, or expedience, beauty wins.
@@ -123,6 +130,40 @@ to out-implement its ~28 hardware drivers — an unbounded, device-dependent axi
 we measure success against**; they are an open invitation that plugs into the capture seam
 (see `docs/adding-a-driver.md`). Growing one is welcome, never required.
 
+### Coexistence: what we install, and what we borrow
+
+The daemon ships **one file**: the systemd unit (`crates/fprintd/dbus/`). The D-Bus
+policy, the PolicyKit actions and `pam_fprintd.so` come from the fprintd package, which is
+therefore a hard dependency (`Depends:`, not `Recommends:`). The package is named
+`fprintd-rs` and the binary installs as `/usr/libexec/fprintd-rs`, so both can be
+installed at once; only the bus name is shared.
+
+The dependency is not a matter of degree. Without the D-Bus policy nothing may own
+`net.reactivated.Fprint`, not even root, so the daemon does not start at all; without the
+PolicyKit actions every privileged method is denied. It is all or nothing, which settles
+two questions:
+
+- **We do not write our own PAM module.** It would not remove the dependency — the policy
+  and actions still come from upstream — so it buys nothing and puts 26KB of new code on
+  the authentication path. `pam_fprintd` is a D-Bus client; it works as long as we keep
+  the contract.
+- **We cannot extend the D-Bus contract.** The borrowed policy allowlists exactly
+  `net.reactivated.Fprint.Manager`, `.Device` and the three standard interfaces, so a
+  method on any interface of our own would never reach us. This is a constraint we accept
+  rather than route around: it is what makes "we speak fprintd's contract" checkable
+  instead of aspirational.
+
+Taking the seat is `systemctl enable fprintd-rs`, whose `Alias=fprintd.service` shadows
+the upstream unit from `/etc/systemd/system`, so D-Bus activation reaches us. `disable`
+gives it back. Do not add `Conflicts=fprintd.service`: under the alias that name is our
+own unit.
+
+**Known gap:** SELinux and AppArmor label by path, and those labels ship with the distro's
+policy package, not with fprintd — so they cannot be borrowed. `/usr/libexec/fprintd-rs`
+does not transition into `fprintd_t` and may be denied `/var/lib/fprint`. The fix is for
+`/usr/libexec/fprintd` to become an `update-alternatives` link upstream, which is a
+proposal to make there, not a thing to work around here.
+
 ---
 
 ## Provenance & licensing
@@ -218,6 +259,10 @@ direct `zvariant` dependency.
   hardware drivers is an unbounded, device-dependent axis, and chasing it would turn
   coexistence into a rewrite race. Native drivers are welcome *contributions* through the
   capture seam (`docs/adding-a-driver.md`), never a yardstick for the project.
+- **Extending the `net.reactivated.Fprint` contract.** We implement it; we do not add to
+  it. The borrowed D-Bus policy enforces this — see §Coexistence.
+- **Our own PAM module, D-Bus policy or PolicyKit actions.** They come from the fprintd
+  package (§Coexistence).
 - A dlopen/plugin ABI for third-party drivers — when a native driver *is* contributed it
   goes in-tree (libfprint's compiled-in model is fine); we don't add a plugin boundary.
 - C-ABI drop-in compatibility with `libfprint.so`.

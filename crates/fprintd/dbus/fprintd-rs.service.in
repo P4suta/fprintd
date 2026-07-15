@@ -1,13 +1,24 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The only file this project installs. The D-Bus policy, the PolicyKit actions and
+# pam_fprintd.so come from the fprintd package, which is a hard dependency — see
+# ARCHITECTURE.md §Coexistence.
+#
+# `Alias=fprintd.service` is what puts this daemon in the seat: `systemctl enable fprintd-rs`
+# links /etc/systemd/system/fprintd.service to this unit, which takes precedence over the
+# upstream unit in /usr/lib, so D-Bus activation reaches us. `systemctl disable fprintd-rs`
+# hands the seat back. Do not add `Conflicts=fprintd.service`: while the alias is in effect
+# that name is this unit, which would conflict with itself.
 [Unit]
 Description=Fingerprint Authentication Daemon (pure-Rust)
-Documentation=man:fprintd(1)
+# Not man:fprintd(1): that documents upstream's binary, which this is not.
+Documentation=https://github.com/P4suta/fprintd
 
 [Service]
 Type=dbus
 BusName=net.reactivated.Fprint
-ExecStart=@LIBEXECDIR@/fprintd
+ExecStart=@LIBEXECDIR@/fprintd-rs
 
 # Filesystem lockdown
 ProtectSystem=strict
@@ -46,3 +57,6 @@ DeviceAllow=/dev/cros_fp rw
 
 # Allow tuning USB parameters (wakeup and persist)
 ReadWritePaths=/sys/devices
+
+[Install]
+Alias=fprintd.service

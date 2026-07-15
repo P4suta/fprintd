@@ -5,8 +5,10 @@
 //! PolicyKit authorization, as a two-variant enum so tests can bypass it.
 //!
 //! fprintd gates every privileged method on a PolicyKit action —
-//! `net.reactivated.fprint.device.{verify,enroll,setusername}` (see
-//! `net.reactivated.fprint.device.policy`). We express that as the [`Authorizer`] enum:
+//! `net.reactivated.fprint.device.{verify,enroll,setusername}`. The action definitions come
+//! from the fprintd package, which we depend on rather than duplicate (ARCHITECTURE.md
+//! §Coexistence); these ids must match it exactly. We express the check as the
+//! [`Authorizer`] enum:
 //! [`Authorizer::Polkit`] performs the real `CheckAuthorization` call against
 //! `org.freedesktop.PolicyKit1.Authority` (via [`PolkitAuthorizer`]), while
 //! [`Authorizer::AllowAll`] grants everything so the hardware-free D-Bus integration test can
