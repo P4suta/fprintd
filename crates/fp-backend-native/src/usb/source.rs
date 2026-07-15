@@ -10,7 +10,7 @@
 //! Being generic over the transport, the very same driver runs against a scripted mock offline, so
 //! the protocol → transport → frame-assembly path is exercised on any platform without hardware.
 //!
-//! `capture` awaits [`crate::yield_now`] once before touching the transport, so it keeps exactly one
+//! `capture` awaits `crate::yield_now` once before touching the transport, so it keeps exactly one
 //! poll boundary per capture — the drop-cancel point [`crate::ImageDevice::enroll`] relies on —
 //! whether the transport is genuinely async (nusb) or resolves immediately (a mock).
 
@@ -34,7 +34,7 @@ pub struct UsbFrameSource<T: UsbTransport> {
 
 impl<T: UsbTransport> UsbFrameSource<T> {
     /// Build a VFS5011 driver over `transport`, using this crate's documented VFS5011 endpoints and
-    /// scan resolution (see [`vfs5011`] — several of those values are HW-verification placeholders).
+    /// scan resolution (see the `vfs5011` module — several of those values are HW-verification placeholders).
     pub fn new(transport: T) -> Self {
         UsbFrameSource {
             transport,

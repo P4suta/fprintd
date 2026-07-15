@@ -10,7 +10,7 @@
 //! score over enrolled samples — libfprint/NBIS's verify semantics.
 //!
 //! The [`VirtualDevice`](crate::VirtualDevice) itself keeps its deterministic, non-biometric
-//! byte-equality stub (see [`crate::synth`]); a genuine USB image driver, when it lands, matches
+//! byte-equality stub (see `crate::synth`); a genuine USB image driver, when it lands, matches
 //! through *this* function. The conversion lives here (not in `fp-bozorth3`) so the matcher stays a
 //! self-contained, dependency-free arithmetic kernel — the xyt triple is the only shared fact.
 

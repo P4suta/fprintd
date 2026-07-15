@@ -1,7 +1,7 @@
 [package]
 name = "fp-backend-native"
-description = "Pure-Rust fp-core backend: an in-memory, deterministic virtual fingerprint device for offline testing of enroll/verify/identify and the fprintd daemon. Real USB/SPI drivers land here later."
-version = "0.0.0"
+description = "Pure-Rust fp-core backend: a deterministic virtual fingerprint device plus a host-image matching pipeline (image -> minutiae -> match) for offline testing of enroll/verify/identify and the fprintd daemon. Includes an experimental, hardware-unverified USB capture seam (see docs/adding-a-driver.md)."
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -11,6 +11,9 @@ authors.workspace = true
 # Off by default: a default build (Windows/pure) pulls no USB stack at all. `usb` activates the real
 # `nusb`-backed transport (`NusbTransport`); the protocol, driver, and mock-driven tests are always
 # built and need no feature. `hwtest` gates any test that requires a physical sensor to be present.
+#
+# NOTE: `usb`/`hwtest` gate the *experimental*, hardware-unverified capture seam — an open invitation,
+# not a project goal (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
 default = []
 usb = ["dep:nusb"]
 hwtest = []

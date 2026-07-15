@@ -14,7 +14,7 @@
 //!
 //! [`CompositeBackend`] holds the concrete backends; its associated device is the enum
 //! [`CompositeDevice`], one variant per backend. Enumeration concatenates the backends'
-//! devices; [`CompositeBackend::open`] tries native first and falls through to the shim.
+//! devices; its `open` tries native first and falls through to the shim.
 //! The dependency arrows still point down — this crate depends on the backends, never the
 //! reverse — so the crystal stays a crystal.
 //!

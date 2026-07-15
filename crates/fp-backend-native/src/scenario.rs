@@ -25,7 +25,7 @@ use fp_core::{RetryReason, Template};
 /// Opaque identity of a finger, for tests.
 ///
 /// Two presentations with the same `FingerId` produce byte-identical templates and thus
-/// match; different ids never match. It is **not** a biometric — see [`crate::synth`].
+/// match; different ids never match. It is **not** a biometric — see `crate::synth`.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct FingerId(pub u64);
 
@@ -37,7 +37,7 @@ pub enum CaptureOutcome {
     /// A poor capture with a reason: the user must present the finger again; the stage count
     /// does not move. The [`RetryReason`] is forwarded verbatim in
     /// [`EnrollProgress::retry`](fp_core::EnrollProgress::retry) during
-    /// [`crate::VirtualDevice::enroll`], so the daemon can render the matching status string.
+    /// [`VirtualDevice`](crate::VirtualDevice) enroll, so the daemon can render the matching status string.
     Retry(RetryReason),
 }
 
@@ -81,7 +81,7 @@ pub struct Scenario {
     pub(crate) enroll: EnrollScript,
     pub(crate) presented: Option<FingerId>,
     pub(crate) force_data_full: bool,
-    /// Real minutiae the *host-image* path enrolls (overrides the synthetic [`crate::synth`]
+    /// Real minutiae the *host-image* path enrolls (overrides the synthetic `crate::synth`
     /// template). Set with [`Scenario::enroll_real`] to drive genuine BOZORTH3 matching.
     pub(crate) enroll_template: Option<Template>,
     /// Real minutiae presented as the live scan for verify/identify (a distinct capture from the

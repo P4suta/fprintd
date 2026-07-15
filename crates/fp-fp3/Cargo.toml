@@ -1,7 +1,7 @@
 [package]
 name = "fp-fp3"
 description = "FP3 fingerprint-template (de)serialization: fprintd/libfprint's \"FP3\" GVariant on-disk format <-> fp-core's Print domain model."
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

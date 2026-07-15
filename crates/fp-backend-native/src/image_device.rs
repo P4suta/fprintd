@@ -6,9 +6,9 @@
 //!
 //! Where [`crate::VirtualDevice`] scripts *what the sensor pretends happened*, `ImageDevice` runs the
 //! genuine host-image pipeline over whatever frames a [`FrameSource`] hands it: `enroll` detects
-//! minutiae from each captured frame ([`crate::detector::template_from_images`]) into an
+//! minutiae from each captured frame (`crate::detector::template_from_images`) into an
 //! [`fp_core::Template::Nbis`], and `verify` / `identify` score a fresh scan against it with the real
-//! BOZORTH3 matcher ([`crate::matcher`]). It is a host-side sensor — no on-device storage, and it
+//! BOZORTH3 matcher (`crate::matcher`). It is a host-side sensor — no on-device storage, and it
 //! surfaces the scanned print.
 //!
 //! Invariants follow the same rules as [`crate::VirtualDevice`]: one operation at a time is the

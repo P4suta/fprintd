@@ -15,7 +15,7 @@
 //!
 //! Scripted [`Capture::Retry`] outcomes ([`SyntheticFrameSource::with_retries`]) model weak captures
 //! at chosen capture indices, so enrollment retry handling can be exercised deterministically. Every
-//! `capture` awaits [`crate::yield_now`] once, keeping one poll boundary per stage — the strict
+//! `capture` awaits `crate::yield_now` once, keeping one poll boundary per stage — the strict
 //! drop-cancellation point of [`crate::ImageDevice::enroll`].
 
 use fp_core::{Result, RetryReason};

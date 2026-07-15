@@ -6,7 +6,7 @@
 //!
 //! It proves the async-trait seam is implementable with no runtime: every method is
 //! straight-line and resolves on its first poll, except `enroll`, which awaits
-//! [`yield_now`] once per capture stage so that dropping its future cancels the enrollment
+//! `yield_now` once per capture stage so that dropping its future cancels the enrollment
 //! (nothing is committed to storage until the final poll).
 //!
 //! Invariants are carried the way `ARCHITECTURE.md` prescribes: one operation at a time is
@@ -43,7 +43,7 @@ pub struct VirtualDevice {
     /// Scenario override: make the next enroll report storage full regardless of `store`.
     force_data_full: bool,
     /// `Some(threshold)` ⇒ NBIS templates are matched by the real [`fp_bozorth3`] matcher
-    /// (score `>= threshold`); `None` ⇒ the synthetic byte-equality stub ([`crate::synth`]).
+    /// (score `>= threshold`); `None` ⇒ the synthetic byte-equality stub (`crate::synth`).
     match_threshold: Option<u32>,
     /// Real minutiae the host-image path enrolls, overriding the synthetic template.
     enroll_template: Option<Template>,
@@ -154,8 +154,8 @@ impl VirtualDevice {
     }
 
     /// Whether `scanned` matches `enrolled`. With a `match_threshold` set and both sides NBIS, this
-    /// is the **real** BOZORTH3 score `>= threshold` ([`crate::matcher`]); otherwise it is the
-    /// synthetic byte-equality stub ([`crate::synth::matches`]) — the default, and the only path for
+    /// is the **real** BOZORTH3 score `>= threshold` (`crate::matcher`); otherwise it is the
+    /// synthetic byte-equality stub (`crate::synth::matches`) — the default, and the only path for
     /// `Raw`/MOC handles.
     fn match_templates(&self, enrolled: &Template, scanned: &Template) -> bool {
         match self.match_threshold {

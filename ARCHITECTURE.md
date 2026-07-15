@@ -5,9 +5,19 @@ D-Bus contract (`net.reactivated.Fprint`) so the existing Linux desktop/PAM logi
 stack runs on it unchanged — while giving applications a clean, embeddable Rust
 library underneath.
 
+> **North star: we don't rebuild fprintd — we coexist with it.**
+> The goal is not to replace or out-compete the existing Linux fingerprint
+> ecosystem (fprintd's D-Bus contract, libfprint's driver estate). It is to
+> *speak that contract*, keep the C **libfprint** underneath as a dynamically
+> linked shim, and layer on top of it the simple, modern, genuinely nice-to-use
+> mechanism that today's Rust makes possible. Native drivers are **not** a goal
+> we measure ourselves against — they are an open invitation anyone can take up
+> through the capture seam.
+
 > **Prime directive: architectural beauty is the supreme value of this project.**
 > When a decision trades beauty for speed, breadth, or expedience, beauty wins.
-> Everything below is downstream of that.
+> Everything below is downstream of that. Coexistence is how that beauty reaches
+> the world without waging a rewrite war.
 
 ---
 
@@ -105,7 +115,13 @@ The ecosystem's real contract is fprintd's D-Bus interface, not libfprint's C AB
 match the former. libfprint drivers cannot be reused wholesale anyway — they are compiled
 into the C library against a private `fpi_*` API, with no plugin/ABI boundary — so the
 honest paths are FFI-linking the whole C library (the shim) or porting drivers by hand.
-We do both, in that order.
+
+**The shim is the main line: coexistence, not conquest.** Dynamically linking the C
+library lets real hardware work today and keeps us *with* the ecosystem rather than racing
+to out-implement its ~28 hardware drivers — an unbounded, device-dependent axis
+(`docs/M0-ground-truth.md`). Native pure-Rust drivers are therefore **not a project goal
+we measure success against**; they are an open invitation that plugs into the capture seam
+(see `docs/adding-a-driver.md`). Growing one is welcome, never required.
 
 ---
 
@@ -131,7 +147,7 @@ Consequences:
 - **NBIS port** — realized as **`fp-bozorth3`** (the BOZORTH3 matcher). It is written from
   **stock upstream public-domain NBIS** (see `docs/bozorth3-algorithm.md`), never from libfprint's
   patched `nbis/` (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock
-  C tool. A future MINDTCT port would join it as a sibling PD crate.
+  C tool. The MINDTCT port has since joined it as a sibling PD crate, **`fp-mindtct`**.
 - **The shim** (`fp-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
   permits this from any-licensed code (unlike GPL); LGPL obligations attach only to
   distributing the linked whole, not to our source.
@@ -164,8 +180,9 @@ obvious, quarantined home so it never contaminates the permissive core.
 | `fp-core` | domain model + `Backend`/`Device` traits | any | **none** |
 | `fp-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fp-core` only** — GVariant hand-rolled |
 | `fp-bozorth3` | BOZORTH3 minutiae matcher (public-domain NBIS port) | any | **none** — self-contained PD arithmetic kernel |
+| `fp-mindtct` | MINDTCT minutiae detector (public-domain NBIS port) | any | **none** — self-contained PD image-processing kernel |
 | `fp-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
-| `fp-backend-native` | pure-Rust drivers + USB/SPI transport (host-image matching via `fp-bozorth3`) | Linux (USB) | `nusb`, async runtime |
+| `fp-backend-native` | virtual device + host-image matching (image→minutiae→match via `fp-mindtct`/`fp-bozorth3`); an **experimental** USB capture seam behind the `usb` feature | any | `fp-mindtct`, `fp-bozorth3`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
 | *integration* (`fp-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
 | `fprintd-rs` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
 
@@ -177,8 +194,12 @@ direct `zvariant` dependency.
 
 ## Non-goals
 
-- A dlopen/plugin ABI for third-party drivers (libfprint's compiled-in model is fine; we
-  add drivers in-tree).
+- **Reimplementing libfprint's driver estate in Rust.** Reaching parity with its ~28
+  hardware drivers is an unbounded, device-dependent axis, and chasing it would turn
+  coexistence into a rewrite race. Native drivers are welcome *contributions* through the
+  capture seam (`docs/adding-a-driver.md`), never a yardstick for the project.
+- A dlopen/plugin ABI for third-party drivers — when a native driver *is* contributed it
+  goes in-tree (libfprint's compiled-in model is fine); we don't add a plugin boundary.
 - C-ABI drop-in compatibility with `libfprint.so`.
 - Windows/macOS runtime support (the daemon targets Linux; `fp-core` merely compiles
   anywhere).

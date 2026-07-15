@@ -19,8 +19,9 @@
 //! backend can be swapped without touching the daemon.
 //!
 //! Enum *values* that cross a wire boundary (the FP3 template format, fprintd's per-finger
-//! file names) mirror libfprint's C enums exactly — see [`Finger`] and [`feature`] — so the
-//! stack stays interoperable with existing `/var/lib/fprint` stores. The wire *vocabularies*
+//! file names) mirror libfprint's C enums exactly — see [`Finger`] — so the stack stays
+//! interoperable with existing `/var/lib/fprint` stores. The device-capability enums
+//! ([`DeviceFeature`], [`ScanType`]) mirror their libfprint counterparts too. The wire *vocabularies*
 //! themselves (the `net.reactivated.Fprint` finger-name and status strings) are not modeled
 //! here; they live at the daemon edge (`ARCHITECTURE.md` principle 3).
 

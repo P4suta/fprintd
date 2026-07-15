@@ -8,7 +8,7 @@
 //! resolves on its first poll — except [`crate::VirtualDevice::enroll`], which must span
 //! several polls so that dropping the future mid-enrollment cancels the operation (the
 //! project's cancellation model, see `ARCHITECTURE.md` principle 4). To model "one capture
-//! stage per poll" without pulling in `tokio`/`futures`, enroll awaits [`yield_now`] once
+//! stage per poll" without pulling in `tokio`/`futures`, enroll awaits `yield_now` once
 //! per stage.
 //!
 //! [`YieldNow`] is deliberately `Unpin` (its only field is a `bool`), so its `poll` can

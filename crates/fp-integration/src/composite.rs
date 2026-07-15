@@ -130,7 +130,7 @@ impl Device for CompositeDevice {
 ///
 /// The shim is optional even where it exists: a Linux daemon may run native-only during early
 /// migration, so [`with_native`](CompositeBackend::with_native) is available on every host.
-/// [`new`](CompositeBackend::new) (Linux only) composes both.
+/// `new` (Linux only) composes both.
 pub struct CompositeBackend {
     native: VirtualBackend,
     /// The shim, if one was supplied. `None` for a native-only composite; `Some` after

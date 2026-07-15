@@ -5,9 +5,10 @@
 #
 #  * `check`  — the pure-Rust crates on Windows and macOS. There the Linux-only shim and daemon
 #               compile to (near-)empty crates, so a full `--workspace` build needs no libfprint;
-#               this run covers fp-core, fp-fp3, fp-bozorth3 (BOZORTH3 golden + M2 FP3 fixture,
-#               both Docker-free), fp-backend-native and fp-integration, and proves the stack builds
-#               on a non-Linux dev box (the project's actual development environment).
+#               this run covers fp-core, fp-fp3, fp-bozorth3 and fp-mindtct (BOZORTH3/MINDTCT golden
+#               + M2 FP3 fixture, all Docker-free), fp-backend-native and fp-integration, and builds
+#               on a non-Linux dev box (the project's actual development environment). It also runs a
+#               strict rustdoc build over the cross-platform library crates (warnings are errors).
 #  * `linux`  — the authoritative Linux verification inside the pinned libfprint container: the shim
 #               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
 #               the fprintd-rs D-Bus daemon end-to-end. This is where the Linux-only crates are lint
@@ -49,6 +50,13 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test (workspace)
         run: cargo test --workspace
+      # Strict rustdoc for the cross-platform library surface (the public face). The two Linux-only
+      # crates (fprintd-rs, fp-backend-libfprint) can only be documented where their cfg-gated
+      # modules and deps compile; their strict doc build belongs on a Linux box and is a follow-up.
+      - name: Rustdoc (library crates, warnings are errors)
+        run: cargo doc --no-deps -p fp-core -p fp-fp3 -p fp-bozorth3 -p fp-mindtct -p fp-backend-native -p fp-integration
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   linux:
     name: linux verify (Docker + libfprint)

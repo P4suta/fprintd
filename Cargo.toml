@@ -19,10 +19,14 @@ members = [
 ]
 
 [workspace.package]
+version = "0.1.0"               # first shape worth showing the world; all crates inherit via `version.workspace = true`
 edition = "2021"
 rust-version = "1.82"
 license = "MIT OR Apache-2.0"   # fp-core is clean-room original code; any NBIS-derived crate carries its own (public-domain) notice
-authors = ["libfprint-rs (pure-Rust) contributors"]
+authors = ["Yasunobu Sakashita <crates.tank733@slmails.com>"]
+# repository = "https://github.com/…"  # TODO: set once the public remote exists (the repo name is not
+#                                      # the directory name — cf. webpkit), then add
+#                                      # `repository.workspace = true` to each crate.
 
 [workspace.dependencies]
 # Internal crates (path deps; a Linux-only shim path entry pulls nothing until a

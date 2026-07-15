@@ -4,7 +4,7 @@
 
 //! The real minutiae detector a host-image driver uses — the seam onto [`fp_mindtct`].
 //!
-//! This is the front half of the host-image pipeline, the mirror of [`crate::matcher`]: where the
+//! This is the front half of the host-image pipeline, the mirror of `crate::matcher`: where the
 //! matcher turns an [`fp_core::Template::Nbis`] into `fp_bozorth3::Minutia` and scores it, this
 //! turns a captured 8-bit grayscale frame into that template. It calls
 //! [`fp_mindtct::detect_minutiae`] and converts each public-domain [`fp_mindtct::Minutia`] into an

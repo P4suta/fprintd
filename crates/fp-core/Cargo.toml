@@ -1,7 +1,7 @@
 [package]
 name = "fp-core"
 description = "Modern, GObject-free Rust core for fingerprint readers: device/print domain model and backend traits, shared by a libfprint (FFI) shim backend and native Rust drivers."
-version = "0.0.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

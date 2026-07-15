@@ -1,12 +1,63 @@
-# libfprint-rs (working title)
+# libfprint-rs
 
 A modern, GObject-free, **pure-Rust** fingerprint stack that speaks fprintd's
 D-Bus contract (`net.reactivated.Fprint`), so the existing Linux desktop / PAM
 login stack (pam_fprintd, GNOME/KDE settings) runs on it unchanged — plus a
 clean, embeddable `fp-core` library underneath.
 
-> Status: **M0** (ground-truth / scaffolding). Design and rationale live in
-> [`ARCHITECTURE.md`](ARCHITECTURE.md).
+> **North star: we don't rebuild fprintd — we coexist with it.** We speak the
+> ecosystem's real contract, keep the C **libfprint** underneath as a dynamically
+> linked shim, and layer on top the simple, modern mechanism today's Rust makes
+> possible. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full design and
+> rationale — including the prime directive that *architectural beauty is the
+> supreme value of this project.*
+
+## Crates
+
+Dependencies flow only toward the leaves; `fp-core` knows nothing about any
+backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
+
+| crate | role | platform |
+|---|---|---|
+| [`fp-core`](crates/fp-core) | the crystal: device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
+| [`fp-fp3`](crates/fp-fp3) | FP3 on-disk template (de)serialization — a hand-rolled GVariant codec (edge translator) | any |
+| [`fp-bozorth3`](crates/fp-bozorth3) | BOZORTH3 minutiae matcher — self-contained public-domain NBIS port | any |
+| [`fp-mindtct`](crates/fp-mindtct) | MINDTCT minutiae detector — self-contained public-domain NBIS port | any |
+| [`fp-backend-native`](crates/fp-backend-native) | virtual device + host-image matching; an **experimental** USB capture seam behind the `usb` feature | any |
+| [`fp-backend-libfprint`](crates/fp-backend-libfprint) | the shim: dynamically links the C libfprint via the `libfprint-rs` FFI crate | Linux |
+| [`fp-integration`](crates/fp-integration) | `CompositeBackend` / `CompositeDevice` — the one layer that knows every backend | any |
+| [`fprintd-rs`](crates/fprintd-rs) | the `net.reactivated.Fprint` daemon (zbus + PolicyKit) | Linux |
+
+## Status
+
+Honest about what is verified and what is not:
+
+| layer | state |
+|---|---|
+| **Crystal + arithmetic kernels + codec** (`fp-core`, `fp-fp3`, `fp-bozorth3`, `fp-mindtct`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint. All offline, no hardware. |
+| **Shim daemon** (`fprintd-rs` + `fp-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
+| **Native** (`fp-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is an **experimental, hardware-unverified invitation** — see below. |
+
+**Native drivers are an open invitation, not a goal.** Reaching parity with
+libfprint's driver estate is explicitly a non-goal ([`ARCHITECTURE.md`](ARCHITECTURE.md)
+§Non-goals). If you want to bring up a sensor natively, the capture seam is the
+place to plug in — see [`docs/adding-a-driver.md`](docs/adding-a-driver.md).
+
+## Build & test
+
+```sh
+cargo test --workspace          # unit + golden-fixture tests (offline, no hardware)
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
+mise run reuse                  # REUSE/SPDX license-hygiene lint
+mise run docker-test            # Linux shim + daemon tests against real libfprint (Docker)
+```
+
+## Documentation
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the design, the one rule, key decisions, provenance
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to build, test, and contribute
+- [`docs/`](docs) — format specs and algorithm/development notes (see [`docs/README.md`](docs/README.md))
 
 ## License
 
@@ -26,9 +77,9 @@ file declares its licensing via an SPDX header or `REUSE.toml`, and `reuse lint`
 is expected to pass. Provenance is kept clean by matching only *interoperability
 facts* (enum values, wire-format signatures, D-Bus names) and never
 transliterating LGPL implementation code. A backend that links the C
-**libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only; any code
-genuinely derived from libfprint — or a future public-domain NBIS port — lives
-in a separately-licensed crate isolated from the `MIT OR Apache-2.0` core. See
+**libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only; the
+public-domain NBIS ports (`fp-bozorth3`, `fp-mindtct`) live in separately-licensed
+crates isolated from the `MIT OR Apache-2.0` core. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
 
 ### Contribution

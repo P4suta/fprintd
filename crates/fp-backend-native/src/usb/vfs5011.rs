@@ -76,7 +76,7 @@ pub const PPI: u16 = 500;
 /// One step of a device bring-up or teardown handshake.
 ///
 /// A sequence of these is what [`init_sequence`] / [`deinit_sequence`] describe and what
-/// [`crate::usb::UsbFrameSource`] replays through a [`crate::UsbTransport`].
+/// `crate::usb::UsbFrameSource` replays through a [`crate::UsbTransport`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InitStep {
     /// A control transfer: `bmRequestType`, `bRequest`, `wValue`, `wIndex`, then the payload.
@@ -91,7 +91,7 @@ pub enum InitStep {
     BulkOut(Vec<u8>),
 }
 
-/// The device bring-up handshake, replayed by [`crate::usb::UsbFrameSource::arm`].
+/// The device bring-up handshake, replayed by `crate::usb::UsbFrameSource::arm`.
 ///
 /// HW-verified: required. The *structure* — a vendor control reset, then a bulk-out configure —
 /// is plausible for this family, but the concrete bytes are placeholders to be confirmed on
@@ -112,7 +112,7 @@ pub fn init_sequence() -> Vec<InitStep> {
     ]
 }
 
-/// The device teardown handshake, replayed by [`crate::usb::UsbFrameSource::disarm`].
+/// The device teardown handshake, replayed by `crate::usb::UsbFrameSource::disarm`.
 ///
 /// HW-verified: required. Placeholder stop-then-reset; confirm on hardware.
 #[must_use]
