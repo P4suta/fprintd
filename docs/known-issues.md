@@ -46,14 +46,17 @@ ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`); byte-for-byte e
 **frozen golden fixtures** (permanent oracles that caught two real framing bugs during the
 hand-roll); and — as of the M2 work — **byte-identity against a real C libfprint blob**:
 
-- The shim's Docker test (`fprint-backend-libfprint`, `tests/virtual.rs`) enrolls on the real
-  `virtual_device` driver and asserts our `to_bytes` output is a **fixed point of libfprint's own
-  `deserialize`/`serialize`** — i.e. byte-identical to libfprint's canonical FP3.
-- The real blob is frozen at `crates/fprint-fp3/tests/fixtures/libfprint_virtual_device.fp3`, and
-  `fprint-fp3`'s `tests/libfprint_fixture.rs` re-validates decode + byte-exact re-encode **on any
-  platform, without Docker**.
+- The shim's Docker tests enroll on the real virtual drivers and assert our `to_bytes` output is a
+  **fixed point of libfprint's own `deserialize`/`serialize`** — i.e. byte-identical to libfprint's
+  canonical FP3. Both template kinds are covered: `tests/virtual.rs` drives `virtual_device` for
+  the opaque `Raw`/match-on-chip path, and `tests/virtual_image.rs` drives `virtual_image`, an
+  image device, so libfprint runs the real NBIS extractor and serializes an `FPI_PRINT_NBIS` print.
+- Both real blobs are frozen under `crates/fprint-fp3/tests/fixtures/`
+  (`libfprint_virtual_device.fp3`, `libfprint_virtual_image_nbis.fp3`), and `fprint-fp3`'s
+  `tests/libfprint_fixture.rs` re-validates decode + byte-exact re-encode **on any platform,
+  without Docker**.
 
-Remaining M2 coverage (not a blocker): capture a real **NBIS** (`virtual-image`) blob too — the
-current fixture is the MOC/`Raw` path; the NBIS payload's byte-compat is covered structurally by the
-golden fixtures and by the end-to-end `fprint-fp3` ↔ `fprint-bozorth3` seam test, but not yet against a
-real libfprint NBIS serialization.
+The NBIS fixture carries no biometric data: the frames fed to `virtual_image` are a synthetic image
+from `fprint-mindtct`'s golden corpus (`loop_200x240.raw`, which stock NBIS resolves to 26 minutiae).
+Enrolling a real finger to fill this gap would put an irrevocable biometric in the repository, so it
+is not an option — see `SECURITY.md`.

@@ -75,10 +75,14 @@ jobs:
           docker compose -f docker/docker-compose.yml run --rm dev \
             bash -c 'cargo clippy --workspace --all-targets --all-features -- -D warnings && \
                      cargo test --workspace --all-features'
-      - name: Shim vs. real libfprint virtual_device (incl. M2 FP3 byte-identity)
+      # Already covered by --all-features above; named separately because these two are the M2
+      # FP3 byte-identity proof against the real C library — Raw via virtual_device, NBIS via
+      # virtual_image — and a silent loss of either would matter.
+      - name: Shim vs. real libfprint virtual drivers (M2 FP3 byte-identity)
         run: |
           docker compose -f docker/docker-compose.yml run --rm dev \
-            cargo test -p fprint-backend-libfprint --features virtual --test virtual
+            cargo test -p fprint-backend-libfprint --features virtual \
+              --test virtual --test virtual_image
 
   msrv:
     name: msrv (1.82, published pure crates)

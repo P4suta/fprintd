@@ -2,13 +2,17 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Docker-free regression against a **real libfprint FP3 blob**.
+//! Docker-free regression against **real libfprint FP3 blobs**, one per template kind.
 //!
-//! `tests/fixtures/libfprint_virtual_device.fp3` was produced by the actual C libfprint
-//! (`fp_print_serialize` on a `virtual_device` enrollment) and frozen by the shim's Docker test
-//! (`fprint-backend-libfprint`, `FP3_FREEZE_FIXTURES=1`, which also asserts byte-identity live). This
-//! test pins the interop the other way — on any platform, with no Docker — proving `fprint-fp3` decodes
-//! that real blob and **re-encodes it byte-for-byte**. It is the M2 FP3 byte-compatibility guard.
+//! Both fixtures were produced by the actual C libfprint (`fp_print_serialize`) and frozen by
+//! the shim's Docker tests with `FP3_FREEZE_FIXTURES=1`, which also assert byte-identity live:
+//! `virtual_device` (`tests/virtual.rs`) for the opaque `Raw` path, `virtual_image`
+//! (`tests/virtual_image.rs`) for the NBIS minutiae path. These tests pin the interop the other
+//! way — on any platform, with no Docker — proving `fprint-fp3` decodes a real blob and
+//! **re-encodes it byte-for-byte**. Together they are the M2 FP3 byte-compatibility guard.
+//!
+//! Neither fixture contains biometric data: the NBIS one is minutiae extracted from a synthetic
+//! image in `fprint-mindtct`'s golden corpus.
 
 use fprint_core::Template;
 
@@ -40,5 +44,41 @@ fn decodes_and_reencodes_real_libfprint_fp3_byte_for_byte() {
         reencoded.as_slice(),
         blob.as_slice(),
         "fprint-fp3 must reproduce libfprint's FP3 bytes exactly"
+    );
+}
+
+/// The NBIS half: a print whose payload is nested minutiae arrays rather than one opaque blob,
+/// so it exercises framing the `Raw` fixture never reaches.
+#[test]
+fn decodes_and_reencodes_real_libfprint_nbis_fp3_byte_for_byte() {
+    let blob = include_bytes!("fixtures/libfprint_virtual_image_nbis.fp3");
+
+    let print =
+        fprint_fp3::from_bytes(blob).expect("fprint-fp3 must decode real libfprint NBIS FP3");
+
+    assert!(
+        blob.starts_with(fprint_fp3::MAGIC),
+        "fixture must carry the FP3 magic"
+    );
+    assert_eq!(
+        print.driver.as_ref().map(|d| d.0.as_str()),
+        Some("virtual_image")
+    );
+    let Template::Nbis(captures) = &print.template else {
+        panic!(
+            "virtual_image yields an NBIS template, got {:?}",
+            print.template
+        );
+    };
+    assert!(
+        captures.iter().any(|c| !c.is_empty()),
+        "the fixture must carry real minutiae, or it guards nothing"
+    );
+
+    let reencoded = fprint_fp3::to_bytes(&print).expect("re-encode");
+    assert_eq!(
+        reencoded.as_slice(),
+        blob.as_slice(),
+        "fprint-fp3 must reproduce libfprint's NBIS FP3 bytes exactly"
     );
 }

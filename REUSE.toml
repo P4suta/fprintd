@@ -25,8 +25,9 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
-# Real-libfprint FP3 blob, frozen as an interop fixture (a wire-format fact — a byte layout — not
-# copyrightable expression; see ARCHITECTURE.md §Provenance & licensing).
+# Real-libfprint FP3 blobs, frozen as interop fixtures (a wire-format fact — a byte layout — not
+# copyrightable expression; see ARCHITECTURE.md §Provenance & licensing). The NBIS one is minutiae
+# from a synthetic image, not from a finger.
 [[annotations]]
 path = ["crates/fprint-fp3/tests/fixtures/**"]
 precedence = "aggregate"
