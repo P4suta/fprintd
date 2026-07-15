@@ -6,9 +6,8 @@
 //! on-disk FP3 format.
 //!
 //! A [`Print`] is metadata plus a [`Template`] payload. Serialization to/from the FP3
-//! byte format (`"FP3"` magic + GVariant `(issbymsmsia{sv}v)`) lives in a downstream
-//! crate (it needs a GVariant encoder, e.g. `zvariant`); this module is the in-memory
-//! model those (de)serializers map to.
+//! byte format (`"FP3"` magic + GVariant `(issbymsmsia{sv}v)`) lives in the downstream
+//! `fprint-fp3` crate; this module is the in-memory model it maps to.
 
 use crate::{DeviceId, DriverId, Finger};
 
@@ -50,9 +49,10 @@ pub enum Template {
     /// `FPI_PRINT_RAW` — data compared directly. For match-on-chip devices this is the
     /// driver's opaque blob (often just a handle to a template stored on the sensor).
     ///
-    /// Invariant (spoken by the FP3 edge, not enforced here): the bytes are a *self-describing,
-    /// standalone GVariant variant* (`v`) — the driver's `print->data` — which the codec in
-    /// `fprint-fp3` writes and reads verbatim so a match-on-chip print round-trips byte-for-byte.
+    /// Invariant relied on by `fprint-fp3` but not enforced here: the bytes are a
+    /// *self-describing, standalone GVariant variant* (`v`) — the driver's `print->data` —
+    /// which the codec writes and reads verbatim so a match-on-chip print round-trips
+    /// byte-for-byte.
     Raw(Vec<u8>),
 }
 
@@ -93,8 +93,9 @@ impl Print {
     }
 
     /// Whether this print's template is compatible with a device advertising `driver`.
-    /// A first-cut of libfprint's `fp_print_compatible` (which also checks device_id for
-    /// some drivers); the transport-specific rules will be refined per backend.
+    ///
+    /// Corresponds to libfprint's `fp_print_compatible`, which additionally checks
+    /// `device_id` for some drivers; those transport-specific rules are left to the backend.
     #[must_use]
     pub fn is_compatible_with_driver(&self, driver: &DriverId) -> bool {
         match &self.driver {

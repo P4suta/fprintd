@@ -243,7 +243,7 @@ pub(crate) const TRUNC_SCALE: f64 = 16384.0;
 /// `usize`.
 // `dead_code`: the stock allocation bound. The port grows minutiae in a `Vec` rather than a
 // fixed-size array, so nothing in the pipeline reads this cap; it is transcribed for fidelity to
-// `lfs.h` and pinned by the test below. Targeted per-item allow — the minimal suppression.
+// `lfs.h` and pinned by the test below.
 #[allow(dead_code)]
 pub(crate) const MAX_MINUTIAE: usize = 1000;
 

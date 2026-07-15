@@ -4,10 +4,10 @@
 
 //! Developer tasks that are programs rather than shell.
 //!
-//! `mise.toml` is the right home for a task that is genuinely one command. It is the wrong home
-//! for anything else: shell quoted inside TOML is read by no compiler, linter or formatter, and
-//! it is run by whatever shell the task runner picked — `cmd.exe` on this project's Windows dev
-//! box, `sh` in CI — which are not the same language.
+//! `mise.toml` holds tasks that are genuinely one command. Anything longer lives here: shell
+//! quoted inside TOML is read by no compiler, linter or formatter, and it runs under whatever
+//! shell the task runner picked — `cmd.exe` on a Windows dev box, `sh` in CI — which are not the
+//! same language.
 //!
 //! Run with `cargo xtask <task>` (see `.cargo/config.toml` for the alias).
 

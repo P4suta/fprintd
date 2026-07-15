@@ -70,7 +70,7 @@ pub const MAX_FRAME_BYTES: usize = WIDTH * HEIGHT;
 /// Scan resolution in pixels-per-inch recorded on every captured [`crate::Frame`].
 ///
 /// HW-verified: required. 500 ppi is the NBIS reference resolution and a sane placeholder; the real
-/// VFS5011 resolution must be confirmed so MINDTCT's resolution-relative thresholds are honest.
+/// VFS5011 resolution must be confirmed: MINDTCT's thresholds are relative to it.
 pub const PPI: u16 = 500;
 
 /// One step of a device bring-up or teardown handshake.

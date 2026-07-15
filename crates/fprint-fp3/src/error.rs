@@ -4,11 +4,10 @@
 
 //! Errors surfaced by the FP3 codec.
 //!
-//! Hand-rolled in the same spirit as `fprint-core`'s error type (no `thiserror`, no upstream
-//! GVariant engine to defer to): the codec is a self-contained edge translator, so its
-//! failure modes are exactly the ways a byte stream can fail to be a well-formed FP3
-//! template — the `"FP3"` magic, the fixed GVariant tuple framing, the three `FpiPrintType`
-//! payload kinds, and the per-sample "three equal-length arrays" rule.
+//! Hand-rolled (no `thiserror`), matching `fprint-core`'s error type. The failure modes are
+//! the ways a byte stream can fail to be a well-formed FP3 template: the `"FP3"` magic, the
+//! fixed GVariant tuple framing, the three `FpiPrintType` payload kinds, and the per-sample
+//! "three equal-length arrays" rule.
 
 /// Crate result alias.
 pub type Result<T> = core::result::Result<T, Fp3Error>;

@@ -4,12 +4,12 @@
 
 //! Docker-free regression against **real libfprint FP3 blobs**, one per template kind.
 //!
-//! Both fixtures were produced by the actual C libfprint (`fp_print_serialize`) and frozen by
-//! the shim's Docker tests with `FP3_FREEZE_FIXTURES=1`, which also assert byte-identity live:
+//! Both fixtures were produced by the C libfprint (`fp_print_serialize`) and frozen by the
+//! shim's Docker tests with `FP3_FREEZE_FIXTURES=1`, which also assert byte-identity live:
 //! `virtual_device` (`tests/virtual.rs`) for the opaque `Raw` path, `virtual_image`
-//! (`tests/virtual_image.rs`) for the NBIS minutiae path. These tests pin the interop the other
-//! way — on any platform, with no Docker — proving `fprint-fp3` decodes a real blob and
-//! **re-encodes it byte-for-byte**. Together they are the M2 FP3 byte-compatibility guard.
+//! (`tests/virtual_image.rs`) for the NBIS minutiae path. These tests pin the interop on any
+//! platform, with no Docker: `fprint-fp3` decodes a real blob and **re-encodes it
+//! byte-for-byte**.
 //!
 //! Neither fixture contains biometric data: the NBIS one is minutiae extracted from a synthetic
 //! image in `fprint-mindtct`'s golden corpus.
@@ -38,7 +38,7 @@ fn decodes_and_reencodes_real_libfprint_fp3_byte_for_byte() {
         print.template
     );
 
-    // The load-bearing assertion: our re-encoding is byte-identical to libfprint's own output.
+    // The load-bearing assertion: the re-encoding is byte-identical to libfprint's own output.
     let reencoded = fprint_fp3::to_bytes(&print).expect("re-encode");
     assert_eq!(
         reencoded.as_slice(),

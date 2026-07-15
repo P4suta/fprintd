@@ -9,10 +9,9 @@ rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-# Held back from crates.io for now: a system daemon is delivered by distro packaging (systemd
-# units, D-Bus policy, PolicyKit actions), the way upstream fprintd is — nobody `cargo install`s
-# their fingerprint daemon. The library layer below is what crates.io is for. Flipping this on
-# later costs one line; the name is reserved by nothing but our own restraint.
+# Not published: a system daemon is delivered by distro packaging (systemd units, D-Bus policy,
+# PolicyKit actions), the way upstream fprintd is. The library layer below is what crates.io is
+# for.
 publish = false
 
 [[bin]]

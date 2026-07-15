@@ -2,19 +2,20 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The real minutiae detector a host-image driver uses — the seam onto [`fprint_mindtct`].
+//! The minutiae detector a host-image driver uses — the seam onto [`fprint_mindtct`].
 //!
-//! This is the front half of the host-image pipeline, the mirror of `crate::matcher`: where the
-//! matcher turns an [`fprint_core::Template::Nbis`] into `fprint_bozorth3::Minutia` and scores it, this
-//! turns a captured 8-bit grayscale frame into that template. It calls
-//! [`fprint_mindtct::detect_minutiae`] and converts each public-domain [`fprint_mindtct::Minutia`] into an
-//! [`fprint_core::Minutia`], so a driver can go **image → minutiae → match** end-to-end.
+//! The front half of the host-image pipeline (`crate::matcher` is the back half): it turns a
+//! captured 8-bit grayscale frame into an [`fprint_core::Template::Nbis`] by calling
+//! [`fprint_mindtct::detect_minutiae`] and converting each public-domain
+//! [`fprint_mindtct::Minutia`] into an [`fprint_core::Minutia`], so a driver can go
+//! **image → minutiae → match** end-to-end.
 //!
-//! The conversion lives here (not in `fprint-mindtct`) on purpose. `fprint-mindtct` is a self-contained,
-//! dependency-free public-domain kernel that does not know `fprint-core`; the only thing crossing the
-//! boundary is the `xyt` triple — an interoperability *fact*, not a code coupling. Keeping the
-//! `Minutia → fprint_core::Minutia` mapping on the permissive (`fprint-backend-native`) side of the fence is
-//! what lets the PD detector and PD matcher stay pristine, each defining its own `Minutia`.
+//! The conversion lives here rather than in `fprint-mindtct`: that crate is a self-contained,
+//! dependency-free public-domain kernel that does not know `fprint-core`, and the only thing
+//! crossing the boundary is the `xyt` triple — an interoperability *fact*, not a code coupling.
+//! Keeping the `Minutia → fprint_core::Minutia` mapping on the permissive
+//! (`fprint-backend-native`) side lets the PD detector and PD matcher each define their own
+//! `Minutia`.
 
 use fprint_core::{Minutia, Template};
 

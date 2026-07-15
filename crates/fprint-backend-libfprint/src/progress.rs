@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The enroll-progress trampoline — one of only two `unsafe` islands in the shim.
+//! The enroll-progress trampoline.
 //!
 //! The binding's `FpEnrollProgress` is a *non-capturing* `fn` pointer with a single generic
-//! user-data slot; it cannot carry a Rust closure. `fprint-core`'s [`Device::enroll`] instead
-//! hands us a generic `F: FnMut(EnrollProgress)`. We bridge the two by parking a `&mut F`
-//! (plus the total stage count) in a [`Trampoline<'_, F>`], passing a raw pointer to it through
-//! the user-data slot, and rebuilding the `&mut` inside [`on_enroll_progress`] — a fn generic
-//! over `F` that monomorphizes to one concrete `extern`-compatible fn pointer per closure type.
+//! user-data slot; it cannot carry a Rust closure, while `fprint-core`'s [`Device::enroll`]
+//! takes a generic `F: FnMut(EnrollProgress)`. The bridge parks a `&mut F` (plus the total
+//! stage count) in a [`Trampoline<'_, F>`], passes a raw pointer to it through the user-data
+//! slot, and rebuilds the `&mut` inside [`on_enroll_progress`] — a fn generic over `F` that
+//! monomorphizes to one concrete `extern`-compatible fn pointer per closure type.
 //!
 //! [`Device::enroll`]: fprint_core::Device::enroll
 

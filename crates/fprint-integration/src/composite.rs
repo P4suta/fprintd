@@ -6,7 +6,7 @@
 //!
 //! One [`fprint_core::Backend`] whose devices come from either the pure-Rust native backend or
 //! the Linux libfprint shim. The [`Device`] impl on [`CompositeDevice`] delegates every
-//! method with an explicit `match` — see the crate docs for why this beats `enum_dispatch`.
+//! method with an explicit `match`; see the crate docs for why, rather than `enum_dispatch`.
 
 use fprint_core::{
     Backend, Device, DeviceId, DeviceInfo, EnrollProgress, IdentifyOutcome, Print, Result,
@@ -21,9 +21,9 @@ use fprint_backend_libfprint::{LibfprintBackend, LibfprintDevice};
 /// A device served by one of the composed backends.
 ///
 /// The `Shim` variant exists only on Linux, where the libfprint FFI backend is available; on
-/// every other host a `CompositeDevice` is always `Native`, and this crate builds and tests
-/// native-only. `has_feature` is *not* delegated: it inherits [`Device`]'s default, which is
-/// expressed in terms of [`Device::info`], so it works through the enum for free.
+/// every other host a `CompositeDevice` is always `Native`. `has_feature` is *not* delegated:
+/// it inherits [`Device`]'s default, which is expressed in terms of [`Device::info`], so it
+/// already works through the enum.
 pub enum CompositeDevice {
     /// A device from the pure-Rust native backend.
     Native(VirtualDevice),
@@ -128,14 +128,13 @@ impl Device for CompositeDevice {
 
 /// A [`Backend`] composing the native backend with (on Linux) the libfprint shim.
 ///
-/// The shim is optional even where it exists: a Linux daemon may run native-only during early
-/// migration, so [`with_native`](CompositeBackend::with_native) is available on every host.
-/// `new` (Linux only) composes both.
+/// The shim is optional even where it exists: [`with_native`](CompositeBackend::with_native)
+/// builds a native-only composite and is available on every host; `new` (Linux only) composes
+/// both.
 pub struct CompositeBackend {
     native: VirtualBackend,
     /// The shim, if one was supplied. `None` for a native-only composite; `Some` after
-    /// [`new`](CompositeBackend::new). Private, so the enum-vs-option choice is an internal
-    /// detail behind the two constructors.
+    /// [`new`](CompositeBackend::new).
     #[cfg(target_os = "linux")]
     shim: Option<LibfprintBackend>,
 }
@@ -150,8 +149,7 @@ impl CompositeBackend {
         }
     }
 
-    /// A native-only composite. Compiles and runs on every host (on Linux it simply carries no
-    /// shim), which is what makes this crate testable native-only on a Windows dev box.
+    /// A native-only composite. Available on every host; on Linux it carries no shim.
     pub fn with_native(native: VirtualBackend) -> Self {
         CompositeBackend {
             native,

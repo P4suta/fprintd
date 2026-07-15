@@ -92,8 +92,8 @@ async fn claim_publishes_the_settled_shape() {
     let devices = manager.get_devices().await.expect("get devices");
     assert_eq!(devices.len(), 1);
 
-    // No property caching: the daemon emits no PropertiesChanged in M1, so every read must hit
-    // the wire, or this would assert against zbus's cache rather than the daemon.
+    // No property caching: the daemon emits no PropertiesChanged, so every read must hit the
+    // wire, or this would assert against zbus's cache rather than the daemon.
     let device = DeviceProxy::builder(&client)
         .path(devices[0].clone())
         .expect("device path")

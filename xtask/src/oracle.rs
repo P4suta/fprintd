@@ -9,16 +9,15 @@
 //! frozen as the fixtures our Rust ports are tested against. Any change here must leave the
 //! regenerated fixtures byte-identical, or it has moved the goldens rather than reproduced them.
 //!
-//! Regeneration is deliberate: it overwrites frozen fixtures that exist to catch drift. Only run
-//! it when you mean to.
+//! Regeneration is deliberate: it overwrites frozen fixtures that exist to catch drift.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::docker::{container_path, relative_to, Run};
 
-/// gcc image for building the stock C oracles. Pinned: the fixtures are goldens, and a compiler
-/// that moves under them is drift with extra steps.
+/// gcc image for building the stock C oracles. Pinned: the fixtures are goldens, so the compiler
+/// that produces them must not move.
 const GCC_IMAGE: &str = "gcc:13-bookworm";
 /// Stock NBIS, cloned by `mise run clone-ref-nbis` and git-ignored.
 const NBIS_STOCK: &str = "reference/nbis-stock";

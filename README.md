@@ -21,7 +21,7 @@ backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
 
 | crate | role | platform |
 |---|---|---|
-| [`fprint-core`](crates/fprint-core) | the crystal: device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
+| [`fprint-core`](crates/fprint-core) | device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
 | [`fprint-fp3`](crates/fprint-fp3) | FP3 on-disk template (de)serialization — a hand-rolled GVariant codec (edge translator) | any |
 | [`fprint-bozorth3`](crates/fprint-bozorth3) | BOZORTH3 minutiae matcher — self-contained, zero-dependency NBIS port | any |
 | [`fprint-mindtct`](crates/fprint-mindtct) | MINDTCT minutiae detector — self-contained, zero-dependency NBIS port | any |
@@ -32,11 +32,11 @@ backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
 
 ## Status
 
-Honest about what is verified and what is not:
+What is verified, and what is not:
 
 | layer | state |
 |---|---|
-| **Crystal + arithmetic kernels + codec** (`fprint-core`, `fprint-fp3`, `fprint-bozorth3`, `fprint-mindtct`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint. All offline, no hardware. |
+| **Core + arithmetic kernels + codec** (`fprint-core`, `fprint-fp3`, `fprint-bozorth3`, `fprint-mindtct`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint. All offline, no hardware. |
 | **Shim daemon** (`fprintd` + `fprint-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
 | **Native** (`fprint-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is an **experimental, hardware-unverified invitation** — see below. |
 

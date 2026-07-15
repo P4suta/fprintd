@@ -12,9 +12,8 @@ authors.workspace = true
 publish = false
 
 [dependencies]
-# Deliberately none. A task runner that needs a dependency tree to shell out to Docker has
-# defeated its own purpose, and this crate is in the lockfile every published crate resolves
-# against.
+# Deliberately none: shelling out to Docker needs no dependency tree, and this crate is in the
+# lockfile every published crate resolves against.
 
 [lints]
 workspace = true

@@ -108,7 +108,7 @@ pub(crate) fn sort_indices_int_inc(ranks: &mut [i32]) -> Vec<i32> {
 ///
 /// `dead_code`: the `double` twin of the wired [`sort_indices_int_inc`]. The V2 pipeline sorts only
 /// integer ranks, so this variant has no caller; transcribed for fidelity and exercised by the tests
-/// below. Targeted per-item allow — the minimal suppression.
+/// below.
 #[allow(dead_code)]
 pub(crate) fn sort_indices_double_inc(ranks: &mut [f64]) -> Vec<i32> {
     let mut order: Vec<i32> = (0..ranks.len()).map(|i| i as i32).collect();

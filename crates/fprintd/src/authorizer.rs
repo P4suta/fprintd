@@ -13,8 +13,7 @@
 //! `org.freedesktop.PolicyKit1.Authority` (via [`PolkitAuthorizer`]), while
 //! [`Authorizer::AllowAll`] grants everything so the hardware-free D-Bus integration test can
 //! run without a PolicyKit daemon. The enum uses native `async fn` and hand-written
-//! delegation — the same static-dispatch spirit as `fprint-integration`'s `CompositeDevice` — so
-//! the daemon needs neither `async-trait` nor `Arc<dyn Authorizer>`.
+//! delegation, so the daemon needs neither `async-trait` nor `Arc<dyn Authorizer>`.
 
 use std::collections::HashMap;
 

@@ -109,7 +109,7 @@ async fn enroll_then_verify_over_dbus() {
     let device_path = devices[0].clone();
 
     // Disable property caching: the daemon does not emit PropertiesChanged for
-    // `num-enroll-stages` in M1, so each read must hit the wire.
+    // `num-enroll-stages`, so each read must hit the wire.
     let device = DeviceProxy::builder(&client)
         .path(device_path)
         .expect("device path")

@@ -2,19 +2,17 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! End-to-end cross-crate proof of the whole offline slice: enroll on the virtual device,
-//! serialize the resulting [`Print`](fprint_core::Print) to the FP3 on-disk blob, read it back,
-//! and confirm the deserialized print still verifies against the sensor.
+//! End-to-end cross-crate test of the offline slice: enroll on the virtual device,
+//! serialize the resulting [`Print`](fprint_core::Print) to the FP3 on-disk blob, read it
+//! back, and confirm the deserialized print still verifies against the sensor.
 //!
-//! This is the one test that exercises all three crates at once — `fprint-backend-native`
-//! (a [`fprint_core::Device`]), `fprint-fp3` (the wire codec), and `fprint-core` (the domain model they
-//! meet in). It sits deliberately in `fprint-fp3`, which is above the domain model and so may
-//! know a backend for testing; the backend itself stays unaware of any wire format
-//! (`ARCHITECTURE.md` principle 3).
+//! It exercises `fprint-backend-native` (a [`fprint_core::Device`]), `fprint-fp3` (the wire
+//! codec), and `fprint-core` (the domain model they meet in) together. It lives in
+//! `fprint-fp3`, which is above the domain model and so may know a backend for testing; the
+//! backend itself stays unaware of any wire format (`ARCHITECTURE.md` principle 3).
 //!
-//! The async surface is driven by a tiny, `unsafe`-free `block_on` built on
-//! [`std::task::Wake`] — no runtime crate, matching how the backend's own integration tests
-//! poll the virtual device.
+//! The async surface is driven by an `unsafe`-free `block_on` built on
+//! [`std::task::Wake`] — no runtime crate.
 
 use std::future::Future;
 use std::pin::pin;

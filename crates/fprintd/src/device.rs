@@ -189,7 +189,7 @@ impl Device {
     }
 
     /// Whether a finger is on the sensor. `fprint_core` does not surface live finger-status
-    /// events in M1, so this is always `false`.
+    /// events, so this is always `false`.
     #[zbus(property, name = "finger-present")]
     async fn finger_present(&self) -> bool {
         false

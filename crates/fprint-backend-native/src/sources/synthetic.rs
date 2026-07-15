@@ -5,17 +5,15 @@
 //! [`SyntheticFrameSource`]: a deterministic, hardware-free [`FrameSource`].
 //!
 //! It renders a reproducible synthetic fingerprint once (a tiny LCG grating: parallel sinusoidal
-//! ridges with scattered ridge-dislocation dipoles that plant real ridge-ending / bifurcation
-//! minutiae — exactly the structure MINDTCT is built to find) and hands out that same frame on every
-//! [`capture`](FrameSource::capture). Because the frame is byte-stable, a self-capture matches
-//! strongly through the real detector + matcher, while a different preset (a different seed / ridge
-//! field) is a genuine stranger. This is the [`crate::ImageDevice`] counterpart of the LCG grating
-//! `tests/end_to_end.rs` exercises directly, promoted out of test code so a device can be driven with
-//! no sensor.
+//! ridges with scattered ridge-dislocation dipoles that plant ridge-ending / bifurcation minutiae,
+//! the structure MINDTCT detects) and hands out that same frame on every
+//! [`capture`](FrameSource::capture). The frame is byte-stable, so a self-capture matches strongly
+//! through the detector + matcher, while a different preset (a different seed / ridge field) does
+//! not match.
 //!
 //! Scripted [`Capture::Retry`] outcomes ([`SyntheticFrameSource::with_retries`]) model weak captures
 //! at chosen capture indices, so enrollment retry handling can be exercised deterministically. Every
-//! `capture` awaits `crate::yield_now` once, keeping one poll boundary per stage — the strict
+//! `capture` awaits `crate::yield_now` once, keeping one poll boundary per stage — the
 //! drop-cancellation point of [`crate::ImageDevice::enroll`].
 
 use fprint_core::{Result, RetryReason};
@@ -92,9 +90,9 @@ impl FrameSource for SyntheticFrameSource {
 }
 
 // --- Deterministic synthetic-fingerprint generator (LCG grating) ---------------------------------
-// A faithful port of the grating in `tests/end_to_end.rs` (itself a port of the oracle corpus
-// generator): parallel sinusoidal ridges, gently curved, with scattered ridge-dislocation dipoles
-// that plant ridge-ending / bifurcation minutiae. A tiny LCG (no RNG crate) keeps it byte-stable.
+// The same grating as `tests/end_to_end.rs` and the oracle corpus generator: parallel sinusoidal
+// ridges, gently curved, with scattered ridge-dislocation dipoles that plant ridge-ending /
+// bifurcation minutiae. A tiny LCG (no RNG crate) keeps it byte-stable.
 
 struct Lcg(u64);
 

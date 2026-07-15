@@ -53,7 +53,7 @@ pub fn verify(root: &Path) -> Result<(), String> {
     let template = root.join("crates/fprintd/dbus/fprintd-rs.service.in");
 
     // The `@LIBEXECDIR@` substitution packaging will do. This is the only place that knows the
-    // template needs substituting at all, so it is worth being findable.
+    // template needs substituting at all.
     let unit = std::fs::read_to_string(&template)
         .map_err(|e| format!("read {}: {e}", template.display()))?
         .replace("@LIBEXECDIR@", LIBEXECDIR);
@@ -86,8 +86,8 @@ pub fn verify(root: &Path) -> Result<(), String> {
     session.exec(&["chmod", "644", UNIT_PATH])?;
 
     let verify = session.exec(&["systemd-analyze", "verify", "fprintd-rs.service"])?;
-    // `systemd-analyze verify` is a poor citizen: it reports some problems on stderr and still
-    // exits 0, so a green status is not on its own an answer.
+    // `systemd-analyze verify` reports some problems on stderr and still exits 0, so its status
+    // is not on its own an answer.
     if !verify.stderr.trim().is_empty() {
         return Err(format!(
             "systemd reported problems with the unit:\n{}",

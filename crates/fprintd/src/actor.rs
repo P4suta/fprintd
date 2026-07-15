@@ -2,22 +2,21 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The per-device actor thread — where the `!Send` reality is honestly confined.
+//! The per-device actor thread.
 //!
 //! The libfprint shim is thread-affine (GObject / `GMainContext`), so `fprint_core::Device` is
 //! not required to be `Send` (ARCHITECTURE.md principle 7). Each device therefore gets one
-//! dedicated OS thread running a single-threaded tokio runtime + `LocalSet` that **owns**
-//! the device for its whole life. Commands arrive over a `Send` channel ([`DeviceCommand`]);
-//! the actor runs the matching `fprint_core` async method on its own thread and answers via the
-//! command's reply channel. The rest of the daemon holds only a [`DeviceHandle`], which *is*
+//! dedicated OS thread running a single-threaded tokio runtime + `LocalSet` that owns the
+//! device for its whole life. Commands arrive over a `Send` channel ([`DeviceCommand`]); the
+//! actor runs the matching `fprint_core` async method on its own thread and answers via the
+//! command's reply channel. The rest of the daemon holds only a [`DeviceHandle`], which is
 //! `Send`.
 //!
-//! The backend itself never crosses a thread boundary. The daemon holds a `Send` **factory**
-//! (`Fn() -> B`); each actor thread calls it to build its *own* backend locally, so `B` — and
-//! `B::Device` — may be `!Send` without any unsound `Send` impl. The device is then opened
-//! lazily via `Backend::open` on that same thread on the first [`DeviceCommand::Open`] (i.e.
-//! the first `Claim`), so the actor thread — not the daemon's runtime — is the only one that
-//! ever touches the reader.
+//! The daemon holds a `Send` factory (`Fn() -> B`); each actor thread calls it to build its own
+//! backend locally, so `B` — and `B::Device` — may be `!Send` without any unsound `Send` impl.
+//! The device is then opened lazily via `Backend::open` on that same thread on the first
+//! [`DeviceCommand::Open`] (i.e. the first `Claim`), so the actor thread, not the daemon's
+//! runtime, is the only one that ever touches the reader.
 
 use fprint_core::{Backend, Device, DeviceId, DeviceInfo, EnrollProgress, Error};
 use tokio::sync::mpsc;

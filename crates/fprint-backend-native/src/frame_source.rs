@@ -4,12 +4,12 @@
 
 //! [`FrameSource`]: the capture seam an [`crate::ImageDevice`] drives.
 //!
-//! This is the one hardware-facing abstraction of the host-image pipeline: everything above it
+//! The one hardware-facing abstraction of the host-image pipeline: everything above it
 //! (detect → match, in `crate::detector` / `crate::matcher`) is pure and deterministic, and
-//! everything a real sensor needs to do — arm the reader, wait for a finger, hand back a frame —
-//! lives behind [`FrameSource::capture`]. A pure-Rust synthetic source ([`crate::SyntheticFrameSource`])
-//! implements it today; a USB transport implements the same three methods later, overriding the
-//! default no-op [`arm`](FrameSource::arm) / [`disarm`](FrameSource::disarm).
+//! everything a real sensor does — arm the reader, wait for a finger, hand back a frame — lives
+//! behind [`FrameSource::capture`]. Implementors that need no bring-up (such as
+//! [`crate::SyntheticFrameSource`]) inherit the default no-op [`arm`](FrameSource::arm) /
+//! [`disarm`](FrameSource::disarm); a USB transport overrides them.
 //!
 //! Cancellation follows the project model: `capture` is the only awaiting step, so its poll boundary
 //! is where a dropped [`crate::ImageDevice::enroll`] future cancels. A [`Capture::Retry`] is a *weak*

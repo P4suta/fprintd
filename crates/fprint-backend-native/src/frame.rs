@@ -4,11 +4,10 @@
 
 //! [`Frame`]: an owned captured grayscale frame, bridged to the detector's borrowed image.
 //!
-//! A [`crate::FrameSource`] yields owned `Frame`s (it captured the bytes, so it owns them), but
-//! [`fprint_mindtct`] takes a **borrowing** [`fprint_mindtct::GrayImage`] — it never copies the pixels it
-//! detects over. [`Frame::as_gray`] is the seam between the two: it hands the detector a view into
-//! the owned buffer for the duration of one detection, so a borrow-based `GrayImage` and this
-//! crate's `#![forbid(unsafe_code)]` coexist with no copy and no lifetime gymnastics.
+//! A [`crate::FrameSource`] yields owned `Frame`s, but [`fprint_mindtct`] takes a **borrowing**
+//! [`fprint_mindtct::GrayImage`] — it never copies the pixels it detects over. [`Frame::as_gray`]
+//! is the seam between the two: it hands the detector a view into the owned buffer for the
+//! duration of one detection, so the pixels are never copied.
 
 /// An owned 8-bit grayscale capture: exactly `width * height` row-major bytes plus the scan
 /// resolution the detector's resolution-relative thresholds need.

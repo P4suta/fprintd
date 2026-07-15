@@ -14,14 +14,13 @@
 //! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is a **faithful
 //! port** of the **stock upstream NBIS** algorithm (`reference/nbis-stock/mindtct/`, see
 //! `docs/mindtct-algorithm.md`), verified black-box against the stock C tool — reproducing its xyt
-//! output bit-for-bit required following its arithmetic *and its ordering* closely, which is
-//! deliberate and which public domain permits. It is deliberately **not** derived from libfprint's
-//! patched `nbis/mindtct/` copy, whose changes carry LGPL terms.
+//! output bit-for-bit requires following its arithmetic *and its ordering* closely, which public
+//! domain permits. It is deliberately **not** derived from libfprint's patched `nbis/mindtct/` copy,
+//! whose changes carry LGPL terms.
 //!
-//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain grants without
-//! demanding, so it constrains neither the port nor the licence we put on it, and there is nothing
-//! to quarantine against. The NBIS lineage is provenance, not a licence. See `ARCHITECTURE.md`
-//! §Provenance & licensing.
+//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain imposes no
+//! conditions, so it constrains neither the port nor the licence we put on it. The NBIS lineage is
+//! provenance, not a licence. See `ARCHITECTURE.md` §Provenance & licensing.
 //!
 //! ## Shape
 //!
@@ -81,8 +80,6 @@ pub struct GrayImage<'a> {
 /// Exposed through [`debug_maps`] for cross-implementation verification against the stock C tool's
 /// map dumps. All four block maps are `map_w * map_h` in row-major block order; `binarized` is a
 /// full-resolution `width * height` image (0 = ridge, 255 = valley — the pre-`gray2bin` form).
-///
-/// This struct is intentionally minimal for now and will grow as the pipeline is filled in.
 #[derive(Clone, Debug, Default)]
 pub struct DebugMaps {
     /// Per-block ridge flow direction: `-1` (invalid) or a valid direction index.

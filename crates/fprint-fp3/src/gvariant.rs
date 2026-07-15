@@ -7,11 +7,10 @@
 //!
 //! GVariant packs values without a framing byte per value: sizes are recovered from
 //! alignment plus a table of *framing offsets* appended to each variable-width container.
-//! This module implements exactly that, for the handful of shapes FP3 uses — fixed scalars
-//! (`i`/`y`/`b`), strings (`s`), maybe-strings (`ms`), fixed-element arrays (`ai`),
-//! variable-element arrays (`a(aiaiai)`), tuples, and variants (`v`) — and nothing more.
-//! There is no general type-driven engine here; the shapes are named directly by the
-//! codec above.
+//! This module implements that for the shapes FP3 uses — fixed scalars (`i`/`y`/`b`),
+//! strings (`s`), maybe-strings (`ms`), fixed-element arrays (`ai`), variable-element
+//! arrays (`a(aiaiai)`), tuples, and variants (`v`). There is no general type-driven
+//! engine; the codec names the shapes directly.
 //!
 //! ## Writing
 //!

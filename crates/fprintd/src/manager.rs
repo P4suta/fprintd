@@ -5,7 +5,7 @@
 //! `net.reactivated.Fprint.Manager` at `/net/reactivated/Fprint/Manager`.
 //!
 //! The manager is the client's entry point: it enumerates the device object paths and names
-//! a default. Since the daemon discovers devices once at start-up (M1 has no hotplug), the
+//! a default. The daemon discovers devices once at start-up (there is no hotplug), so the
 //! manager just holds the fixed path list. `GetDefaultDevice` returns the last device, as
 //! fprintd's `fprint_manager_get_default_device` does.
 

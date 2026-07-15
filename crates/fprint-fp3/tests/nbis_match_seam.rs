@@ -2,16 +2,15 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! End-to-end proof of the host-image slice, hardware-free: a real minutiae [`Print`] survives the
-//! **FP3 on-disk round-trip** and still scores as a match under the real **BOZORTH3** matcher.
+//! End-to-end test of the host-image slice, hardware-free: a minutiae [`Print`] survives the
+//! **FP3 on-disk round-trip** and still scores as a match under the **BOZORTH3** matcher.
 //!
-//! This ties three crates together the way a live host-image driver would: `fprint-core` (the domain
-//! `Print`/`Template::Nbis`), `fprint-fp3` (the wire codec), and `fprint-bozorth3` (the matcher, reached via
-//! `fprint-backend-native`'s `nbis_match_score` seam). It exercises what the virtual device's
-//! deterministic stub deliberately does not — genuine fuzzy minutiae matching — without any sensor:
-//! enroll capture A, persist it as FP3, read it back, then match a *different* capture B of the same
-//! synthetic finger (small jitter) and confirm it clears a threshold, while an unrelated finger does
-//! not.
+//! Ties together `fprint-core` (the domain `Print`/`Template::Nbis`), `fprint-fp3` (the wire codec),
+//! and `fprint-bozorth3` (the matcher, reached via `fprint-backend-native`'s `nbis_match_score`
+//! seam). It covers genuine fuzzy minutiae matching, which the virtual device's deterministic stub
+//! does not: enroll capture A, persist it as FP3, read it back, then match a *different* capture B
+//! of the same synthetic finger (small jitter) and confirm it clears a threshold, while an
+//! unrelated finger does not.
 
 use fprint_backend_native::{nbis_identify, nbis_match_score};
 use fprint_core::{Minutia, Print, Template};

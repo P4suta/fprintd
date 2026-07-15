@@ -4,11 +4,11 @@
 
 //! The two verbs: [`to_bytes`] and [`from_bytes`].
 //!
-//! This is the orchestration layer — it maps the pure [`fprint_core::Print`] model onto the FP3
-//! GVariant tuple `(issbymsmsia{sv}v)`, delegating date math to [`crate::date`] and the byte
-//! framing to [`crate::gvariant`]. Every FP3-specific decision (the magic prefix, the empty
-//! reserved vardict, the payload-per-type dispatch, the "empty string ⇒ absent" convention
-//! for the driver/device ids) is made here and nowhere else.
+//! Maps the [`fprint_core::Print`] model onto the FP3 GVariant tuple `(issbymsmsia{sv}v)`,
+//! delegating date math to [`crate::date`] and the byte framing to [`crate::gvariant`].
+//! The FP3-specific decisions (the magic prefix, the empty reserved vardict, the
+//! payload-per-type dispatch, the "empty string ⇒ absent" convention for the driver/device
+//! ids) are made here.
 
 use fprint_core::{DeviceId, DriverId, Finger, Minutia, Print, Template};
 
@@ -90,8 +90,8 @@ pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
 /// Parse an FP3 blob back into a [`Print`].
 ///
 /// The inverse of [`to_bytes`] for every print this crate can produce (see the round-trip
-/// tests). Note that an all-zero `finger` byte decodes to `Some(Finger::Unknown)` and empty
-/// driver/device ids decode to `None` — the deliberate conventions this codec commits to.
+/// tests). A zero `finger` byte decodes to `Some(Finger::Unknown)`, and empty driver/device
+/// ids decode to `None`.
 pub fn from_bytes(bytes: &[u8]) -> Result<Print> {
     if bytes.len() < MAGIC.len() {
         return Err(Fp3Error::Truncated);
@@ -225,11 +225,10 @@ mod tests {
 
     // ---- golden byte-strings ----------------------------------------------------------
     //
-    // Frozen GLib-normal-form bytes, captured from the previous zvariant-based *encoder*
-    // (whose output was validated against libfprint's framing) for shapes without a
-    // zero-minutia sample. They are the permanent oracle: the hand-rolled encoder must
-    // reproduce each byte-for-byte. (The zero-minutia shapes are deliberately absent — the
-    // old encoder mis-framed them; those are covered by round-trip below.)
+    // Frozen GLib-normal-form bytes, captured from a zvariant-based encoder whose output was
+    // validated against libfprint's framing. They are the oracle: the encoder must reproduce
+    // each byte-for-byte. Shapes with a zero-minutia sample carry no golden here — that
+    // encoder mis-framed them — and are covered by the round-trip tests instead.
 
     /// (a) full NBIS: all metadata, samples of counts 2/1/3, a real enroll date.
     const GOLDEN_NBIS_FULL: &[u8] = &[
@@ -429,13 +428,10 @@ mod tests {
         assert_eq!(from_bytes(&to_bytes(&print).unwrap()).unwrap(), print);
     }
 
-    // A capture that yielded no minutiae serializes to the GVariant `([], [], [])` degenerate
-    // sample — a zero-sized element of the `a(aiaiai)` array. This never occurs in real
-    // enrollment (MINDTCT always emits minutiae), but the hand-rolled codec handles it
-    // faithfully: the empty sample is framed as its two zero framing offsets, and both a
-    // lone empty sample and empty samples mixed with real ones round-trip exactly. (The
-    // previous zvariant-based encoder mis-framed this and dropped the empty element; this is
-    // the fix.)
+    // A capture that yielded no minutiae serializes to the degenerate `([], [], [])` sample —
+    // a zero-sized element of the `a(aiaiai)` array, framed as its two zero framing offsets.
+    // MINDTCT always emits minutiae, so this never occurs in real enrollment, but it
+    // round-trips exactly, both alone and mixed with real samples.
     #[test]
     fn nbis_zero_minutia_sample_roundtrips() {
         let lone = Print {

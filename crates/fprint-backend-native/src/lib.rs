@@ -4,11 +4,10 @@
 
 //! # fprint-backend-native
 //!
-//! The first implementor of fprint-core's [`Backend`](fprint_core::Backend) /
-//! [`Device`](fprint_core::Device) traits: a pure-Rust, in-memory, deterministic **virtual**
-//! fingerprint device. It has no USB, no async runtime, no biometrics — it exists to prove
-//! that fprint-core's native `async fn`-in-trait seam is implementable and pleasant, and to give
-//! the daemon and higher layers something to run against offline, on any platform.
+//! A pure-Rust implementation of fprint-core's [`Backend`](fprint_core::Backend) /
+//! [`Device`](fprint_core::Device) traits: an in-memory, deterministic **virtual** fingerprint
+//! device with no USB, no async runtime and no biometrics, so the daemon and higher layers have
+//! something to run against offline, on any platform.
 //!
 //! ```
 //! use fprint_backend_native::{VirtualBackend, VirtualDeviceBuilder, Scenario, EnrollScript, FingerId};
@@ -31,9 +30,9 @@
 //!
 //! Open/close state, per-feature capability gating, host vs. match-on-chip archetypes,
 //! multi-stage enrollment with retries (each carrying a [`fprint_core::RetryReason`]),
-//! duplicate/full storage errors, list/delete/clear, suspend/resume, and — crucially —
-//! **drop-cancellation**: `enroll` spans several polls and commits nothing to storage until
-//! its final poll, so dropping the future cancels cleanly.
+//! duplicate/full storage errors, list/delete/clear, suspend/resume, and **drop-cancellation**:
+//! `enroll` spans several polls and commits nothing to storage until its final poll, so
+//! dropping the future cancels cleanly.
 
 #![forbid(unsafe_code)]
 

@@ -10,9 +10,9 @@
 //! objects to the dedicated OS thread that owns the (possibly `!Send`) device — see
 //! [`crate::actor`].
 //!
-//! Cancellation is ARCHITECTURE.md principle 4 made concrete: the actor `select!`s the
-//! operation future against `cancel`, and dropping the future cancels it. The sender simply
-//! drops `cancel`'s counterpart (or sends `()`), and the actor stops.
+//! Cancellation is ARCHITECTURE.md principle 4: the actor `select!`s the operation future
+//! against `cancel`, and dropping the future cancels it. The sender drops `cancel`'s
+//! counterpart (or sends `()`), and the actor stops.
 
 use fprint_core::{DeviceInfo, EnrollProgress, Error, IdentifyOutcome, Print, VerifyOutcome};
 use tokio::sync::{mpsc, oneshot};

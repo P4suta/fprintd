@@ -20,10 +20,10 @@ use libfprint_rs::{FpDevice, FpFinger, GError};
 
 // --- libfprint error domains, expressed as glib `ErrorDomain`s ------------------------
 //
-// The binding never wrapped `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so
-// we introduce our own zero-cost markers. `glib::Error::kind::<T>()` returns the code iff the
-// error's `GQuark` domain equals `T::domain()` — giving us safe, allocation-free classification
-// with no raw-pointer access to the `GError`. The quark strings come straight from libfprint's
+// The binding does not wrap `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so
+// these zero-cost markers stand in. `glib::Error::kind::<T>()` returns the code iff the error's
+// `GQuark` domain equals `T::domain()`, giving safe, allocation-free classification with no
+// raw-pointer access to the `GError`. The quark strings come from libfprint's
 // `G_DEFINE_QUARK (fp - device - error - quark, …)` / `(fp - device - retry - quark, …)`.
 
 // UPSTREAM(libfprint-rs 0.3.1): FpDeviceError/FpDeviceRetry are not exported as typed glib error domains — remove when fixed; see docs/known-issues.md
@@ -190,8 +190,8 @@ pub fn features(dev: &FpDevice) -> DeviceFeature {
 ///
 /// This bypasses `libfprint-rs` 0.3.1's [`FpDevice::name`], which wraps the *transfer-none*
 /// `fp_device_get_name` with `from_glib_full` and so tries to free a string it does not own —
-/// panicking/corrupting on some devices (the virtual driver among them). We read it ourselves
-/// with the correct transfer-none semantics. The binding's `driver()`/`device_id()` are fine.
+/// panicking/corrupting on some devices (the virtual driver among them). It is read here with
+/// the correct transfer-none semantics. The binding's `driver()`/`device_id()` are fine.
 // UPSTREAM(libfprint-rs 0.3.1): FpDevice::name wraps transfer-none fp_device_get_name with from_glib_full (double-free) — remove when fixed; see docs/known-issues.md
 fn device_name(dev: &FpDevice) -> String {
     use glib::translate::{FromGlibPtrNone, ToGlibPtr};

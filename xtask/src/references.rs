@@ -25,7 +25,7 @@ struct Reference {
 const UPSTREAM: &[Reference] = &[
     Reference {
         dir: "reference/libfprint",
-        // freedesktop's GitLab has a habit of being unreachable; 3v1n0's is a maintainer mirror.
+        // freedesktop's GitLab is often unreachable; 3v1n0's is a maintainer mirror.
         urls: &[
             "https://gitlab.freedesktop.org/libfprint/libfprint.git",
             "https://github.com/3v1n0/libfprint.git",
@@ -91,7 +91,7 @@ fn clone_all(root: &Path, refs: &[Reference]) -> Result<(), String> {
     Ok(())
 }
 
-/// A shallow clone — history is not what any of these are for.
+/// A shallow clone: none of these are read for their history.
 fn try_clone(url: &str, dir: &Path) -> Result<(), String> {
     let out = Command::new("git")
         .args(["clone", "--depth", "1", url])

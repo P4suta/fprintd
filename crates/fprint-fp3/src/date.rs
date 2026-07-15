@@ -6,8 +6,8 @@
 //!
 //! libfprint stores the enrollment date as `g_date_get_julian()`: the proleptic-Gregorian
 //! day number where `0001-01-01` is Julian day **1**. An unset/invalid date is written as
-//! the `G_MININT32` sentinel. This module is the only place that arithmetic lives — the
-//! domain model ([`EnrollDate`]) stays a plain `(year, month, day)`.
+//! the `G_MININT32` sentinel. The arithmetic lives only here; the domain model
+//! ([`EnrollDate`]) stays a plain `(year, month, day)`.
 //!
 //! The calendar math is Howard Hinnant's branch-free `days_from_civil` /`civil_from_days`
 //! (a public-domain algorithm), anchored so that day 0 is `1970-01-01`. Adding

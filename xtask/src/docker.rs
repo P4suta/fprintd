@@ -9,10 +9,10 @@
 //!
 //! Two shapes, because `docker run --rm` keeps nothing:
 //!
-//! * [`Run`] — one command, one container, gone. Enough when the container is a compiler.
+//! * [`Run`] — one command in one container, discarded afterwards.
 //! * [`Session`] — a container held open so several commands can build on each other. Each step
 //!   is its own process with its own exit status and its own stderr, so a failure says which
-//!   step failed and nothing has to be silenced to keep a stream readable.
+//!   step failed.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -70,8 +70,7 @@ impl Run {
 
     /// Run it with `root` mounted at [`WORK`], returning stdout.
     ///
-    /// stderr is passed through to the terminal rather than captured: a compiler's warnings and
-    /// a clone's progress are for the human watching, and nothing here parses them.
+    /// stderr is passed through to the terminal rather than captured: nothing here parses it.
     pub fn output(self, root: &Path) -> Result<String, String> {
         let mut cmd = Command::new("docker");
         cmd.arg("run").arg("--rm");
@@ -113,7 +112,7 @@ impl Run {
 
 /// A container held open, so a sequence of commands can share its filesystem.
 ///
-/// Removed on drop, so a failure leaves nothing behind for the next run to trip over.
+/// Removed on drop, so a failure leaves nothing behind for the next run.
 pub struct Session {
     name: String,
 }
@@ -121,9 +120,9 @@ pub struct Session {
 impl Session {
     /// Start `image` doing nothing, under a name unique to this process.
     ///
-    /// `sleep` rather than the image's entrypoint: we want a filesystem to work in, not whatever
-    /// the image thinks it is for. It is a timeout, not a schedule — the container is removed as
-    /// soon as the task is done, and the ceiling only matters if the task is killed.
+    /// `sleep` rather than the image's entrypoint: what is needed is a filesystem to work in.
+    /// The duration is a timeout, not a schedule — the container is removed as soon as the task
+    /// is done, and the ceiling only matters if the task is killed.
     pub fn start(image: &str) -> Result<Session, String> {
         let name = format!("fprintd-xtask-{}", std::process::id());
         // A leftover from a killed run would collide; clear it without caring if it is there.

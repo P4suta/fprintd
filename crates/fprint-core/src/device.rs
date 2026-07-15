@@ -4,22 +4,21 @@
 
 //! The core seam: [`Backend`] and [`Device`] traits.
 //!
-//! ## Dispatch model (an architectural decision — see `ARCHITECTURE.md`)
+//! ## Dispatch model
 //!
 //! These traits use **native `async fn` in trait** and **static dispatch**. `fprint-core`
-//! deliberately introduces neither `dyn` nor an enum of backends: doing so would make the
-//! core depend on its implementors and invert the dependency arrows. Runtime backend
-//! heterogeneity (e.g. one device served by native Rust, another by the libfprint shim,
-//! during migration) is expressed *above* the core by a `CompositeBackend` whose
-//! `Device` associated type is an enum over the concrete backends — the only crate that
-//! is allowed to know all of them. The core stays a pure crystal.
+//! introduces neither `dyn` nor an enum of backends: either would make the core depend on
+//! its implementors and invert the dependency arrows. Runtime backend heterogeneity (e.g.
+//! one device served by native Rust, another by the libfprint shim) is expressed *above*
+//! the core by a `CompositeBackend` whose `Device` associated type is an enum over the
+//! concrete backends — the only crate allowed to know all of them. See `ARCHITECTURE.md`.
 //!
 //! Cancellation is Rust-native: **dropping the returned future cancels the operation**.
 //! Backends release the sensor in their own `Drop`; there is no `GCancellable`-style token.
 //!
-//! One operation at a time is enforced by the type system: every operation takes
-//! `&mut self`, so the borrow checker forbids concurrent enroll/verify on one device —
-//! mirroring libfprint's single-in-flight-operation contract without runtime checks.
+//! Every operation takes `&mut self`, so the borrow checker forbids concurrent
+//! enroll/verify on one device — libfprint's single-in-flight-operation contract enforced
+//! by the type system rather than runtime checks.
 
 use crate::error::RetryReason;
 use crate::{DeviceFeature, Print, Result, ScanType};
@@ -81,9 +80,9 @@ pub struct IdentifyOutcome {
 /// a concrete `Device` (static dispatch); the fprintd-compatible daemon is generic over
 /// its [`Backend`].
 ///
-/// `async fn` in a public trait is a deliberate architectural choice (native AFIT, static
-/// dispatch — see the module docs and `ARCHITECTURE.md`), so the `async_fn_in_trait` lint
-/// (which warns that callers cannot add `+ Send` bounds) is allowed here and only here.
+/// `async fn` in a public trait is intentional (see the module docs), so the
+/// `async_fn_in_trait` lint — which warns that callers cannot add `+ Send` bounds — is
+/// allowed here and only here.
 #[allow(async_fn_in_trait)]
 pub trait Device {
     /// Static metadata (available before and after `open`).
@@ -104,9 +103,7 @@ pub trait Device {
     /// capture via `on_progress`. Returns the completed print.
     ///
     /// `on_progress` is a generic `FnMut`, not a trait object: progress is pushed to the
-    /// caller (the right model for a blocking, thread-affine backend like the libfprint shim),
-    /// and static dispatch keeps the core free of `dyn`. The method is therefore not
-    /// object-safe — as with every `async fn` here — which is fine: dispatch is static.
+    /// caller, and static dispatch keeps the core free of `dyn`.
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
         template: Print,
@@ -137,8 +134,7 @@ pub trait Device {
 
 /// A source of [`Device`]s — the entry point, analogous to libfprint's `FpContext`.
 ///
-/// The associated `Device` type keeps this on static dispatch. Hotplug (device
-/// added/removed streams) will be layered on once the transport crates exist.
+/// The associated `Device` type keeps this on static dispatch.
 #[allow(async_fn_in_trait)]
 pub trait Backend {
     type Device: Device;

@@ -17,8 +17,8 @@ the shape of everything.
 
 This is the core norm for every change. If a patch would make `fprint-core` reference a
 backend, a runtime, a USB stack, or a serialization format, the design is wrong —
-lift the coupling up to the integration crate instead. Keeping the core a
-zero-dependency, `#![forbid(unsafe_code)]` crystal is what makes the rest possible.
+lift the coupling up to the integration crate instead. `fprint-core` stays
+zero-dependency and `#![forbid(unsafe_code)]`.
 
 ## Building and testing
 

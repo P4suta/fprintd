@@ -4,13 +4,12 @@
 
 //! Scripted behaviour for the virtual device.
 //!
-//! A real sensor's output depends on the finger physically present and on capture quality;
-//! a *virtual* one has to be *told* what to pretend happened. A [`Scenario`] is that script:
-//! which finger is currently "on the sensor" ([`Scenario::present`]), how the next
-//! enrollment plays out ([`EnrollScript`]), and whether on-device storage should report
-//! itself full ([`Scenario::storage_full`]).
+//! A [`Scenario`] tells a virtual device what to pretend happened: which finger is currently
+//! "on the sensor" ([`Scenario::present`]), how the next enrollment plays out
+//! ([`EnrollScript`]), and whether on-device storage should report itself full
+//! ([`Scenario::storage_full`]).
 //!
-//! Everything here is plain data with consuming builders, so a test reads like a sentence:
+//! Everything here is plain data with consuming builders:
 //!
 //! ```
 //! use fprint_backend_native::{Scenario, EnrollScript, FingerId};

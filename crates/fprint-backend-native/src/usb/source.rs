@@ -4,11 +4,10 @@
 
 //! [`UsbFrameSource`]: a [`crate::FrameSource`] driven over any [`UsbTransport`].
 //!
-//! This is the third implementor of the capture seam (after the synthetic and file sources), and
-//! the one that proves the seam supports real hardware: `ImageDevice<UsbFrameSource<NusbTransport>>`
-//! runs the genuine host-image pipeline over a Validity sensor with *no change* to `ImageDevice`.
-//! Being generic over the transport, the very same driver runs against a scripted mock offline, so
-//! the protocol → transport → frame-assembly path is exercised on any platform without hardware.
+//! `ImageDevice<UsbFrameSource<NusbTransport>>` runs the host-image pipeline over a Validity sensor
+//! with no change to `ImageDevice`. Being generic over the transport, the same driver runs against
+//! a scripted mock offline, so the protocol → transport → frame-assembly path is exercised on any
+//! platform without hardware.
 //!
 //! `capture` awaits `crate::yield_now` once before touching the transport, so it keeps exactly one
 //! poll boundary per capture — the drop-cancel point [`crate::ImageDevice::enroll`] relies on —

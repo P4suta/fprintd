@@ -5,14 +5,13 @@
 //! # fprint-fp3
 //!
 //! The FP3 fingerprint-template codec: the edge translator between libfprint/fprintd's
-//! on-disk `"FP3"` blob and the pure [`fprint_core::Print`] domain model.
+//! on-disk `"FP3"` blob and the [`fprint_core::Print`] domain model.
 //!
 //! An FP3 blob is the three ASCII bytes `"FP3"` followed by a little-endian, normal-form
-//! GVariant value of type `(issbymsmsia{sv}v)` (see `docs/fp3-format.md`). This crate is
-//! the *only* place that shape is known: everything wire-specific — the magic, the GVariant
-//! signature, the Julian-day dates with their `G_MININT32` sentinel, the maybe-strings, the
-//! NBIS `(a(aiaiai))` payload — lives here and never leaks up into `fprint-core`
-//! (`ARCHITECTURE.md` principle 3).
+//! GVariant value of type `(issbymsmsia{sv}v)` (see `docs/fp3-format.md`). Everything
+//! wire-specific — the magic, the GVariant signature, the Julian-day dates with their
+//! `G_MININT32` sentinel, the maybe-strings, the NBIS `(a(aiaiai))` payload — lives here
+//! and never leaks up into `fprint-core` (`ARCHITECTURE.md` principle 3).
 //!
 //! The public surface is two verbs:
 //!

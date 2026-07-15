@@ -31,7 +31,7 @@ pub(crate) enum TemplateKind {
 
 /// Deterministically map a [`FingerId`] to a template of the requested shape.
 ///
-/// The encoding is intentionally boring and total: equal ids give equal bytes.
+/// The encoding is total and stable: equal ids give equal bytes.
 pub(crate) fn template_for(kind: TemplateKind, id: FingerId) -> Template {
     match kind {
         TemplateKind::Raw => {

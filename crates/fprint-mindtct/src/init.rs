@@ -90,8 +90,7 @@ pub(crate) struct RotGrids {
     /// Whether offsets are relative to the grid center or origin.
     // `dead_code`: `relative2`/`start_angle` mirror the stock `ROTGRIDS` layout but are consumed only
     // while *building* the grids (`init_rotgrids`); the offsets carry all the port needs afterward, so
-    // nothing reads them back. Transcribed for fidelity and pinned by the tests. Targeted per-field
-    // allows — the minimal suppression.
+    // nothing reads them back. Transcribed for fidelity and pinned by the tests.
     #[allow(dead_code)]
     pub(crate) relative2: Relative2,
     /// Angle (radians) of the first grid (direction `0`).

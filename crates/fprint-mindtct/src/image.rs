@@ -42,7 +42,7 @@ pub(crate) fn bits_8to6(idata: &mut [u8]) {
 //
 // `dead_code`: the inverse of the wired [`bits_8to6`]. The port emits minutiae, not the 8-bit
 // binarized image (`results.c`'s output stage), so nothing in the pipeline calls it; transcribed
-// for fidelity and exercised by the tests below. Targeted per-item allow — the minimal suppression.
+// for fidelity and exercised by the tests below.
 #[allow(dead_code)]
 pub(crate) fn bits_6to8(idata: &mut [u8]) {
     for pix in idata.iter_mut() {

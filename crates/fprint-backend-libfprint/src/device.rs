@@ -29,8 +29,8 @@ pub struct LibfprintDevice {
     dev: FpDevice,
     info: DeviceInfo,
     /// The cancellable handed to the currently in-flight operation, if any. See the crate-level
-    /// note on the honest cancellation limitation: we install it but cannot fire it from a
-    /// `Drop` that never runs while the thread is parked inside a blocking `*_sync` call.
+    /// note on the cancellation limitation: it is installed but cannot be fired from a `Drop`
+    /// that never runs while the thread is parked inside a blocking `*_sync` call.
     cancel: Option<Cancellable>,
 }
 

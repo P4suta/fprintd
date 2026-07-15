@@ -40,14 +40,14 @@ library underneath.
   fprint-backend-* (leaves)  fprint-backend-libfprint (FFI shim, !Send) · fprint-backend-native
         │                    each implements fprint-core's traits
         ▼
-  fprint-core (lib)          the crystal: domain model + Backend/Device traits
+  fprint-core (lib)          domain model + Backend/Device traits
                              zero dependencies · #![forbid(unsafe_code)]
 ```
 
 **The one rule: dependencies flow only toward the leaves.** `fprint-core` knows nothing
 about any backend, any transport, any wire format. Backends know `fprint-core`. The
 integration crate knows the backends. The daemon knows the integration crate. There
-is never an arrow pointing back up. This is what keeps the core a crystal.
+is never an arrow pointing back up.
 
 ---
 
@@ -57,7 +57,7 @@ is never an arrow pointing back up. This is what keeps the core a crystal.
    make `fprint-core` reference an implementor, the design is wrong — lift the coupling to
    the integration crate instead.
 
-2. **The core is a zero-dependency crystal.** `fprint-core` is pure domain types and traits,
+2. **The core has zero dependencies.** `fprint-core` is pure domain types and traits,
    with `#![forbid(unsafe_code)]`. No async runtime, no USB, no serialization library,
    no bitflags crate. Those all live in leaves.
 
@@ -79,10 +79,10 @@ is never an arrow pointing back up. This is what keeps the core a crystal.
 6. **`unsafe` is quarantined to the leaves.** Only the transport and FFI crates may use
    `unsafe`, and only where the hardware/FFI boundary demands it. The core forbids it.
 
-7. **Thread affinity is made honest, then hidden.** The libfprint shim is `!Send`
-   (GObject/GMainContext is thread-affine). The core therefore requires no `Send`. The
-   daemon confines each device to a single actor thread (or a `LocalSet`), so the `!Send`
-   reality is contained cleanly rather than papered over with unsound `Send` impls.
+7. **Thread affinity is confined, not papered over.** The libfprint shim is `!Send`
+   (GObject/GMainContext is thread-affine). The core therefore requires no `Send`, and the
+   daemon confines each device to a single actor thread (or a `LocalSet`), rather than
+   reaching for an unsound `Send` impl.
 
 ---
 
@@ -93,8 +93,7 @@ is never an arrow pointing back up. This is what keeps the core a crystal.
 `fprint-core`'s `Device`/`Backend` traits use native async fn (stabilized in Rust 1.75) with
 static dispatch. We deliberately do **not** put `dyn` or `async-trait` in the core:
 
-- Native AFIT is the modern recommendation for *defining* an async trait, gives backend
-  implementors the nicest authoring experience, and produces honest compiler errors.
+- Native AFIT is the modern recommendation for *defining* an async trait.
 - It keeps the core zero-dependency (principle 2) and `!Send`-friendly (principle 7).
 - **Asymmetry that settles it:** a static core can grow a `dyn` bridge at a boundary later
   (via `dynosaur` or a hand-written `DynDevice`) *without touching the core trait*. The
@@ -103,8 +102,8 @@ static dispatch. We deliberately do **not** put `dyn` or `async-trait` in the co
 
 ### Runtime backend heterogeneity: `CompositeBackend`, above the core
 
-During migration we want "this one device is served by native Rust, the rest by the
-libfprint shim." Rather than admit `dyn`/enum into the core, the integration crate defines
+One device can be served by native Rust and the rest by the libfprint shim. Rather than
+admit `dyn`/enum into the core, the integration crate defines
 `CompositeBackend` whose associated `Device` is `enum CompositeDevice { Native(_), Shim(_) }`
 (delegation written by hand — an explicit `match self { Native(d) => d.m(..).await, … }`
 per method, no macro). It is the single crate allowed to know both backends, so the
@@ -113,15 +112,14 @@ dependency arrows stay pointed down.
 Why hand-written and not `enum_dispatch`: the core trait uses native `async fn` in trait,
 whose per-impl return futures are not `dyn`-object-safe, so a dispatch macro built around
 object-safety is the wrong tool; the `Shim` arm is also `#[cfg(target_os = "linux")]`-gated,
-which a hand `match` expresses trivially. Ten four-line arms with zero extra dependencies are
-more honest — and more beautiful — than generated code here.
+which a hand `match` expresses trivially, and the whole delegation is ten four-line arms.
 
 ### fprintd compatibility, not libfprint compatibility
 
 The ecosystem's real contract is fprintd's D-Bus interface, not libfprint's C ABI. We
 match the former. libfprint drivers cannot be reused wholesale anyway — they are compiled
 into the C library against a private `fpi_*` API, with no plugin/ABI boundary — so the
-honest paths are FFI-linking the whole C library (the shim) or porting drivers by hand.
+available paths are FFI-linking the whole C library (the shim) or porting drivers by hand.
 
 **The shim is the main line: coexistence, not conquest.** Dynamically linking the C
 library lets real hardware work today and keeps us *with* the ecosystem rather than racing
@@ -149,9 +147,7 @@ two questions:
   the contract.
 - **We cannot extend the D-Bus contract.** The borrowed policy allowlists exactly
   `net.reactivated.Fprint.Manager`, `.Device` and the three standard interfaces, so a
-  method on any interface of our own would never reach us. This is a constraint we accept
-  rather than route around: it is what makes "we speak fprintd's contract" checkable
-  instead of aspirational.
+  method on any interface of our own would never reach us. See Non-goals.
 
 Taking the seat is `systemctl enable fprintd-rs`, whose `Alias=fprintd.service` shadows
 the upstream unit from `/etc/systemd/system`, so D-Bus activation reaches us. `disable`
@@ -221,10 +217,10 @@ License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication
 | NIST golden fixtures (test data) | `LicenseRef-NBIS-PD` (public domain) | not code, and not ours: stock-NBIS reference output and NIST imagery, annotated in `REUSE.toml`; text under `LICENSES/` |
 | a genuinely libfprint-derived driver, *if ever* | `LGPL-2.1-or-later` | isolated crate; carries its own SPDX header |
 
-One licence across the tree, because there is only one boundary worth policing: **LGPL**. That row
-still describes code that does not exist yet, and the split keeps any such contribution in an
-obvious, quarantined home so it never contaminates the permissive core. The NBIS ports need no such
-home — public domain grants without demanding, so it cannot contaminate anything.
+One licence across the tree, because there is only one boundary worth policing: **LGPL**. No crate
+occupies that row; the slot exists so such a contribution has an obvious, quarantined home and never
+contaminates the permissive core. The NBIS ports need no such home — public domain grants without
+demanding, so it cannot contaminate anything.
 
 `MIT OR Apache-2.0` is also the choice the project's own ambition dictates: a system daemon lives or
 dies by distro packaging, and the dual licence is the Rust ecosystem's default that every distro

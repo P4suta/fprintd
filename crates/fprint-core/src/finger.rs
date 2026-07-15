@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Finger identity — the FP3/`FpFinger` byte value.
+//! Finger identity — the FP3/`FpFinger` byte value, via
+//! [`Finger::as_u8`]/[`Finger::from_u8`].
 //!
 //! The `net.reactivated.Fprint` D-Bus finger-name vocabulary (`"left-index-finger"`, …) is
-//! *not* here: that is interop wire vocabulary and lives at the daemon edge
-//! (`fprintd`), per `ARCHITECTURE.md` principle 3. This module keeps only the domain
-//! identity — the FP3 template byte via [`Finger::as_u8`]/[`Finger::from_u8`].
+//! *not* here: that is interop wire vocabulary and lives at the daemon edge (`fprintd`),
+//! per `ARCHITECTURE.md` principle 3.
 
 /// A finger, matching libfprint's `FpFinger` enum ordering (see `fp-print.h`).
 ///

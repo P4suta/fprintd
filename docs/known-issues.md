@@ -44,7 +44,7 @@ object-lifetime management). Evaluate at M2.
 `fprint-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven three
 ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`); byte-for-byte equality against
 **frozen golden fixtures** (permanent oracles that caught two real framing bugs during the
-hand-roll); and — as of the M2 work — **byte-identity against a real C libfprint blob**:
+hand-roll); and **byte-identity against a real C libfprint blob**:
 
 - The shim's Docker tests enroll on the real virtual drivers and assert our `to_bytes` output is a
   **fixed point of libfprint's own `deserialize`/`serialize`** — i.e. byte-identical to libfprint's

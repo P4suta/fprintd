@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The real NBIS-template matcher a host-image driver uses — the seam onto [`fprint_bozorth3`].
+//! The NBIS-template matcher a host-image driver uses — the seam onto [`fprint_bozorth3`].
 //!
-//! This is where `fprint_core`'s domain model meets the public-domain matcher: it converts an
-//! [`fprint_core::Template::Nbis`] (host-side minutiae, one inner vector per enrolled capture) into
-//! `fprint_bozorth3::Minutia` and scores a probe against an enrolled template, taking the **maximum**
-//! score over enrolled samples — libfprint/NBIS's verify semantics.
+//! It converts an [`fprint_core::Template::Nbis`] (host-side minutiae, one inner vector per
+//! enrolled capture) into `fprint_bozorth3::Minutia` and scores a probe against an enrolled
+//! template, taking the **maximum** score over enrolled samples — libfprint/NBIS's verify
+//! semantics.
 //!
-//! The [`VirtualDevice`](crate::VirtualDevice) itself keeps its deterministic, non-biometric
-//! byte-equality stub (see `crate::synth`); a genuine USB image driver, when it lands, matches
-//! through *this* function. The conversion lives here (not in `fprint-bozorth3`) so the matcher stays a
-//! self-contained, dependency-free arithmetic kernel — the xyt triple is the only shared fact.
+//! The [`VirtualDevice`](crate::VirtualDevice) instead uses a deterministic, non-biometric
+//! byte-equality stub (see `crate::synth`); image drivers match through this function. The
+//! conversion lives here rather than in `fprint-bozorth3` so the matcher stays a self-contained,
+//! dependency-free arithmetic kernel — the xyt triple is the only shared fact.
 
 use fprint_core::Template;
 

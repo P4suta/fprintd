@@ -16,8 +16,7 @@
 //!   objects: one [`manager::Manager`] and one [`device::Device`] per reader.
 //! * Each device is confined to its own actor thread ([`actor`]) that owns the possibly
 //!   `!Send` `fprint_core::Device`; the D-Bus objects talk to it over `Send` channels
-//!   ([`command`]). This is ARCHITECTURE.md principle 7 — thread affinity made honest, then
-//!   hidden.
+//!   ([`command`]). This is ARCHITECTURE.md principle 7.
 //! * Wire quirks live at the edges: the `verify-*`/`enroll-*` strings in [`status`], the
 //!   `/var/lib/fprint` layout in [`storage`], the FP3 bytes in [`fprint_fp3`].
 //!
@@ -59,7 +58,7 @@ const OBJECT_PREFIX: &str = "/net/reactivated/Fprint";
 /// The well-known bus name the daemon owns.
 const BUS_NAME: &str = "net.reactivated.Fprint";
 
-/// The assembled daemon: a backend **factory**, an authorizer, and a print store, ready to be
+/// The assembled daemon: a backend factory, an authorizer, and a print store, ready to be
 /// attached to a D-Bus connection.
 ///
 /// The daemon never moves a backend across threads (ARCHITECTURE.md principle 7). Instead it

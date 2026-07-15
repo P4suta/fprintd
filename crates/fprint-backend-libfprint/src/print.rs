@@ -6,14 +6,14 @@
 //!
 //! ## The D1 decision: templates are unified through `fprint-fp3`
 //!
-//! libfprint's `fp_print_serialize` and our own `fprint-fp3` codec target the *same* on-disk FP3
-//! byte format (`"FP3"` + GVariant `(issbymsmsia{sv}v)`). We therefore carry every template
-//! across this boundary as an FP3 blob and let `fprint-fp3` be the single decoder: an `FpPrint`
-//! becomes a [`Print`] by `fprint_fp3::from_bytes(fp.serialize())`, and back by
-//! `FpPrint::deserialize(fprint_fp3::to_bytes(print))`. The upshot is that match-on-chip handles
-//! (libfprint's `FPI_PRINT_RAW`, the FP3 field-9 opaque variant) and host-side NBIS minutiae
-//! land in exactly the same [`Template`](fprint_core::Template) shape the native backend produces,
-//! so the daemon stores and compares prints uniformly regardless of which backend made them.
+//! libfprint's `fp_print_serialize` and the `fprint-fp3` codec target the *same* on-disk FP3
+//! byte format (`"FP3"` + GVariant `(issbymsmsia{sv}v)`). Every template therefore crosses this
+//! boundary as an FP3 blob, with `fprint-fp3` as the single decoder: an `FpPrint` becomes a
+//! [`Print`] by `fprint_fp3::from_bytes(fp.serialize())`, and back by
+//! `FpPrint::deserialize(fprint_fp3::to_bytes(print))`. Match-on-chip handles (libfprint's
+//! `FPI_PRINT_RAW`, the FP3 field-9 opaque variant) and host-side NBIS minutiae then land in the
+//! same [`Template`](fprint_core::Template) shape the native backend produces, so the daemon
+//! stores and compares prints uniformly regardless of which backend made them.
 
 use fprint_core::{DeviceId, DriverId, Print, Result};
 use libfprint_rs::{FpDevice, FpPrint};
@@ -23,9 +23,9 @@ use crate::convert;
 /// Decode an `FpPrint` (via its FP3 serialization) into a core [`Print`].
 ///
 /// The blob is libfprint's own serialization, so it is authoritative for the template payload,
-/// username/description and enroll date. We overlay only the device-identity fields that
-/// libfprint exposes as live object getters — object-truth that outranks (and, in practice,
-/// equals) the decoded copy.
+/// username/description and enroll date. Only the device-identity fields libfprint exposes as
+/// live object getters are overlaid: the live object outranks (and, in practice, equals) the
+/// decoded copy.
 pub fn fp_to_core(fp: &FpPrint) -> Result<Print> {
     let blob = fp.serialize().map_err(convert::from_gerror)?;
     let mut print = fprint_fp3::from_bytes(&blob).map_err(convert::from_fp3)?;
@@ -48,7 +48,7 @@ pub fn fp_to_core(fp: &FpPrint) -> Result<Print> {
 /// Only the metadata a caller can meaningfully supply before enrolling is copied. The enroll
 /// date is deliberately left unset: libfprint stamps it during enrollment and the completed
 /// print carries the authoritative value in its blob, so mapping core's `y/m/d` into a
-/// `glib::Date` here would be lossy busywork for a value we immediately discard.
+/// `glib::Date` here would be lossy work for a value that is immediately discarded.
 pub fn core_to_fp(print: &Print, dev: &FpDevice) -> FpPrint {
     let fp = FpPrint::new(dev);
     if let Some(finger) = print.finger {

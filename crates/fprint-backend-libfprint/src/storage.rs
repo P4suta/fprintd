@@ -2,14 +2,14 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! On-device storage — the second `unsafe` island.
+//! On-device storage: raw FFI to libfprint's storage entry points.
 //!
 //! The `libfprint-rs` 0.3.1 wrappers for `list_prints`/`delete_print`/`clear_storage` are
-//! `unimplemented!()`, so we call the C entry points (`fp_device_*_sync`, `fp-device.h`)
-//! directly through `libfprint-sys` and translate GLib ownership at the boundary. Each verb
-//! is only reachable once [`crate::LibfprintDevice`] has checked the matching
-//! [`DeviceFeature`](fprint_core::DeviceFeature); the extra `NotSupported`-shaped guarding lives
-//! there, keeping these functions a thin, honest FFI seam.
+//! `unimplemented!()`, so the C entry points (`fp_device_*_sync`, `fp-device.h`) are called
+//! directly through `libfprint-sys`, translating GLib ownership at the boundary. Each verb is
+//! only reachable once [`crate::LibfprintDevice`] has checked the matching
+//! [`DeviceFeature`](fprint_core::DeviceFeature), so the `NotSupported` guarding lives there
+//! rather than here.
 
 // UPSTREAM(libfprint-rs 0.3.1): list_prints/delete_print/clear_storage wrappers are unimplemented!(), so we call the raw fp_device_*_sync — remove when fixed; see docs/known-issues.md
 use fprint_core::Result;

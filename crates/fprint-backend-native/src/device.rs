@@ -2,17 +2,16 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! [`VirtualDevice`]: the first concrete [`fprint_core::Device`].
+//! [`VirtualDevice`]: an in-memory [`fprint_core::Device`].
 //!
-//! It proves the async-trait seam is implementable with no runtime: every method is
-//! straight-line and resolves on its first poll, except `enroll`, which awaits
-//! `yield_now` once per capture stage so that dropping its future cancels the enrollment
-//! (nothing is committed to storage until the final poll).
+//! No async runtime is needed: every method is straight-line and resolves on its first poll,
+//! except `enroll`, which awaits `yield_now` once per capture stage so that dropping its future
+//! cancels the enrollment (nothing is committed to storage until the final poll).
 //!
-//! Invariants are carried the way `ARCHITECTURE.md` prescribes: one operation at a time is
-//! the borrow checker's job (`&mut self`), and there is no cancellation token — cancellation
-//! is dropping the future. The only runtime guards are the ones the trait's error vocabulary
-//! demands: [`Error::ProtoState`] before `open`, [`Error::NotSupported`] for absent features.
+//! Invariants follow `ARCHITECTURE.md`: one operation at a time is the borrow checker's job
+//! (`&mut self`), and there is no cancellation token — cancellation is dropping the future. The
+//! only runtime guards are the ones the trait's error vocabulary demands:
+//! [`Error::ProtoState`] before `open`, [`Error::NotSupported`] for absent features.
 
 use fprint_core::{
     Device, DeviceFeature, DeviceInfo, EnrollDate, EnrollProgress, Error, IdentifyOutcome, Print,
