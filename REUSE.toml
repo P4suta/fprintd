@@ -4,6 +4,11 @@
 # REUSE bulk annotations for files that carry no inline SPDX header
 # (manifests, config, docs). Source files (*.rs) carry their own headers.
 # `reference/` and `target/` are git-ignored, hence outside `reuse lint`.
+#
+# The NIST golden fixtures are declared in crate-local `REUSE.toml` files instead
+# (`crates/fprint-bozorth3/`, `crates/fprint-mindtct/`): `cargo package` ships only the crate
+# directory, so a declaration kept here would not reach the published tarball. REUSE allows a
+# `REUSE.toml` in any directory, covering that directory and deeper.
 
 version = 1
 
@@ -18,22 +23,6 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
-
-# BOZORTH3 golden corpus: synthetic .xyt inputs plus the stock-NBIS reference scores. Frozen test
-# oracles for the public-domain matcher; declared under its SPDX id (they carry no inline header).
-[[annotations]]
-path = ["crates/fprint-bozorth3/tests/fixtures/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "NIST NBIS — U.S. Government work, public domain (title 17 §105)"
-SPDX-License-Identifier = "LicenseRef-NBIS-PD"
-
-# MINDTCT golden corpus: grayscale fingerprint images plus the stock-NBIS reference xyt output.
-# Frozen test oracles for the public-domain detector; declared under its SPDX id (no inline header).
-[[annotations]]
-path = ["crates/fprint-mindtct/tests/fixtures/**"]
-precedence = "aggregate"
-SPDX-FileCopyrightText = "NIST NBIS — U.S. Government work, public domain (title 17 §105)"
-SPDX-License-Identifier = "LicenseRef-NBIS-PD"
 
 # Real-libfprint FP3 blob, frozen as an interop fixture (a wire-format fact — a byte layout — not
 # copyrightable expression; see ARCHITECTURE.md §Provenance & licensing).
