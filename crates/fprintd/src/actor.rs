@@ -153,8 +153,14 @@ where
     }
 }
 
-/// Acquire the reader if needed, then open the sensor.
-async fn open<B>(backend: &B, id: &DeviceId, slot: &mut Option<B::Device>) -> Result<(), Error>
+/// Acquire the reader if needed, open the sensor, and return its `DeviceInfo`.
+///
+/// The info is read after `open`, not before: see [`DeviceCommand::Open`].
+async fn open<B>(
+    backend: &B,
+    id: &DeviceId,
+    slot: &mut Option<B::Device>,
+) -> Result<DeviceInfo, Error>
 where
     B: Backend,
     B::Device: 'static,
@@ -162,8 +168,7 @@ where
     if slot.is_none() {
         *slot = Some(backend.open(id).await?);
     }
-    if let Some(d) = slot.as_mut() {
-        d.open().await?;
-    }
-    Ok(())
+    let d = slot.as_mut().ok_or(Error::ProtoState)?;
+    d.open().await?;
+    Ok(d.info().clone())
 }

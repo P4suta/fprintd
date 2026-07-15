@@ -10,10 +10,14 @@
 //! wait for `verify-match` → `Release`. Because the enrolled print is written to disk as FP3
 //! and read back for verification, this also covers the storage + [`fprint_fp3`] round-trip.
 //!
-//! It is fully self-contained: [`PrivateBus`] spawns its own `dbus-daemon` for the test's
-//! lifetime, so a plain `cargo test` works with no ambient D-Bus or `dbus-run-session` wrapper.
+//! It is fully self-contained: [`common::PrivateBus`] spawns its own `dbus-daemon` for the
+//! test's lifetime, so a plain `cargo test` works with no ambient D-Bus or `dbus-run-session`
+//! wrapper.
 
 #![cfg(target_os = "linux")]
+
+mod common;
+use common::PrivateBus;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,40 +29,6 @@ use fprintd::{Authorizer, Daemon, Store};
 use futures_util::StreamExt;
 use tokio::time::timeout;
 use zbus::zvariant::OwnedObjectPath;
-
-/// A private session bus, spawned for the duration of the test so it is self-contained (no
-/// ambient `DBUS_SESSION_BUS_ADDRESS` or `dbus-run-session` wrapper required). The daemon and
-/// client both connect to it; it is torn down when the guard drops.
-struct PrivateBus {
-    child: std::process::Child,
-}
-
-impl PrivateBus {
-    fn start() -> Self {
-        use std::io::BufRead;
-        let mut child = std::process::Command::new("dbus-daemon")
-            .args(["--session", "--nofork", "--print-address=1"])
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("spawn dbus-daemon (install the `dbus` package)");
-        let stdout = child.stdout.take().expect("dbus-daemon stdout");
-        let mut address = String::new();
-        std::io::BufReader::new(stdout)
-            .read_line(&mut address)
-            .expect("read bus address");
-        // SAFETY-of-correctness: this is the only test in the binary, so the process-global
-        // env var is not racing another test.
-        std::env::set_var("DBUS_SESSION_BUS_ADDRESS", address.trim());
-        PrivateBus { child }
-    }
-}
-
-impl Drop for PrivateBus {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
 
 #[zbus::proxy(
     interface = "net.reactivated.Fprint.Manager",

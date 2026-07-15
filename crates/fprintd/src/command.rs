@@ -14,14 +14,19 @@
 //! operation future against `cancel`, and dropping the future cancels it. The sender simply
 //! drops `cancel`'s counterpart (or sends `()`), and the actor stops.
 
-use fprint_core::{EnrollProgress, Error, IdentifyOutcome, Print, VerifyOutcome};
+use fprint_core::{DeviceInfo, EnrollProgress, Error, IdentifyOutcome, Print, VerifyOutcome};
 use tokio::sync::{mpsc, oneshot};
 
 /// A unit of work handed to a device actor. The `reply` oneshot delivers the outcome.
 pub enum DeviceCommand {
     /// Acquire the reader (on first use) and open the sensor.
+    ///
+    /// Replies with the [`DeviceInfo`] as it stands once open. A backend may only learn a
+    /// reader's scan type, features and enroll-stage count from its open path, so what
+    /// `Backend::enumerate` reported is a class default; the libfprint shim re-reads its
+    /// `DeviceInfo` in `Device::open` for this reason.
     Open {
-        reply: oneshot::Sender<Result<(), Error>>,
+        reply: oneshot::Sender<Result<DeviceInfo, Error>>,
     },
     /// Close the sensor and release the reader.
     Close {

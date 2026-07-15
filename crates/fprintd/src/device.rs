@@ -61,7 +61,12 @@ struct ActiveOp {
 
 /// The `net.reactivated.Fprint.Device` object.
 pub struct Device {
-    info: DeviceInfo,
+    /// The shape `Backend::enumerate` reported, replaced by the settled one when
+    /// [`Device::claim`] opens the sensor (see [`DeviceCommand::Open`]).
+    ///
+    /// `Arc` behind the lock so a reader clones the pointer and drops the guard at once: a
+    /// `MutexGuard` held across an `.await` would make these interface futures `!Send`.
+    info: Mutex<Arc<DeviceInfo>>,
     handle: DeviceHandle,
     store: Arc<Store>,
     authz: Arc<Authorizer>,
@@ -71,6 +76,7 @@ pub struct Device {
 
 impl Device {
     /// Assemble a device object. `handle` is the `Send` handle to the device's actor thread.
+    /// `info` is the enumerated shape; `claim` settles it.
     pub fn new(
         info: DeviceInfo,
         handle: DeviceHandle,
@@ -78,13 +84,18 @@ impl Device {
         authz: Arc<Authorizer>,
     ) -> Self {
         Device {
-            info,
+            info: Mutex::new(Arc::new(info)),
             handle,
             store,
             authz,
             claim: Mutex::new(None),
             active: Mutex::new(None),
         }
+    }
+
+    /// The shape as currently known. Safe to hold across an `.await`.
+    fn info(&self) -> Arc<DeviceInfo> {
+        self.info.lock().unwrap().clone()
     }
 
     // --- claim / session helpers ------------------------------------------------------
@@ -157,19 +168,21 @@ impl Device {
 
     #[zbus(property, name = "name")]
     async fn name(&self) -> String {
-        self.info.name.clone()
+        self.info().name.clone()
     }
 
+    /// The scan type the sensor settled on at `Claim`; before that, the enumerated one.
     #[zbus(property, name = "scan-type")]
     async fn scan_type(&self) -> String {
-        names::scan_type_dbus_str(self.info.scan_type).to_string()
+        names::scan_type_dbus_str(self.info().scan_type).to_string()
     }
 
-    /// `-1` until the device is claimed, then the number of enroll stages.
+    /// `-1` until the device is claimed, then the number of enroll stages. The count is only
+    /// knowable once the sensor is open, and `Claim` is what opens it.
     #[zbus(property, name = "num-enroll-stages")]
     async fn num_enroll_stages(&self) -> i32 {
         if self.claim.lock().unwrap().is_some() {
-            i32::try_from(self.info.enroll_stages).unwrap_or(i32::MAX)
+            i32::try_from(self.info().enroll_stages).unwrap_or(i32::MAX)
         } else {
             -1
         }
@@ -201,9 +214,10 @@ impl Device {
         self.authz.check(&sender, PolkitAction::Verify).await?;
         let user = resolve_user(conn, &sender, username, &self.authz).await?;
 
+        let info = self.info();
         let names: Vec<String> = self
             .store
-            .list_fingers(&user, &self.info.driver, &self.info.id)
+            .list_fingers(&user, &info.driver, &info.id)
             .into_iter()
             .map(|f| names::finger_dbus_name(f).to_string())
             .collect();
@@ -251,17 +265,17 @@ impl Device {
         self.authz.check(&sender, PolkitAction::Enroll).await?;
         let finger = real_finger(finger_name)?;
 
+        let info = self.info();
         let has = self
             .store
-            .list_fingers(&user, &self.info.driver, &self.info.id)
+            .list_fingers(&user, &info.driver, &info.id)
             .contains(&finger);
         if !has {
             return Err(DaemonError::NoEnrolledPrints(format!(
                 "Fingerprint for finger {finger_name} is not enrolled"
             )));
         }
-        self.store
-            .delete(&user, &self.info.driver, &self.info.id, finger)
+        self.store.delete(&user, &info.driver, &info.id, finger)
     }
 
     // --- claim / release --------------------------------------------------------------
@@ -310,7 +324,12 @@ impl Device {
             return Err(e);
         }
         match reply_rx.await {
-            Ok(Ok(())) => Ok(()),
+            Ok(Ok(settled)) => {
+                // The sensor is open, so its shape is now known. Everything published from here
+                // reads this, not the enumerated info.
+                *self.info.lock().unwrap() = Arc::new(settled);
+                Ok(())
+            }
             Ok(Err(e)) => {
                 *self.claim.lock().unwrap() = None;
                 Err(DaemonError::Internal(format!(
@@ -362,8 +381,9 @@ impl Device {
         self.authz.check(&sender, PolkitAction::Verify).await?;
         self.ensure_idle()?;
 
-        let driver = &self.info.driver;
-        let device_id = &self.info.id;
+        let info = self.info();
+        let driver = &info.driver;
+        let device_id = &info.id;
         let requested = names::finger_from_dbus_name(finger_name)
             .ok_or_else(|| DaemonError::InvalidFingername("Invalid finger name".into()))?;
 
@@ -394,7 +414,7 @@ impl Device {
             } else if let [only] = gallery.as_slice() {
                 let (finger, print) = only.clone();
                 VerifyOp::Single { print, finger }
-            } else if self.info.features.contains(DeviceFeature::IDENTIFY) {
+            } else if info.features.contains(DeviceFeature::IDENTIFY) {
                 VerifyOp::Identify { gallery }
             } else {
                 let (finger, print) = gallery.remove(0);
@@ -453,15 +473,16 @@ impl Device {
         // Build the enrollment template with the metadata storage needs.
         let mut template = Print::new_for_enroll(finger);
         template.username = Some(user.clone());
-        template.driver = Some(self.info.driver.clone());
-        template.device_id = Some(self.info.id.clone());
+        let info = self.info();
+        template.driver = Some(info.driver.clone());
+        template.device_id = Some(info.id.clone());
 
         let (stop_tx, stop_rx) = oneshot::channel();
         let handle = self.handle.clone();
         let emitter = emitter.to_owned();
         let store = self.store.clone();
-        let driver = self.info.driver.clone();
-        let device_id = self.info.id.clone();
+        let driver = info.driver.clone();
+        let device_id = info.id.clone();
         let task = tokio::spawn(async move {
             run_enroll(EnrollPump {
                 handle,
@@ -527,17 +548,15 @@ impl Device {
     /// Delete all of a user's prints, erroring `NoEnrolledPrints` if there were none — the
     /// behaviour of fprintd's `delete_enrolled_fingers(FP_FINGER_UNKNOWN)`.
     fn delete_all(&self, user: &str) -> Result<(), DaemonError> {
-        let fingers = self
-            .store
-            .list_fingers(user, &self.info.driver, &self.info.id);
+        let info = self.info();
+        let fingers = self.store.list_fingers(user, &info.driver, &info.id);
         if fingers.is_empty() {
             return Err(DaemonError::NoEnrolledPrints(
                 "No fingerprint enrolled".into(),
             ));
         }
         for finger in fingers {
-            self.store
-                .delete(user, &self.info.driver, &self.info.id, finger)?;
+            self.store.delete(user, &info.driver, &info.id, finger)?;
         }
         Ok(())
     }
