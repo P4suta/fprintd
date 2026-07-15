@@ -51,6 +51,20 @@ license via an inline SPDX header (`.rs`) or a `REUSE.toml` bulk annotation
 implementation code. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing,
 and — for sensor drivers specifically — [`docs/adding-a-driver.md`](docs/adding-a-driver.md).
 
+Every crate here is `MIT OR Apache-2.0` (`license.workspace = true`). Keep it that way
+unless there is a real reason not to, and mind this trap if you ever break the rule:
+
+> **`reuse lint` passing does not mean the crate can be published.** REUSE accepts a
+> custom `LicenseRef-*` identifier; **crates.io does not** — it requires a name from the
+> [SPDX license list](https://doc.rust-lang.org/cargo/reference/manifest.html#the-license-and-license-file-fields),
+> or a `license-file`. This project shipped a bespoke `LicenseRef-NBIS-PD` for months with
+> a green lint, and it would have blocked publishing the two crates with the most to give.
+
+A public-domain source is not a reason to break it: PD grants without demanding, so it
+constrains neither a port nor the licence on the result. Only genuinely LGPL-derived code
+needs its own crate. Non-code files that are somebody else's (the NIST golden fixtures)
+are declared where they live — see the crate-local `REUSE.toml` files.
+
 ## Adding a native driver
 
 Native sensor drivers are an open invitation, not a project goal. If you want to try,
