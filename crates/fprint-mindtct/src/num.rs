@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Bit-exact numeric primitives shared across the port: `sround` (round-half-away-from-zero),
 //! `trunc_dbl_precision` (fixed-scale quantization), and the stable bubble-sort group the stock C

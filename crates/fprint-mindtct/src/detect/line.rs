@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Straight-line pixel trajectories between two points — port of stock NBIS
 //! `mindtct/src/lib/mindtct/line.c` (`line_points`), used to walk the contiguous pixels a contour

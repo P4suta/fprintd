@@ -4,19 +4,20 @@ description = "Pure-Rust MINDTCT minutiae detector: an original, dependency-free
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-# NOT the workspace license (MIT OR Apache-2.0): this crate is an original reimplementation of
-# the public-domain NBIS MINDTCT algorithm, quarantined under its own SPDX id so the permissive
-# core stays clean. See ARCHITECTURE.md §Provenance & licensing and LICENSES/LicenseRef-NBIS-PD.txt.
-license = "LicenseRef-NBIS-PD"
+# The workspace license, like every other crate here. This code is our ORIGINAL work written from
+# the stock NBIS spec, so it is ours to license; NBIS's own public-domain status (17 USC §105) is a
+# fact about NIST's code, not ours, and public domain imposes no obligation to quarantine against.
+# The NBIS lineage is recorded as provenance, not as a licence — see ARCHITECTURE.md §Provenance.
+license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-# Zero dependencies, on purpose: this is a self-contained public-domain image-processing kernel. It
-# does NOT depend on fprint-core — its input is an 8-bit grayscale image and its output the xyt (x, y,
-# theta) minutiae triple, an interoperability fact, so it defines its own `Minutia`. The consumer
-# (fprint-backend-native) owns the Minutia -> fprint_core::Minutia conversion, keeping the PD/permissive
-# licence boundary free of any code coupling.
+# Zero dependencies, on purpose: this is a self-contained image-processing kernel. It does NOT depend
+# on fprint-core — its input is an 8-bit grayscale image and its output the xyt (x, y, theta) minutiae
+# triple, an interoperability fact, so it defines its own `Minutia`. The consumer
+# (fprint-backend-native) owns the Minutia -> fprint_core::Minutia conversion. That keeps the kernel
+# usable by anyone with an image, with no coupling to this project's domain model.
 
 [lints]
 workspace = true

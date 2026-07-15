@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Stage 3: clustering and the final match score (`bz_match_score`, `bz_sift`, `bz_final_loop`).
 //!

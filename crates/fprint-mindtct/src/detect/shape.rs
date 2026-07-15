@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Per-row shape representation of a closed loop contour — port of stock NBIS
 //! `mindtct/src/lib/mindtct/shape.c` (`alloc_shape`, `shape_from_contour`, `sort_row_on_x`, and the

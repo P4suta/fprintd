@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! False-minutia removal (`remove_false_minutia_V2`): the sequence of island/lake, hole,
 //! invalid-block, side, hook, overlap, malformation and pore filters that prune spurious candidates —

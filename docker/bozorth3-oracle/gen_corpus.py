@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # Deterministic BOZORTH3 test-corpus generator.

@@ -65,6 +65,5 @@ By participating you agree to uphold our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Unless you explicitly state otherwise, any contribution you intentionally submit for
 inclusion in the work, as defined in the Apache-2.0 license, shall be dual licensed as
-`MIT OR Apache-2.0`, without any additional terms or conditions. Contributions to the
-public-domain NBIS crates (`fprint-bozorth3`, `fprint-mindtct`) follow those crates' own
-notices.
+`MIT OR Apache-2.0`, without any additional terms or conditions. That applies to every
+crate here, the NBIS ports included.

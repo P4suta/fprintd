@@ -4,13 +4,20 @@ The verbatim License and Disclaimer below are reproduced from the stock, upstrea
 NIST NBIS source (e.g. the header of `bozorth3/src/lib/bozorth3/bozorth3.c`). NBIS
 is a work of the U.S. Federal Government and is in the public domain.
 
-Code in this repository that carries the SPDX identifier `LicenseRef-NBIS-PD` is an
-ORIGINAL, clean-room reimplementation of a public-domain NBIS algorithm (currently
-the BOZORTH3 fingerprint matcher), written from the stock NBIS specification and
-verified black-box against the stock NBIS output. It is isolated in its own crate so
-it never contaminates the project's permissive (`MIT OR Apache-2.0`) core, and it is
-deliberately NOT derived from libfprint's patched `nbis/` copy (whose modifications
-carry libfprint's LGPL-2.1-or-later terms). See ARCHITECTURE.md §Provenance & licensing.
+What this identifier covers here: **NIST-produced test data only** — the frozen golden
+fixtures under `crates/fprint-bozorth3/tests/fixtures/` and
+`crates/fprint-mindtct/tests/fixtures/` (stock-NBIS reference output, and NIST imagery
+where used). Those are NIST's work and carry NIST's public-domain status.
+
+It does **not** cover our source code. `fprint-bozorth3` and `fprint-mindtct` are
+ORIGINAL, clean-room reimplementations written from the stock NBIS specification and
+verified black-box against the stock NBIS output. That code is our own work, licensed
+`MIT OR Apache-2.0` like the rest of the project: the notice below rests on 17 USC §105,
+which concerns works of U.S. Federal Government employees — NIST's code, not ours — and
+public domain imposes no obligation to quarantine against in any case. The NBIS lineage
+is recorded as provenance, not as a licence. (The real quarantine is LGPL: our crates are
+deliberately NOT derived from libfprint's patched `nbis/` copy, whose modifications carry
+libfprint's LGPL-2.1-or-later terms.) See ARCHITECTURE.md §Provenance & licensing.
 
 --------------------------------------------------------------------------------
 

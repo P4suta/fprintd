@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors -->
+<!-- SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors -->
 <!-- SPDX-License-Identifier: MIT OR Apache-2.0 -->
 <!DOCTYPE policyconfig PUBLIC
  "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"

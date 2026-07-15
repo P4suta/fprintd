@@ -21,8 +21,8 @@ backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
 |---|---|---|
 | [`fprint-core`](crates/fprint-core) | the crystal: device/print domain model + `Backend`/`Device` traits, zero dependencies, `#![forbid(unsafe_code)]` | any |
 | [`fprint-fp3`](crates/fprint-fp3) | FP3 on-disk template (de)serialization — a hand-rolled GVariant codec (edge translator) | any |
-| [`fprint-bozorth3`](crates/fprint-bozorth3) | BOZORTH3 minutiae matcher — self-contained public-domain NBIS port | any |
-| [`fprint-mindtct`](crates/fprint-mindtct) | MINDTCT minutiae detector — self-contained public-domain NBIS port | any |
+| [`fprint-bozorth3`](crates/fprint-bozorth3) | BOZORTH3 minutiae matcher — self-contained, zero-dependency NBIS port | any |
+| [`fprint-mindtct`](crates/fprint-mindtct) | MINDTCT minutiae detector — self-contained, zero-dependency NBIS port | any |
 | [`fprint-backend-native`](crates/fprint-backend-native) | virtual device + host-image matching; an **experimental** USB capture seam behind the `usb` feature | any |
 | [`fprint-backend-libfprint`](crates/fprint-backend-libfprint) | the shim: dynamically links the C libfprint via the `libfprint-rs` FFI crate | Linux |
 | [`fprint-integration`](crates/fprint-integration) | `CompositeBackend` / `CompositeDevice` — the one layer that knows every backend | any |
@@ -77,10 +77,11 @@ file declares its licensing via an SPDX header or `REUSE.toml`, and `reuse lint`
 is expected to pass. Provenance is kept clean by matching only *interoperability
 facts* (enum values, wire-format signatures, D-Bus names) and never
 transliterating LGPL implementation code. A backend that links the C
-**libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only; the
-public-domain NBIS ports (`fprint-bozorth3`, `fprint-mindtct`) live in separately-licensed
-crates isolated from the `MIT OR Apache-2.0` core. See
-[`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
+**libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only. Every crate here
+is `MIT OR Apache-2.0`, including the NBIS ports: they are our original expression
+written from a public-domain specification, and public domain imposes no obligation
+to quarantine against. Only NIST's own golden test data stays marked public domain.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
 
 ### Contribution
 

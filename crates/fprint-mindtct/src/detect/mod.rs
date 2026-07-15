@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Minutiae detection on the binary image (`detect_minutiae_V2`): scan each image block with valid
 //! ridge-flow direction for candidate ridge endings and bifurcations, tracing the contour of each

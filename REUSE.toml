@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # REUSE bulk annotations for files that carry no inline SPDX header
@@ -16,7 +16,7 @@ path = [
     "**/*.md",
 ]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 libfprint-rs (pure-Rust) contributors"
+SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
 # BOZORTH3 golden corpus: synthetic .xyt inputs plus the stock-NBIS reference scores. Frozen test
@@ -40,5 +40,5 @@ SPDX-License-Identifier = "LicenseRef-NBIS-PD"
 [[annotations]]
 path = ["crates/fprint-fp3/tests/fixtures/**"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 libfprint-rs (pure-Rust) contributors"
+SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"

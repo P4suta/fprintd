@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Block-map generation — a faithful port of stock NBIS `mindtct/src/lib/mindtct/maps.c`
 //! (`gen_image_maps` L126), plus the DFT analysis it drives (`dft.c`), the TRUE/FALSE map

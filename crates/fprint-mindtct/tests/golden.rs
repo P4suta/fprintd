@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Golden cross-implementation oracle for the **maps** stage: our [`fprint_mindtct::debug_maps`]
 //! reproduces the stock C **MINDTCT** intermediate block maps, verified block-for-block against the

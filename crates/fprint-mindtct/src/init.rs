@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! One-time lookup-table construction: `init_dir2rad` (direction→radians), `init_dftwaves` (DFT
 //! waveform tables), and `init_rotgrids` (rotated-grid pixel-offset tables) for the DFT and

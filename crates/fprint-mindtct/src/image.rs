@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Image plumbing: the 6-bit rescale (`bits_8to6`, a `>> 2`, and its inverse `bits_6to8`, a `<< 2`)
 //! and the constant-intensity border padding (`pad_uchar_image`) that the detection front-end runs

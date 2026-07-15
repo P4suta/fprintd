@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Golden cross-implementation oracle: our [`fprint_bozorth3::match_score`] reproduces the **stock C
 //! BOZORTH3** score, verified pair-for-pair against the frozen corpus.

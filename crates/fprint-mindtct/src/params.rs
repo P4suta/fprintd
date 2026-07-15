@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! The `lfsparms_V2` parameter block: the thresholds and controls that drive `_V2` MINDTCT,
 //! assembled from the `*_V2` and shared `#define`s in stock NBIS `lfs.h` / `globals.c`.

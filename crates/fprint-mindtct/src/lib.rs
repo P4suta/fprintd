@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! # fprint-mindtct
 //!
@@ -13,9 +13,12 @@
 //!
 //! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is written from the
 //! **stock upstream NBIS** algorithm (`reference/nbis-stock/mindtct/`, see
-//! `docs/mindtct-algorithm.md`), verified black-box against the stock C tool, and quarantined under
-//! SPDX `LicenseRef-NBIS-PD` so the project's permissive core stays clean — it is deliberately
-//! **not** derived from libfprint's patched `nbis/mindtct/` copy (whose changes carry LGPL terms).
+//! `docs/mindtct-algorithm.md`) and verified black-box against the stock C tool. It is deliberately
+//! **not** derived from libfprint's patched `nbis/mindtct/` copy, whose changes carry LGPL terms.
+//!
+//! The code here is our own original expression, licensed `MIT OR Apache-2.0` like the rest of the
+//! project: public domain grants without demanding, so there is nothing to quarantine against, and
+//! §105 speaks to NIST's code rather than ours. The NBIS lineage is provenance, not a licence.
 //! See `ARCHITECTURE.md` §Provenance & licensing.
 //!
 //! ## Shape

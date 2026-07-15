@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Fixed algorithm constants copied verbatim from stock NBIS `lfs.h` (block/window sizes,
 //! `NUM_DIRECTIONS`, DFT wave count, grid dimensions, `PAD_VALUE`, `MAX_MINUTIAE`, `TRUNC_SCALE`).

@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Coordinate and angle conversion to NIST `xyt` output (`lfs2nist_minutia_XYT` and the M1 variant):
 //! `y = ih - y`, `theta = (270 - sround(dir * degrees_per_unit)) % 360`. This is the one place the

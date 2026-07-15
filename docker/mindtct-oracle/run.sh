@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-FileCopyrightText: 2026 libfprint-rs (pure-Rust) contributors
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # Compile the stock-NBIS MINDTCT oracle and score the synthetic corpus, writing per-image `.xyt`

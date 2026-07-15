@@ -9,9 +9,11 @@ scores **exactly**.
 > `bozorth3/src/lib/bozorth3/bozorth3.c`). This spec, and `fprint-bozorth3`, are written from the
 > **stock upstream NBIS** source (cloned to `reference/nbis-stock/`, git-ignored), **not** from
 > libfprint's patched `nbis/` copy — whose modifications carry libfprint's LGPL-2.1+ terms. Because
-> NBIS is public domain, `fprint-bozorth3` may follow the reference arithmetic faithfully; it is
-> quarantined under SPDX `LicenseRef-NBIS-PD` so it never touches the permissive core. See
-> `ARCHITECTURE.md` §Provenance & licensing.
+> NBIS is public domain, `fprint-bozorth3` may follow the reference arithmetic faithfully, and it
+> carries the workspace's `MIT OR Apache-2.0`: public domain grants without demanding, so there is
+> nothing to quarantine against, and §105 concerns NIST's code rather than our original expression.
+> The NBIS lineage is provenance — this note — not a licence. See `ARCHITECTURE.md` §Provenance &
+> licensing.
 
 Source of fact: NBIS `bozorth3/src/lib/bozorth3/{bozorth3.c,bz_sort.c,bz_io.c}`,
 `bozorth3/include/{bozorth.h,bz_array.h}`, and the CLI driver `bozorth3/src/bin/bozorth3/`.

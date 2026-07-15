@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Fast, hardware-free sanity checks: the matcher must not panic on degenerate or realistic
 //! inputs, and must honour the coarse invariants (too-few-minutiae → 0; a print matches itself

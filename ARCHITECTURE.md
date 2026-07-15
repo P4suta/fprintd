@@ -144,10 +144,16 @@ hard line between two very different activities:
 
 Consequences:
 
-- **NBIS port** — realized as **`fprint-bozorth3`** (the BOZORTH3 matcher). It is written from
-  **stock upstream public-domain NBIS** (see `docs/bozorth3-algorithm.md`), never from libfprint's
-  patched `nbis/` (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock
-  C tool. The MINDTCT port has since joined it as a sibling PD crate, **`fprint-mindtct`**.
+- **NBIS ports** — realized as **`fprint-bozorth3`** (the BOZORTH3 matcher) and **`fprint-mindtct`**
+  (the MINDTCT detector). Both are written from **stock upstream public-domain NBIS** (see
+  `docs/bozorth3-algorithm.md`, `docs/mindtct-algorithm.md`), never from libfprint's patched `nbis/`
+  (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock C tools.
+  **They carry the workspace's `MIT OR Apache-2.0`, not a public-domain marking.** Public domain is
+  not a copyleft — it imposes no obligations, so there is nothing to quarantine against; and NBIS's
+  own PD status rests on 17 USC §105, which concerns works of U.S. Federal Government employees, so
+  it never applied to our original expression in the first place. The NBIS lineage is **provenance,
+  recorded in docs — not a licence.** Only NIST's own test data (the golden fixtures) stays marked
+  public domain, via `REUSE.toml`.
 - **The shim** (`fprint-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
   permits this from any-licensed code (unlike GPL); LGPL obligations attach only to
   distributing the linked whole, not to our source.
@@ -162,14 +168,21 @@ License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication
 
 | crate(s) | SPDX license | note |
 |---|---|---|
-| `fprint-core`, native-driver own code, `fprint-fp3`, `fprintd` | `MIT OR Apache-2.0` | inline SPDX header on every source file |
+| **every crate in this workspace** | `MIT OR Apache-2.0` | inline SPDX header on every source file — including the NBIS ports, which are our original expression |
 | `fprint-backend-libfprint` (shim) | `MIT OR Apache-2.0` (our source) | *dynamically* links libfprint; **binary** redistribution honors LGPL-2.1 §6 — the system `.so` is replaceable, so it is auto-satisfied |
-| `fprint-bozorth3` (BOZORTH3 matcher) | `LicenseRef-NBIS-PD` (public domain) | isolated PD crate, zero deps; original from stock NBIS, score-verified black-box against the C tool; text under `LICENSES/` |
+| NIST golden fixtures (test data) | `LicenseRef-NBIS-PD` (public domain) | not code, and not ours: stock-NBIS reference output and NIST imagery, annotated in `REUSE.toml`; text under `LICENSES/` |
 | a genuinely libfprint-derived driver, *if ever* | `LGPL-2.1-or-later` | isolated crate; carries its own SPDX header |
 
-`fprint-bozorth3` realizes the pre-committed NBIS-PD quarantine (the first non-permissive crate); the
-LGPL row still describes code that does not exist yet. The split keeps any such contribution in an
-obvious, quarantined home so it never contaminates the permissive core.
+One licence across the tree, because there is only one boundary worth policing: **LGPL**. That row
+still describes code that does not exist yet, and the split keeps any such contribution in an
+obvious, quarantined home so it never contaminates the permissive core. The NBIS ports need no such
+home — public domain grants without demanding, so it cannot contaminate anything.
+
+`MIT OR Apache-2.0` is also the choice the project's own ambition dictates: a system daemon lives or
+dies by distro packaging, and the dual licence is the Rust ecosystem's default that every distro
+accepts without a second thought (Fedora, for one, [disallows CC0 for code](https://lwn.net/Articles/902410/)
+because it waives no patent rights — Apache-2.0 grants them). Permissive code can also flow *into*
+the GPL projects around us; GPL code could not flow back. Coexistence points the same way beauty does.
 
 *(Not legal advice; the maintainers confirm specifics before release.)*
 
@@ -179,8 +192,8 @@ obvious, quarantined home so it never contaminates the permissive core.
 |---|---|---|---|
 | `fprint-core` | domain model + `Backend`/`Device` traits | any | **none** |
 | `fprint-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fprint-core` only** — GVariant hand-rolled |
-| `fprint-bozorth3` | BOZORTH3 minutiae matcher (public-domain NBIS port) | any | **none** — self-contained PD arithmetic kernel |
-| `fprint-mindtct` | MINDTCT minutiae detector (public-domain NBIS port) | any | **none** — self-contained PD image-processing kernel |
+| `fprint-bozorth3` | BOZORTH3 minutiae matcher (original port from public-domain NBIS) | any | **none** — self-contained arithmetic kernel |
+| `fprint-mindtct` | MINDTCT minutiae detector (original port from public-domain NBIS) | any | **none** — self-contained image-processing kernel |
 | `fprint-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
 | `fprint-backend-native` | virtual device + host-image matching (image→minutiae→match via `fprint-mindtct`/`fprint-bozorth3`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-mindtct`, `fprint-bozorth3`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
 | *integration* (`fprint-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |

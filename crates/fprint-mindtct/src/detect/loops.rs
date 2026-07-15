@@ -1,6 +1,6 @@
-// SPDX-FileCopyrightText: NIST NBIS — U.S. Government work, public domain (title 17 §105)
+// SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 //
-// SPDX-License-Identifier: LicenseRef-NBIS-PD
+// SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Analysis and filling of small ridge/valley loops (lakes and islands) in the binary image —
 //! faithful port of stock NBIS `mindtct/src/lib/mindtct/loop.c` (renamed `loops`, since `loop` is a
