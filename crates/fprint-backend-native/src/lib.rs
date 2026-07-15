@@ -56,7 +56,7 @@ mod usb;
 mod yield_now;
 
 pub use backend::VirtualBackend;
-pub use builder::VirtualDeviceBuilder;
+pub use builder::{DeviceShape, VirtualDeviceBuilder};
 pub use detector::{extract_minutiae, template_from_images};
 pub use device::VirtualDevice;
 pub use frame::Frame;

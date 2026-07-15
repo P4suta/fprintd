@@ -19,6 +19,7 @@ use fprint_core::{
     Result, Template, VerifyOutcome,
 };
 
+use crate::builder::DeviceShape;
 use crate::scenario::{CaptureOutcome, EnrollScript, FingerId, Scenario};
 use crate::store::PrintStore;
 use crate::synth::{matches, template_for, TemplateKind};
@@ -30,7 +31,13 @@ use crate::yield_now::yield_now;
 /// trait it exposes a handful of test-only mutators ([`VirtualDevice::present_finger`] and
 /// friends) so a test can change what the "sensor" sees between operations.
 pub struct VirtualDevice {
+    /// The probed shape until `open`, the settled one after.
     info: DeviceInfo,
+    /// The shape `open` settles to, if the builder modelled a probe/open split (see
+    /// [`crate::DeviceShape`]); `None` otherwise. Only the refinable fields are stored, not a
+    /// second `DeviceInfo`: identity cannot change, and a `DeviceInfo` here would grow
+    /// `CompositeDevice`'s largest variant by ~90 bytes.
+    settles_to: Option<DeviceShape>,
     kind: TemplateKind,
     /// Whether verify/identify surface the freshly scanned print (host sensors do; MOC not).
     surfaces_scan: bool,
@@ -55,6 +62,7 @@ impl VirtualDevice {
     /// Assemble from the builder's resolved parts (crate-internal; see the builder).
     pub(crate) fn from_parts(
         info: DeviceInfo,
+        settles_to: Option<DeviceShape>,
         kind: TemplateKind,
         surfaces_scan: bool,
         capacity: Option<usize>,
@@ -63,6 +71,7 @@ impl VirtualDevice {
     ) -> Self {
         VirtualDevice {
             info,
+            settles_to,
             kind,
             surfaces_scan,
             open: false,
@@ -180,6 +189,13 @@ impl Device for VirtualDevice {
             return Err(Error::ProtoState);
         }
         self.open = true;
+        // The shape settles at open, as it does in the libfprint shim. A no-op unless a
+        // probe/open split was modelled. `take`, because `close` does not un-settle it.
+        if let Some(shape) = self.settles_to.take() {
+            self.info.scan_type = shape.scan_type;
+            self.info.features = shape.features;
+            self.info.enroll_stages = shape.enroll_stages;
+        }
         Ok(())
     }
 

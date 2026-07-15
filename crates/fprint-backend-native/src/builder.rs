@@ -20,6 +20,23 @@ use crate::device::VirtualDevice;
 use crate::scenario::Scenario;
 use crate::synth::TemplateKind;
 
+/// The fields of a `DeviceInfo` a driver may still change after enumeration.
+///
+/// A C libfprint driver can set its scan type, features and enroll-stage count from its
+/// probe/open path (`fpi_device_set_scan_type`, `fpi_device_update_features`,
+/// `fpi_device_set_nr_enroll_stages`), so what [`fprint_core::Backend::enumerate`] reports is a
+/// class default. The libfprint shim re-reads `DeviceInfo` in `Device::open` for this reason.
+///
+/// Identity (`id`, `driver`) and the model name are absent because a driver cannot change them.
+///
+/// Used by [`VirtualDeviceBuilder::probe_reports`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DeviceShape {
+    pub scan_type: ScanType,
+    pub features: DeviceFeature,
+    pub enroll_stages: u32,
+}
+
 /// A reusable description of a virtual device.
 ///
 /// `#[must_use]`: the consuming builder methods return a fresh `Self`, so an ignored result
@@ -40,6 +57,9 @@ pub struct VirtualDeviceBuilder {
     /// `Some(threshold)` switches NBIS matching from the synthetic byte-equality stub to the real
     /// [`fprint_bozorth3`] matcher (score `>= threshold` is a match). `None` keeps the deterministic stub.
     match_threshold: Option<u32>,
+    /// `Some` ⇒ enumeration advertises this instead, and `open` settles to the real shape.
+    /// `None` ⇒ the device is what it says it is from the start (most tests want this).
+    probed: Option<DeviceShape>,
 }
 
 impl VirtualDeviceBuilder {
@@ -60,6 +80,7 @@ impl VirtualDeviceBuilder {
             capacity: None,
             scenario: Scenario::new(),
             match_threshold: None,
+            probed: None,
         }
     }
 
@@ -87,6 +108,7 @@ impl VirtualDeviceBuilder {
             capacity: Some(10),
             scenario: Scenario::new(),
             match_threshold: None,
+            probed: None,
         }
     }
 
@@ -114,6 +136,19 @@ impl VirtualDeviceBuilder {
     /// Override the number of enrollment stages.
     pub fn enroll_stages(mut self, stages: u32) -> Self {
         self.enroll_stages = stages;
+        self
+    }
+
+    /// Override the scan type. Both presets are [`ScanType::Press`].
+    pub fn scan_type(mut self, scan_type: ScanType) -> Self {
+        self.scan_type = scan_type;
+        self
+    }
+
+    /// Report `probed` from enumeration, and settle to this builder's real shape on
+    /// [`fprint_core::Device::open`]. See [`DeviceShape`].
+    pub fn probe_reports(mut self, probed: DeviceShape) -> Self {
+        self.probed = Some(probed);
         self
     }
 
@@ -147,16 +182,28 @@ impl VirtualDeviceBuilder {
     /// Mint a fresh, closed [`VirtualDevice`] from this description.
     #[must_use]
     pub fn build(&self) -> VirtualDevice {
-        let info = DeviceInfo {
-            id: self.effective_id(),
-            driver: DriverId(self.driver.clone()),
-            name: self.name.clone(),
+        let real = DeviceShape {
             scan_type: self.scan_type,
             features: self.features,
             enroll_stages: self.enroll_stages,
         };
+        // Without a probe/open split, the device is its real shape from the start and `open`
+        // has nothing to settle.
+        let (advertised, settles_to) = match self.probed {
+            Some(probed) => (probed, Some(real)),
+            None => (real, None),
+        };
+        let info = DeviceInfo {
+            id: self.effective_id(),
+            driver: DriverId(self.driver.clone()),
+            name: self.name.clone(),
+            scan_type: advertised.scan_type,
+            features: advertised.features,
+            enroll_stages: advertised.enroll_stages,
+        };
         VirtualDevice::from_parts(
             info,
+            settles_to,
             self.kind,
             self.surfaces_scan,
             self.capacity,
