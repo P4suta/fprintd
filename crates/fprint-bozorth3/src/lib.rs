@@ -11,15 +11,16 @@
 //!
 //! ## Provenance
 //!
-//! BOZORTH3 is public-domain U.S. Government software (title 17 §105). This crate is written from
-//! the **stock upstream NBIS** algorithm (see `docs/bozorth3-algorithm.md`) and verified black-box
-//! against the stock C tool. It is deliberately **not** derived from libfprint's patched `nbis/`
-//! copy, whose changes carry LGPL terms.
+//! BOZORTH3 is public-domain U.S. Government software (title 17 §105). This crate is a **faithful
+//! port** of the **stock upstream NBIS** algorithm (see `docs/bozorth3-algorithm.md`), verified
+//! black-box against the stock C tool — following its arithmetic closely is deliberate, because
+//! score-exactness demanded it, and public domain permits it. It is deliberately **not** derived
+//! from libfprint's patched `nbis/` copy, whose changes carry LGPL terms.
 //!
-//! The code here is our own original expression, licensed `MIT OR Apache-2.0` like the rest of the
-//! project: public domain grants without demanding, so there is nothing to quarantine against, and
-//! §105 speaks to NIST's code rather than ours. The NBIS lineage is provenance, not a licence.
-//! See `ARCHITECTURE.md` §Provenance & licensing.
+//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain grants without
+//! demanding, so it constrains neither the port nor the licence we put on it, and there is nothing
+//! to quarantine against. The NBIS lineage is provenance, not a licence. See `ARCHITECTURE.md`
+//! §Provenance & licensing.
 //!
 //! ## Shape
 //!

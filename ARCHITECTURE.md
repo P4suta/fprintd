@@ -128,32 +128,39 @@ we measure success against**; they are an open invitation that plugs into the ca
 ## Provenance & licensing
 
 The project's own crates are **`MIT OR Apache-2.0`**. libfprint is **LGPL-2.1+**; NBIS
-(MINDTCT/BOZORTH3) is **US-Government public domain**. To keep our license clean we hold a
-hard line between two very different activities:
+(MINDTCT/BOZORTH3) is **US-Government public domain**. The line that matters is not
+"copying vs. not" — it is **whose copyright the source carries**:
 
 - **Matching an interface or wire format is allowed and safe.** Enum values, the FP3 magic
   and GVariant type signature `(issbymsmsia{sv}v)`, D-Bus names and status strings, the
   `/var/lib/fprint` layout — these are *interoperability facts*, not copyrightable
   expression. We read upstream source to *document the format* (see `docs/fp3-format.md`)
   and then write **original** Rust from that spec.
+- **Porting public-domain code is allowed and safe.** NBIS carries no copyright at all
+  (17 USC §105), so following its arithmetic line for line restricts nothing — not the port,
+  not the licence on the result. We do exactly this in `fprint-bozorth3` / `fprint-mindtct`,
+  deliberately, because bit-exactness against the stock tools demanded it.
 - **Transliterating LGPL implementation code is not.** A line-by-line port of, say,
   `fp-print.c`'s logic would be a **derivative work of LGPL-2.1+** and could not be
-  MIT/Apache. We do not do this. When we need behavior compatibility we implement
+  MIT/Apache. We do not do this. When we need behavior compatibility *there*, we implement
   originally from the spec/observed bytes and verify **black-box** (round-trip against real
-  libfprint), never by copying its expression.
+  libfprint), never by copying its expression. This is why the NBIS ports are taken from
+  **stock** NBIS and never from libfprint's patched `nbis/` copy: same algorithm, but that
+  copy's changes are LGPL, and porting *those* would be the one move that contaminates.
 
 Consequences:
 
 - **NBIS ports** — realized as **`fprint-bozorth3`** (the BOZORTH3 matcher) and **`fprint-mindtct`**
-  (the MINDTCT detector). Both are written from **stock upstream public-domain NBIS** (see
-  `docs/bozorth3-algorithm.md`, `docs/mindtct-algorithm.md`), never from libfprint's patched `nbis/`
+  (the MINDTCT detector). Both are **faithful ports** of **stock upstream public-domain NBIS** (see
+  `docs/bozorth3-algorithm.md`, `docs/mindtct-algorithm.md`), never of libfprint's patched `nbis/`
   (its `g_`-prefixing and patches are LGPL), and verified black-box against the stock C tools.
+  Following the reference arithmetic — and, for MINDTCT, its scan/removal *ordering* — closely is
+  deliberate: bit-exactness demanded it, and a public-domain source permits it.
   **They carry the workspace's `MIT OR Apache-2.0`, not a public-domain marking.** Public domain is
-  not a copyleft — it imposes no obligations, so there is nothing to quarantine against; and NBIS's
-  own PD status rests on 17 USC §105, which concerns works of U.S. Federal Government employees, so
-  it never applied to our original expression in the first place. The NBIS lineage is **provenance,
-  recorded in docs — not a licence.** Only NIST's own test data (the golden fixtures) stays marked
-  public domain, via `REUSE.toml`.
+  not a copyleft: NBIS carries no copyright at all, so it restricts neither the port nor the licence
+  we put on the result. It grants without demanding — there is nothing to quarantine against. The
+  NBIS lineage is **provenance, recorded in docs — not a licence.** Only NIST's own test data (the
+  golden fixtures) stays marked public domain, via `REUSE.toml`.
 - **The shim** (`fprint-backend-libfprint`) *dynamically links* libfprint. LGPL explicitly
   permits this from any-licensed code (unlike GPL); LGPL obligations attach only to
   distributing the linked whole, not to our source.
@@ -168,7 +175,7 @@ License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication
 
 | crate(s) | SPDX license | note |
 |---|---|---|
-| **every crate in this workspace** | `MIT OR Apache-2.0` | inline SPDX header on every source file — including the NBIS ports, which are our original expression |
+| **every crate in this workspace** | `MIT OR Apache-2.0` | inline SPDX header on every source file — the NBIS ports included: a public-domain source constrains no licence |
 | `fprint-backend-libfprint` (shim) | `MIT OR Apache-2.0` (our source) | *dynamically* links libfprint; **binary** redistribution honors LGPL-2.1 §6 — the system `.so` is replaceable, so it is auto-satisfied |
 | NIST golden fixtures (test data) | `LicenseRef-NBIS-PD` (public domain) | not code, and not ours: stock-NBIS reference output and NIST imagery, annotated in `REUSE.toml`; text under `LICENSES/` |
 | a genuinely libfprint-derived driver, *if ever* | `LGPL-2.1-or-later` | isolated crate; carries its own SPDX header |

@@ -10,14 +10,21 @@ fixtures under `crates/fprint-bozorth3/tests/fixtures/` and
 where used). Those are NIST's work and carry NIST's public-domain status.
 
 It does **not** cover our source code. `fprint-bozorth3` and `fprint-mindtct` are
-ORIGINAL, clean-room reimplementations written from the stock NBIS specification and
-verified black-box against the stock NBIS output. That code is our own work, licensed
-`MIT OR Apache-2.0` like the rest of the project: the notice below rests on 17 USC §105,
-which concerns works of U.S. Federal Government employees — NIST's code, not ours — and
-public domain imposes no obligation to quarantine against in any case. The NBIS lineage
-is recorded as provenance, not as a licence. (The real quarantine is LGPL: our crates are
-deliberately NOT derived from libfprint's patched `nbis/` copy, whose modifications carry
-libfprint's LGPL-2.1-or-later terms.) See ARCHITECTURE.md §Provenance & licensing.
+**faithful ports** of the stock NBIS algorithms — deliberately so: reproducing NBIS's
+scores and xyt output bit-for-bit required following its arithmetic and its ordering
+closely. They are verified black-box against the stock C tools.
+
+That is precisely what the notice below permits. NBIS is a work of the U.S. Federal
+Government and carries no copyright (17 USC §105), so there is no restriction on porting
+it, and none on how we licence the result: **public domain grants without demanding.**
+Our ports therefore carry `MIT OR Apache-2.0`, like the rest of the project, and the NBIS
+lineage is recorded as provenance rather than as a licence — there is nothing to
+quarantine against.
+
+The boundary that *is* real is LGPL: these crates are deliberately NOT derived from
+libfprint's patched `nbis/` copy, whose modifications carry libfprint's LGPL-2.1-or-later
+terms. Faithful porting is free for public-domain sources and forbidden for that one.
+See ARCHITECTURE.md §Provenance & licensing.
 
 --------------------------------------------------------------------------------
 

@@ -11,15 +11,17 @@
 //!
 //! ## Provenance
 //!
-//! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is written from the
-//! **stock upstream NBIS** algorithm (`reference/nbis-stock/mindtct/`, see
-//! `docs/mindtct-algorithm.md`) and verified black-box against the stock C tool. It is deliberately
-//! **not** derived from libfprint's patched `nbis/mindtct/` copy, whose changes carry LGPL terms.
+//! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is a **faithful
+//! port** of the **stock upstream NBIS** algorithm (`reference/nbis-stock/mindtct/`, see
+//! `docs/mindtct-algorithm.md`), verified black-box against the stock C tool — reproducing its xyt
+//! output bit-for-bit required following its arithmetic *and its ordering* closely, which is
+//! deliberate and which public domain permits. It is deliberately **not** derived from libfprint's
+//! patched `nbis/mindtct/` copy, whose changes carry LGPL terms.
 //!
-//! The code here is our own original expression, licensed `MIT OR Apache-2.0` like the rest of the
-//! project: public domain grants without demanding, so there is nothing to quarantine against, and
-//! §105 speaks to NIST's code rather than ours. The NBIS lineage is provenance, not a licence.
-//! See `ARCHITECTURE.md` §Provenance & licensing.
+//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain grants without
+//! demanding, so it constrains neither the port nor the licence we put on it, and there is nothing
+//! to quarantine against. The NBIS lineage is provenance, not a licence. See `ARCHITECTURE.md`
+//! §Provenance & licensing.
 //!
 //! ## Shape
 //!

@@ -1,6 +1,6 @@
 [package]
 name = "fprint-mindtct"
-description = "Pure-Rust MINDTCT minutiae detector: an original, dependency-free reimplementation of NIST NBIS's public-domain fingerprint minutiae-detection algorithm, xyt-exact against the stock C tool."
+description = "Pure-Rust MINDTCT minutiae detector: a faithful, dependency-free port of NIST NBIS's public-domain fingerprint minutiae-detection algorithm, xyt-exact against the stock C tool."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

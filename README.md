@@ -78,9 +78,9 @@ is expected to pass. Provenance is kept clean by matching only *interoperability
 facts* (enum values, wire-format signatures, D-Bus names) and never
 transliterating LGPL implementation code. A backend that links the C
 **libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only. Every crate here
-is `MIT OR Apache-2.0`, including the NBIS ports: they are our original expression
-written from a public-domain specification, and public domain imposes no obligation
-to quarantine against. Only NIST's own golden test data stays marked public domain.
+is `MIT OR Apache-2.0`, the NBIS ports included: they are faithful ports of NBIS,
+which carries no copyright at all (17 USC §105) and so restricts neither the port nor
+the licence on the result. Only NIST's own golden test data stays marked public domain.
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
 
 ### Contribution
