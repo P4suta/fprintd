@@ -15,6 +15,7 @@ version = 1
 [[annotations]]
 path = [
     "Cargo.toml",
+    "Cargo.lock",
     "crates/**/Cargo.toml",
     "mise.toml",
     ".gitignore",
