@@ -3,7 +3,9 @@ name = "fprint-backend-libfprint"
 description = "M1 shim: implements fprint-core's Backend/Device by dynamically linking the C libfprint via the libfprint-rs FFI binding. Linux-only, !Send."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Not the workspace's 1.82: the pinned `libfprint-rs`/`libfprint-sys` are `edition = "2024"`,
+# which needs 1.85. Declared here rather than at the root, where the pure crates would inherit it.
+rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true

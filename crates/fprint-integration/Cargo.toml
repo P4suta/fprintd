@@ -3,7 +3,9 @@ name = "fprint-integration"
 description = "The only crate that knows every backend: CompositeBackend / CompositeDevice routing native Rust and the libfprint shim under one fprint-core Backend."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Inherited from the shim, not chosen: on Linux this crate pulls in fprint-backend-libfprint
+# and therefore the `edition = "2024"` FFI stack, which needs 1.85.
+rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true

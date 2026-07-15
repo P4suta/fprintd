@@ -13,6 +13,11 @@
 #               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
 #               the fprintd D-Bus daemon end-to-end. This is where the Linux-only crates are lint
 #               and test gated.
+#  * `msrv`   — the published pure crates on the declared 1.82. Every other job runs latest stable,
+#               so without this a broken MSRV goes unnoticed. The three crates that link the C
+#               libfprint stack declare 1.85 themselves (the pinned FFI binding is
+#               `edition = "2024"`) and are covered by `linux`. `--locked`, so the check is not
+#               against a moving dependency graph.
 #  * `reuse`  — SPDX/REUSE license compliance.
 
 name: CI
@@ -74,6 +79,20 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml run --rm dev \
             cargo test -p fprint-backend-libfprint --features virtual --test virtual
+
+  msrv:
+    name: msrv (1.82, published pure crates)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.82
+      - uses: Swatinem/rust-cache@v2
+      # The Linux-only crates are deliberately absent: they declare 1.85 and would fail here by
+      # design. Their floor is enforced by cargo itself (`rust-version`), and exercised by `linux`.
+      - name: Check the pure crates on the declared MSRV
+        run: >
+          cargo check --locked
+          -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native
 
   reuse:
     name: reuse lint

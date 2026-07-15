@@ -3,7 +3,9 @@ name = "fprintd"
 description = "Pure-Rust fingerprint daemon speaking the net.reactivated.Fprint D-Bus contract (fprintd-compatible)."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# Inherited from the shim, not chosen: on Linux the daemon drives fprint-backend-libfprint and
+# therefore the `edition = "2024"` FFI stack, which needs 1.85.
+rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
