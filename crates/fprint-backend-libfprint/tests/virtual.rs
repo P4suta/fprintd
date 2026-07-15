@@ -31,7 +31,7 @@ use std::thread;
 use std::time::Duration;
 
 use fprint_backend_libfprint::LibfprintBackend;
-use fprint_core::{Backend, Device, Finger, Print, Template};
+use fprint_core::{Backend, Device, Finger, Print, ScanType, Template};
 
 const SOCKET: &str = "/tmp/fp-virt.sock";
 const ENROLL_STAGES: usize = 5; // virtual_device's built-in default
@@ -152,6 +152,54 @@ fn enroll_then_verify_over_virtual_socket() {
     let bad = block_on(dev.verify(&enrolled)).expect("verify (other id)");
     feeder.join().unwrap();
     assert!(!bad.matched, "verifying a different id should not match");
+
+    // --- The shim re-reads the device's shape on open ----------------------------------------
+    // `open` is the only place the shim refreshes its `DeviceInfo`: a driver may set its scan
+    // type and enroll-stage count from its probe/open path, so what `enumerate` reported is a
+    // class default.
+    //
+    // Both baselines are asserted first so neither assertion below can pass vacuously.
+    // `virtual-device.c` sets no class scan type, which leaves libfprint's property default of
+    // SWIPE standing (`fp-device.c`), so asserting swipe would prove nothing. Hence press.
+    assert_eq!(dev.info().scan_type, ScanType::Swipe, "baseline scan type");
+    assert_eq!(
+        dev.info().enroll_stages as usize,
+        ENROLL_STAGES,
+        "baseline stage count"
+    );
+
+    // Fed during a `verify` because `process_cmds` only drains what is already queued, and
+    // libfprint's main loop only turns inside a blocking op. 3 stages is the UPEK TouchStrip
+    // (`0483:2016`, `upekts`), the only libfprint driver that does not use 5.
+    let feeder = feed(vec![
+        "SET_ENROLL_STAGES 3".to_string(),
+        "SET_SCAN_TYPE press".to_string(),
+        format!("SCAN {FINGER_ID}"),
+    ]);
+    block_on(dev.verify(&enrolled)).expect("verify (while the device re-shapes)");
+    feeder.join().unwrap();
+
+    // Still stale, and correctly so: the shim refreshes on open, not on every operation.
+    assert_eq!(
+        dev.info().enroll_stages as usize,
+        ENROLL_STAGES,
+        "the shim caches DeviceInfo between opens; it must not have changed yet"
+    );
+    assert_eq!(dev.info().scan_type, ScanType::Swipe, "likewise stale");
+
+    block_on(dev.close()).expect("close");
+    block_on(dev.open()).expect("re-open");
+
+    assert_eq!(
+        dev.info().enroll_stages,
+        3,
+        "open must re-read the enroll-stage count the driver settled on"
+    );
+    assert_eq!(
+        dev.info().scan_type,
+        ScanType::Press,
+        "open must re-read the scan type the driver settled on"
+    );
 
     block_on(dev.close()).expect("close");
 }
