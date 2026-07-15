@@ -17,6 +17,7 @@
 
 mod docker;
 mod oracle;
+mod sloc;
 mod unit;
 
 use std::path::{Path, PathBuf};
@@ -30,6 +31,7 @@ fn main() -> ExitCode {
 
     let result = match task.as_deref() {
         Some("unit-verify") => unit::verify(&root),
+        Some("sloc") => sloc::measure(&root),
         Some("bozorth3-oracle") => oracle::regenerate(&root, Oracle::Bozorth3),
         Some("mindtct-oracle") => oracle::regenerate(&root, Oracle::Mindtct),
         Some(other) => Err(format!("unknown task `{other}`\n\n{}", usage())),
@@ -51,6 +53,7 @@ fn usage() -> String {
         "",
         "tasks:",
         "  unit-verify        check the systemd unit parses, and that Alias= takes the seat",
+        "  sloc               M0: measure upstream libfprint by subsystem",
         "  bozorth3-oracle    regenerate the BOZORTH3 goldens from stock NBIS (DELIBERATE)",
         "  mindtct-oracle     regenerate the MINDTCT goldens from stock NBIS (DELIBERATE)",
     ]

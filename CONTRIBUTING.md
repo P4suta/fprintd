@@ -40,20 +40,22 @@ mise run docker-test
 ```
 
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
-Docker path on Linux, the declared MSRV, and `reuse lint` — all must be green.
+Docker path on Linux, the systemd unit, the declared MSRV, and `reuse lint` — all must
+be green.
 
-Two checks are not in CI because they need Docker for reasons CI's Linux job does not
-cover; run them when you touch what they check:
+The one thing CI does not do is regenerate the NBIS golden fixtures, because that is
+the thing they exist to catch:
 
 ```sh
-mise run unit-verify     # if you touched crates/fprintd/dbus/ — see xtask/src/main.rs
-mise run mindtct-oracle  # DELIBERATE: regenerates frozen golden fixtures
+mise run bozorth3-oracle   # DELIBERATE: overwrites frozen goldens
+mise run mindtct-oracle
 ```
 
-Tasks that only run one command live in `mise.toml`. Anything that has to *decide*
-something belongs in `xtask/` (`cargo xtask <task>`), where a compiler and clippy can
-see it: shell quoted inside TOML is read by nothing and rots quietly. The oracle tasks
-were exactly that, and had stopped working on Windows without anyone noticing.
+Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
+(`cargo xtask <task>`), where a compiler and clippy can see it. This is not style. The
+oracle tasks were shell quoted inside TOML, and had silently stopped running on Windows
+entirely — their Python half still regenerated identical bytes, so `git status` looked
+exactly like success.
 
 ## License hygiene
 

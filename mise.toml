@@ -23,12 +23,8 @@ run = [
 
 [tasks.sloc]
 description = "M0: measure upstream libfprint SLOC by subsystem (drivers / nbis / core) with tokei"
-run = [
-  "echo '== libfprint (whole) =='",
-  "tokei reference/libfprint/libfprint",
-  "echo '== drivers/ ==' && tokei reference/libfprint/libfprint/drivers",
-  "echo '== nbis/ ==' && tokei reference/libfprint/libfprint/nbis",
-]
+# In xtask/ because the labels were shell-quoted here, and printed with their quotes on Windows.
+run = "cargo xtask sloc"
 
 [tasks.reuse]
 description = "Check REUSE/SPDX license compliance"
