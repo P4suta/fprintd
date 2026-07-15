@@ -11,54 +11,30 @@
 //! either promotes the loop to a pair of minutiae or erases it from the image:
 //!
 //! * [`on_loop`] traces a minutia's contour clockwise up to a step limit and reports whether it
-//!   closed a loop; [`get_loop_list`] flags every bifurcation in a minutiae list that does so
-//!   (dropping any whose contour cannot be traced).
+//!   closed a loop (stock `on_loop`); the false-minutia-removal stages (`remove.rs`) drive it.
 //! * [`is_loop_clockwise`] decides a loop contour's winding via its chain code
 //!   ([`chain_code_loop`](super::chaincod::chain_code_loop) +
 //!   [`is_chain_clockwise`](super::chaincod::is_chain_clockwise)).
 //! * [`get_loop_aspect`] measures a loop's widest and narrowest span, the shape test that decides
 //!   whether it holds minutiae.
-//! * [`fill_partial_row`], [`flood_loop`] and [`flood_fill4`] erase a loop from the binary image —
-//!   the row-fill helper used by [`fill_loop`], and the recursive 4-connected flood (whose N/E/S/W
-//!   scan order is reproduced verbatim).
+//! * [`process_loop_v2`] turns a qualifying loop into a pair of minutiae, or — failing the shape
+//!   test — erases it from the binary image via [`fill_loop`]. [`fill_loop`] and its row helper
+//!   [`fill_partial_row`] fill a loop's concave-aware interior using a per-row
+//!   [`Shape`](super::shape::Shape) built by [`shape_from_contour`](super::shape::shape_from_contour).
 //!
 //! The loop-determination and fill scan orders are reproduced step-for-step from the reference so the
-//! decisions and image edits are identical.
-//!
-//! **Awaiting dependencies:** [`process_loop_v2`] and [`fill_loop`] are faithful signature stubs. Both
-//! depend on stock files not yet ported — `fill_loop` on `shape.c`'s `shape_from_contour`, and
-//! `process_loop_v2` on `minutia.c` (`create_minutia`, `minutia_type`, `is_minutia_appearing`),
-//! `util.c` (`line2direction`), and `update.c` (`update_minutiae`), plus `fill_loop`. They are wired
-//! in once those land. See `docs/mindtct-algorithm.md`.
-
-// `dead_code`: the V2 loop path used by the scan (`process_loop_v2`, `is_loop_clockwise`,
-// `fill_loop`, `get_loop_aspect`) is wired into `detect_minutiae_V2` and exercised through
-// `debug_raw_minutiae`. The residual dead members belong to stages that have not landed: `on_loop`
-// and `get_loop_list` (`OnLoop`) are consumed by the link/false-minutiae-removal stages (`link.c`,
-// `remove.c`), and `flood_loop`/`flood_fill4` back only the V1 `process_loop` the port does not use.
-// One module-level allow is the minimal justified suppression for that group; drop it as they land.
-#![allow(dead_code)]
+//! decisions and image edits are identical. Every routine here is live: [`process_loop_v2`] is wired
+//! into `detect_minutiae_V2` (through `adjust_high_curvature_minutia_V2`), and [`on_loop`] /
+//! [`fill_loop`] into `remove_false_minutia_V2`. See `docs/mindtct-algorithm.md`.
 
 use super::contour::{line2direction, trace_contour, Contour, ScanDir, TraceResult};
 use super::shape::shape_from_contour;
 use super::{
-    create_minutia, is_minutia_appearing, minutia_type, update_minutiae, DetMinutia, BIFURCATION,
+    create_minutia, is_minutia_appearing, minutia_type, update_minutiae, DetMinutia,
     HIGH_RELIABILITY, LOOP_ID, MEDIUM_RELIABILITY,
 };
 use crate::params::LfsParms;
-
-/// Squared Euclidean distance between two integer points — port of stock `squared_distance`
-/// (`util.c` L388).
-///
-/// PORT: `squared_distance` lives in stock `util.c`, not `loop.c`; it is defined here as a
-/// file-private helper because [`get_loop_aspect`] is its only port-side consumer so far. Relocate to
-/// a shared `util` module when that file is ported (mirroring the `angle2line` inline in `contour`).
-fn squared_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> f64 {
-    // PORT L393–L397: (x1-x2)^2 + (y1-y2)^2 in `f64`.
-    let dx = f64::from(x1 - x2);
-    let dy = f64::from(y1 - y2);
-    (dx * dx) + (dy * dy)
-}
+use crate::util::squared_distance;
 
 /// Outcome of [`on_loop`] — the stock `int` return (`IGNORE`/`LOOP_FOUND`/`FALSE`).
 ///
@@ -111,69 +87,6 @@ pub(crate) fn on_loop(
         // PORT L218–L221: traced but no loop within the step limit → FALSE.
         TraceResult::Traced(_) => OnLoop::NotFound,
     }
-}
-
-/// Flag each minutia in the list that lies on a loop of at most `loop_len` circumference — port of
-/// stock `get_loop_list` (`loop.c` L102).
-///
-/// Walks the minutiae list: a bifurcation ([`BIFURCATION`]) is tested with [`on_loop`] and flagged
-/// `true`/`false` accordingly; a ridge-ending is never on a loop, so it is flagged `false` without a
-/// trace. A bifurcation whose contour cannot be traced ([`OnLoop::Ignore`]) is *removed* from the list
-/// (stock `remove_minutia`, here `Vec::remove`) and no flag is recorded for it — the next minutia
-/// slides into its slot and is processed in turn. The returned flag vector therefore stays in
-/// lock-step with the (possibly shortened) list: one entry per surviving minutia, in order.
-///
-/// `bdata` is the binary image (`0 == white/valley`, `1 == black/ridge`), `iw`×`ih` pixels.
-///
-/// PORT: stock returns `int` (0 / negative) with an `oonloop` out-parameter sized to the *original*
-/// `num`; here the flags are the return value and the vector's length is the *final* list length
-/// (stock leaves the tail entries of removed minutiae as unread garbage — the port simply never
-/// records them). The `-320` `malloc`-failure and the `remove_minutia`/`on_loop` error returns have
-/// no analogue (allocation aborts, and neither routine can fail here), so the return type is the flag
-/// vector itself, not a `Result`.
-pub(crate) fn get_loop_list(
-    minutiae: &mut Vec<DetMinutia>,
-    loop_len: i32,
-    bdata: &[u8],
-    iw: i32,
-    ih: i32,
-) -> Vec<bool> {
-    // PORT L110/L116: one flag per minutia, filled as the list is walked.
-    let mut onloop = Vec::with_capacity(minutiae.len());
-
-    // PORT L118: foreach minutia remaining in the list (`i` does not advance on a removal).
-    let mut i = 0;
-    while i < minutiae.len() {
-        // PORT L122: only bifurcations can be on a loop.
-        if minutiae[i].kind == BIFURCATION {
-            // PORT L124: check whether it sits on a loop of the specified length.
-            match on_loop(&minutiae[i], loop_len, bdata, iw, ih) {
-                // PORT L126–L131: on a loop → flag TRUE and advance.
-                OnLoop::LoopFound => {
-                    onloop.push(true);
-                    i += 1;
-                }
-                // PORT L133–L143: contour untraceable → remove the minutia; do not advance, as the
-                // next minutia has slid into position `i`.
-                OnLoop::Ignore => {
-                    minutiae.remove(i);
-                }
-                // PORT L145–L150: not on a loop → flag FALSE and advance.
-                OnLoop::NotFound => {
-                    onloop.push(false);
-                    i += 1;
-                }
-            }
-        }
-        // PORT L160–L165: a ridge-ending is never on a loop → flag FALSE and advance.
-        else {
-            onloop.push(false);
-            i += 1;
-        }
-    }
-
-    // PORT L169–L172: return the flag list.
-    onloop
 }
 
 /// Decide whether a loop's contour is ordered clockwise — port of stock `is_loop_clockwise`
@@ -497,80 +410,9 @@ pub(crate) fn fill_partial_row(
     }
 }
 
-/// Flood-fill a loop's interior from each of its contour points — port of stock `flood_loop`
-/// (`loop.c` L1157).
-///
-/// Flips the feature's pixel value (the value at the first contour point) to its opposite and floods
-/// that region with a 4-connected fill ([`flood_fill4`]) seeded from *every* contour point. The
-/// 4-connected flood cannot escape the 8-connected contour; seeding from all points guarantees that
-/// complex shapes whose interior is "pinched" by skipped corners still fill completely (simple shapes
-/// fill on the first seed, and later seeds return at once, their pixel already flipped).
-///
-/// `bdata` is the binary image (`0 == white/valley`, `1 == black/ridge`), `iw`×`ih` pixels.
-pub(crate) fn flood_loop(contour_x: &[i32], contour_y: &[i32], bdata: &mut [u8], iw: i32, ih: i32) {
-    // PORT L1166: the feature's pixel value — the value to be replaced by the flood.
-    let feature_pix = bdata[(contour_y[0] * iw + contour_x[0]) as usize];
-
-    // PORT L1170: flip it to obtain the fill value (`!feature_pix` over the binary domain).
-    let fill_pix: u8 = u8::from(feature_pix == 0);
-
-    // PORT L1186–L1190: initiate a flood from each contour point.
-    let mut i = 0;
-    while i < contour_x.len() {
-        flood_fill4(fill_pix, contour_x[i], contour_y[i], bdata, iw, ih);
-        i += 1;
-    }
-}
-
-/// Recursively flood a region with a pixel value, 4-connected — port of stock `flood_fill4`
-/// (`loop.c` L1209).
-///
-/// Fills the seed pixel `(x, y)` if it does not already hold `fill_pix`, then recurses into its four
-/// non-diagonal neighbors that lie within the image, in the stock scan order **North, East, South,
-/// West**. A pixel already equal to `fill_pix` terminates that branch, so the flood stays within the
-/// region of the original color.
-///
-/// `bdata` is the binary image (`0 == white/valley`, `1 == black/ridge`), `iw`×`ih` pixels.
-///
-/// PORT: `fill_pix` is a stock `int` on `[0..255]` but only ever binary here, so it is a `u8`. The
-/// recursion mirrors the reference exactly (Rust's `#![forbid(unsafe_code)]` permits it; the loops
-/// filled here are small).
-pub(crate) fn flood_fill4(fill_pix: u8, x: i32, y: i32, bdata: &mut [u8], iw: i32, ih: i32) {
-    // PORT L1216–L1218: fill the current pixel only if it needs filling.
-    let idx = (y * iw + x) as usize;
-    if bdata[idx] != fill_pix {
-        // PORT L1220: fill it.
-        bdata[idx] = fill_pix;
-
-        // PORT L1225–L1228: the four non-diagonal neighbor coordinates.
-        let y_north = y - 1;
-        let y_south = y + 1;
-        let x_west = x - 1;
-        let x_east = x + 1;
-
-        // PORT L1231–L1232: North.
-        if y_north >= 0 {
-            flood_fill4(fill_pix, x, y_north, bdata, iw, ih);
-        }
-        // PORT L1235–L1236: East.
-        if x_east < iw {
-            flood_fill4(fill_pix, x_east, y, bdata, iw, ih);
-        }
-        // PORT L1239–L1240: South.
-        if y_south < ih {
-            flood_fill4(fill_pix, x, y_south, bdata, iw, ih);
-        }
-        // PORT L1243–L1244: West.
-        if x_west >= 0 {
-            flood_fill4(fill_pix, x_west, y, bdata, iw, ih);
-        }
-    }
-    // PORT L1247: pixel already filled → nothing to do.
-}
-
 #[cfg(test)]
 mod tests {
-    use super::super::RIDGE_ENDING;
+    use super::super::BIFURCATION;
     use super::*;
 
     /// A 5×5 image whose bottom three rows (`y >= 2`) are ridge (`1`) — a straight horizontal feature
@@ -644,23 +486,6 @@ mod tests {
         assert_eq!(on_loop(&m, 20, &b, iw, ih), OnLoop::Ignore);
     }
 
-    #[test]
-    fn get_loop_list_flags_removes_and_stays_in_lockstep() {
-        let (b, iw, ih) = block_3x3();
-        // A: bifurcation on the loop → true, kept.
-        // C: bifurcation with a same-colored pair → IGNORE → removed (tests the "slide").
-        // B: ridge-ending → false, kept (never traced).
-        let mut minutiae = vec![
-            minutia(1, 1, 1, 0, BIFURCATION),
-            minutia(2, 2, 2, 3, BIFURCATION),
-            minutia(9, 9, 9, 9, RIDGE_ENDING),
-        ];
-        let flags = get_loop_list(&mut minutiae, 20, &b, iw, ih);
-        // C was removed; A and B survive with flags true/false.
-        assert_eq!(minutiae.len(), 2);
-        assert_eq!(flags, vec![true, false]);
-    }
-
     // A 2×2 pixel square walked clockwise on screen (image coords, `y` down).
     const SQUARE_X: [i32; 8] = [0, 1, 2, 2, 2, 1, 0, 0];
     const SQUARE_Y: [i32; 8] = [0, 0, 0, 1, 2, 2, 2, 1];
@@ -704,43 +529,5 @@ mod tests {
         // Row 0 filled from x=1..=3; row 1 untouched.
         assert_eq!(&b[0..5], &[0, 1, 1, 1, 0]);
         assert_eq!(&b[5..10], &[0, 0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn flood_fill4_stops_at_a_differently_colored_barrier() {
-        // A 3-wide, 1-tall row [0, 1, 0]. Flooding value 1 from x=0 fills (0,0); its east neighbor
-        // (1,0) already holds 1 (== fill_pix) so that branch returns without reaching (2,0).
-        let iw = 3;
-        let ih = 1;
-        let mut b = vec![0u8, 1, 0];
-        flood_fill4(1, 0, 0, &mut b, iw, ih);
-        assert_eq!(b, vec![1, 1, 0]);
-    }
-
-    #[test]
-    fn flood_fill4_fills_a_connected_region() {
-        // A 3×3 field of all-0 pixels: flooding 1 from the center reaches every pixel (4-connected).
-        let iw = 3;
-        let ih = 3;
-        let mut b = vec![0u8; 9];
-        flood_fill4(1, 1, 1, &mut b, iw, ih);
-        assert_eq!(b, vec![1u8; 9]);
-    }
-
-    #[test]
-    fn flood_loop_erases_the_feature() {
-        let (mut b, iw, ih) = block_3x3();
-        // Seed from the block's top-left interior pixel (1,1)=ridge: the feature (all nine ridge
-        // pixels) is flipped to valley.
-        flood_loop(&[1], &[1], &mut b, iw, ih);
-        for y in 1..=3 {
-            for x in 1..=3 {
-                assert_eq!(
-                    b[(y * iw + x) as usize],
-                    0,
-                    "pixel ({x},{y}) should be erased"
-                );
-            }
-        }
     }
 }

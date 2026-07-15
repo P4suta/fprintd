@@ -6,9 +6,9 @@
 //! invalid-block, side, hook, overlap, malformation and pore filters that prune spurious candidates —
 //! faithful port of stock NBIS `mindtct/src/lib/mindtct/remove.c` (the ten-stage `_V2` driver at
 //! L172), plus the small supporting routines the stage needs from `loop.c` (`on_hook`,
-//! `on_island_lake`), `imgutil.c` (`free_path`, `search_in_direction`), `util.c` (`distance`,
-//! `squared_distance`, `closest_dir_dist`, `minmaxs`), `maps.c` (`num_valid_8nbrs`) and `minutia.c`
-//! (`sort_minutiae_y_x`).
+//! `on_island_lake`), `imgutil.c` (`free_path`, `search_in_direction`), `maps.c` (`num_valid_8nbrs`)
+//! and `minutia.c` (`sort_minutiae_y_x`). The `util.c` helpers it also relies on (`distance`,
+//! `squared_distance`, `closest_dir_dist`, `minmaxs`) live in the shared [`crate::util`] module.
 //!
 //! The ten stages run in the exact reference order, each walking the minutiae list in the reference's
 //! scan direction so that `remove_minutia`'s in-place slide keeps subsequent indices consistent. Some
@@ -33,46 +33,14 @@ use crate::detect::loops::{fill_loop, on_loop, OnLoop};
 use crate::detect::{DetMinutia, BIFURCATION};
 use crate::num::{sort_indices_int_inc, sround, trunc_dbl_precision};
 use crate::params::LfsParms;
+use crate::util::{closest_dir_dist, distance, minmaxs, squared_distance};
 
 /// Stock `INVALID_DIR` (`lfs.h` L320): a block whose ridge-flow direction could not be determined.
 const INVALID_DIR: i32 = -1;
 
 // ===========================================================================
-// Supporting routines ported from util.c / maps.c / imgutil.c / loop.c
+// Supporting routines ported from maps.c / imgutil.c / loop.c
 // ===========================================================================
-
-/// Euclidean distance between two integer points — port of stock `distance` (`util.c` L358).
-fn distance(x1: i32, y1: i32, x2: i32, y2: i32) -> f64 {
-    // PORT L363–L369: sqrt of the squared distance.
-    let dx = f64::from(x1 - x2);
-    let dy = f64::from(y1 - y2);
-    ((dx * dx) + (dy * dy)).sqrt()
-}
-
-/// Squared Euclidean distance between two integer points — port of stock `squared_distance`
-/// (`util.c` L388).
-fn squared_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> f64 {
-    // PORT L393–L397: (x1-x2)^2 + (y1-y2)^2.
-    let dx = f64::from(x1 - x2);
-    let dy = f64::from(y1 - y2);
-    (dx * dx) + (dy * dy)
-}
-
-/// Inner (wrap-aware) distance between two integer directions — port of stock `closest_dir_dist`
-/// (`util.c` L602).
-///
-/// Returns [`INVALID_DIR`] if either direction is invalid (`< 0`), else the smaller of the direct and
-/// wrap-around distances on a circle of `ndirs` directions.
-fn closest_dir_dist(dir1: i32, dir2: i32, ndirs: i32) -> i32 {
-    // PORT L607–L618: only defined for two valid directions.
-    if dir1 >= 0 && dir2 >= 0 {
-        let d1 = (dir2 - dir1).abs();
-        let d2 = ndirs - d1;
-        d1.min(d2)
-    } else {
-        INVALID_DIR
-    }
-}
 
 /// Count the valid (`>= 0`) blocks among the eight neighbors of a block — port of stock
 /// `num_valid_8nbrs` (`maps.c` L2044).
@@ -206,105 +174,6 @@ fn search_in_direction(
 
     // PORT L482–L487: exhausted the steps → not found.
     None
-}
-
-/// The three parallel outputs of [`minmaxs`] — value, type (`-1` minima / `+1` maxima) and index of
-/// each relative extremum.
-struct MinMaxs {
-    val: Vec<i32>,
-    kind: Vec<i32>,
-    idx: Vec<i32>,
-}
-
-/// Locate relative minima and maxima in a vector of integers — port of stock `minmaxs` (`util.c`
-/// L158).
-///
-/// Walks the run-length structure of the sequence, recording each turning point at the midpoint of the
-/// level run that precedes it. Fewer than three items yields no extrema.
-fn minmaxs(items: &[i32]) -> MinMaxs {
-    let num = items.len() as i32;
-
-    // PORT L168–L174: fewer than three items → no min/max possible.
-    if num < 3 {
-        return MinMaxs {
-            val: Vec::new(),
-            kind: Vec::new(),
-            idx: Vec::new(),
-        };
-    }
-
-    let mut val = Vec::new();
-    let mut kind = Vec::new();
-    let mut idx = Vec::new();
-
-    // PORT L204–L219: initial state from the first pair; start location at the first item.
-    let mut i: i32 = 0;
-    let diff = items[1] - items[0];
-    let mut state = if diff > 0 {
-        1
-    } else if diff < 0 {
-        -1
-    } else {
-        0
-    };
-    let mut start: i32 = 0;
-    i += 1;
-
-    // PORT L222–L332: fold each successive item pair into the running state.
-    while i < num - 1 {
-        let diff = items[(i + 1) as usize] - items[i as usize];
-        if diff > 0 {
-            // PORT L227–L275: increasing.
-            if state == 1 {
-                start = i;
-            } else if state == -1 {
-                // PORT L234–L248: a minima at the midpoint of the preceding decline.
-                let loc = (start + i) / 2;
-                val.push(items[loc as usize]);
-                kind.push(-1);
-                idx.push(loc);
-                state = 1;
-                start = i;
-            } else {
-                // PORT L251–L274: previously level (only at the list head).
-                if i - start > 1 {
-                    let loc = (start + i) / 2;
-                    val.push(items[loc as usize]);
-                    kind.push(-1);
-                    idx.push(loc);
-                }
-                state = 1;
-                start = i;
-            }
-        } else if diff < 0 {
-            // PORT L278–L326: decreasing.
-            if state == -1 {
-                start = i;
-            } else if state == 1 {
-                // PORT L285–L298: a maxima at the midpoint of the preceding rise.
-                let loc = (start + i) / 2;
-                val.push(items[loc as usize]);
-                kind.push(1);
-                idx.push(loc);
-                state = -1;
-                start = i;
-            } else {
-                // PORT L302–L325: previously level (only at the list head).
-                if i - start > 1 {
-                    let loc = (start + i) / 2;
-                    val.push(items[loc as usize]);
-                    kind.push(1);
-                    idx.push(loc);
-                }
-                state = -1;
-                start = i;
-            }
-        }
-        // PORT L328: level items just advance.
-        i += 1;
-    }
-
-    MinMaxs { val, kind, idx }
 }
 
 /// Order the minutiae top-to-bottom, left-to-right — port of stock `sort_minutiae_y_x`
@@ -1526,22 +1395,6 @@ mod tests {
     }
 
     #[test]
-    fn distance_and_squared_distance_agree() {
-        assert_eq!(squared_distance(0, 0, 3, 4), 25.0);
-        assert_eq!(distance(0, 0, 3, 4), 5.0);
-        assert_eq!(distance(2, 2, 2, 2), 0.0);
-    }
-
-    #[test]
-    fn closest_dir_dist_wraps_and_guards() {
-        // 16-direction semicircle: 1 vs 15 is 2 the short way (wrap), not 14.
-        assert_eq!(closest_dir_dist(1, 15, 16), 2);
-        assert_eq!(closest_dir_dist(3, 5, 16), 2);
-        // Either direction invalid → INVALID_DIR.
-        assert_eq!(closest_dir_dist(-1, 5, 16), INVALID_DIR);
-    }
-
-    #[test]
     fn num_valid_8nbrs_counts_within_bounds() {
         // 3x3 map, all valid (0) except center's NW corner which is -1.
         let map = vec![-1, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -1561,24 +1414,6 @@ mod tests {
         // With only 1 allowed transition, the same path is not free.
         p.maxtrans = 1;
         assert!(!free_path(0, 0, 5, 0, &bdata, 6, &p));
-    }
-
-    #[test]
-    fn minmaxs_finds_a_single_minimum() {
-        // A V-shape: descend then ascend → exactly one minima of type -1. The reference resets
-        // `start` on every continued-decrease step, so a strict decline reports the extremum at the
-        // midpoint of the last tracked pair — here index 1 (value 3), not the true trough at index 2.
-        let items = [5, 3, 1, 3, 5];
-        let mm = minmaxs(&items);
-        assert_eq!(mm.idx.len(), 1);
-        assert_eq!(mm.kind[0], -1);
-        assert_eq!(mm.idx[0], 1);
-        assert_eq!(mm.val[0], 3);
-    }
-
-    #[test]
-    fn minmaxs_ignores_short_sequences() {
-        assert_eq!(minmaxs(&[1, 2]).idx.len(), 0);
     }
 
     #[test]

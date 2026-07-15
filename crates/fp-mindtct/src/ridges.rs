@@ -18,63 +18,16 @@
 //!    origin, clockwise), and [`ridge_count`] to each — filling the minutia's
 //!    [`nbrs`](DetMinutia::nbrs) / [`ridge_counts`](DetMinutia::ridge_counts).
 //!
-//! `squared_distance`, `find_incr_position_dbl` and `angle2line` are ported here as file-private
-//! helpers (they live in stock `util.c`, not yet a shared port module — the same local-copy pattern
-//! `contour.rs`/`remove.rs` already use). See `docs/mindtct-algorithm.md` §Bit-exactness.
+//! The `util.c` helpers this stage relies on (`squared_distance`, `find_incr_position_dbl`,
+//! `angle2line`) live in the shared [`crate::util`] module. See `docs/mindtct-algorithm.md`
+//! §Bit-exactness.
 
 use crate::detect::contour::{fix_edge_pixel_pair, trace_contour, ScanDir, TraceResult};
 use crate::detect::line::line_points;
 use crate::detect::DetMinutia;
 use crate::num::{bubble_sort_double_inc_2, sort_indices_int_inc};
 use crate::params::LfsParms;
-
-// PORT: stock `MIN_SLOPE_DELTA` (`lfs.h` L701) — below this per-axis delta a line is treated as having
-// zero slope in [`angle2line`], avoiding a degenerate `atan2(0, 0)`.
-const MIN_SLOPE_DELTA: f64 = 0.5;
-
-/// Squared Euclidean distance between two integer points — port of stock `squared_distance`
-/// (`util.c` L388).
-fn squared_distance(x1: i32, y1: i32, x2: i32, y2: i32) -> f64 {
-    // PORT L393–L397: (x1-x2)^2 + (y1-y2)^2, computed in `f64`.
-    let dx = f64::from(x1 - x2);
-    let dy = f64::from(y1 - y2);
-    (dx * dx) + (dy * dy)
-}
-
-/// Compute the angle (radians) of the line from `(fx, fy)` to `(tx, ty)` — port of stock `angle2line`
-/// (`util.c` L519).
-///
-/// PORT: `angle2line` lives in stock `util.c`, not yet a shared port module; it is a file-private
-/// helper because [`sort_neighbors`] is its only consumer here (the same local-copy the `contour`
-/// module keeps). The slope is measured as `dy = fy - ty`, `dx = tx - fx` (the reference's asymmetric
-/// subtraction order, verbatim); when both deltas fall below [`MIN_SLOPE_DELTA`] the angle is `0.0`.
-fn angle2line(fx: i32, fy: i32, tx: i32, ty: i32) -> f64 {
-    // PORT L523–L525: slope components (mixed subtraction order is intentional).
-    let dy = f64::from(fy - ty);
-    let dx = f64::from(tx - fx);
-    // PORT L527–L532: sufficiently flat → 0.0, else the arctangent of the slope.
-    if dx.abs() < MIN_SLOPE_DELTA && dy.abs() < MIN_SLOPE_DELTA {
-        0.0
-    } else {
-        dy.atan2(dx)
-    }
-}
-
-/// Insertion point for `val` in an increasing-sorted `list` — port of stock `find_incr_position_dbl`
-/// (`util.c` L485).
-///
-/// Returns the first index whose value exceeds `val` (preserving increasing order), or `list.len()`
-/// when `val` is `>=` every element.
-fn find_incr_position_dbl(val: f64, list: &[f64]) -> usize {
-    // PORT L489–L499: first slot whose value is strictly greater than `val`.
-    for (i, &v) in list.iter().enumerate() {
-        if val < v {
-            return i;
-        }
-    }
-    // PORT L503: never smaller → append at the end.
-    list.len()
-}
+use crate::util::{angle2line, find_incr_position_dbl, squared_distance};
 
 /// Sort the minutiae left-to-right then top-to-bottom (column-oriented) — port of stock
 /// `sort_minutiae_x_y` (`minutia.c` L680).
@@ -601,34 +554,6 @@ mod tests {
             nbrs: Vec::new(),
             ridge_counts: Vec::new(),
         }
-    }
-
-    #[test]
-    fn squared_distance_matches_stock() {
-        assert_eq!(squared_distance(0, 0, 3, 4), 25.0);
-        assert_eq!(squared_distance(1, 1, 1, 1), 0.0);
-        assert_eq!(squared_distance(-2, 0, 1, 0), 9.0);
-    }
-
-    #[test]
-    fn angle2line_flat_and_axis_aligned() {
-        // Both deltas below MIN_SLOPE_DELTA → defined as 0.0.
-        assert_eq!(angle2line(4, 4, 4, 4), 0.0);
-        // dy = fy-ty = 0, dx = tx-fx = 3 → atan2(0, 3) = 0.
-        assert_eq!(angle2line(0, 0, 3, 0), 0.0);
-        // dy = 0-0, dx = 0-0 for x... use a vertical line: fx=0,fy=0,tx=0,ty=3 → dy=-3,dx=0 → -pi/2.
-        assert!((angle2line(0, 0, 0, 3) - (-std::f64::consts::FRAC_PI_2)).abs() < 1e-12);
-    }
-
-    #[test]
-    fn find_incr_position_dbl_finds_slot() {
-        let list = [1.0, 3.0, 5.0];
-        assert_eq!(find_incr_position_dbl(0.0, &list), 0);
-        assert_eq!(find_incr_position_dbl(2.0, &list), 1);
-        assert_eq!(find_incr_position_dbl(4.0, &list), 2);
-        assert_eq!(find_incr_position_dbl(9.0, &list), 3);
-        // Equal to an element is NOT strictly less → inserts after it.
-        assert_eq!(find_incr_position_dbl(3.0, &list), 2);
     }
 
     #[test]

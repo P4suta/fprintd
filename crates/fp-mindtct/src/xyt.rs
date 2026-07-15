@@ -81,10 +81,11 @@ pub(crate) fn lfs2nist_minutia_xyt(minutia: &DetMinutia, ih: i32) -> Minutia {
 /// bifurcation valley (opposite the NIST form), and orientation quantized in units of 2° so the final
 /// angle is halved onto `[0..179]`.
 ///
-/// `dead_code`: the port exposes the M1 (ANSI INCITS 378-2004) representation for completeness, but the
-/// native seam consumes only the NIST-internal form ([`lfs2nist_format`]); no lib caller reaches the M1
-/// converters yet. The `#[cfg(test)]` suite exercises them. This narrow per-item allow (paired with the
-/// one on [`lfs2m1_format`]) is the minimal suppression — drop it when an M1 consumer is wired.
+/// `dead_code`: the NIST-internal form ([`lfs2nist_format`]) is the seam's only consumed
+/// representation. M1 (ANSI INCITS 378-2004) is an external-interchange format, and the crate exposes
+/// no public export API yet, so nothing outside `#[cfg(test)]` reaches these converters — the test
+/// suite pins their arithmetic. This narrow per-item allow (paired with the one on [`lfs2m1_format`])
+/// is the minimal suppression — wire an M1 export consumer and it (and its pair) drop.
 #[allow(dead_code)]
 pub(crate) fn lfs2m1_minutia_xyt(minutia: &DetMinutia) -> Minutia {
     // PORT L135-L136: coordinates unchanged (top-left origin).
@@ -121,7 +122,7 @@ pub(crate) fn lfs2nist_format(minutiae: &[DetMinutia], ih: i32) -> Vec<Minutia> 
 /// `write_minutiae_XYTQ(M1_XYT_REP)` contract (`results.c` L268, L304-L324).
 ///
 /// `dead_code`: see [`lfs2m1_minutia_xyt`] — the M1 batch converter has no lib caller until an M1
-/// consumer is wired; the `#[cfg(test)]` suite covers it.
+/// export consumer is wired; the `#[cfg(test)]` suite pins its arithmetic.
 #[allow(dead_code)]
 pub(crate) fn lfs2m1_format(minutiae: &[DetMinutia]) -> Vec<Minutia> {
     minutiae.iter().map(lfs2m1_minutia_xyt).collect()

@@ -39,6 +39,7 @@ mod params;
 mod quality;
 mod remove;
 mod ridges;
+mod util;
 mod xyt;
 
 /// One detected minutia in NIST `xyt` form.
