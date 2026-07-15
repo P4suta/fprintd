@@ -19,6 +19,9 @@ members = [
     # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
     "crates/fprint-backend-libfprint",  # M1 shim over the C libfprint via the libfprint-rs FFI crate
     "crates/fprintd",            # M1 zbus daemon speaking net.reactivated.Fprint
+    # Not part of the stack: developer tasks (`cargo xtask <task>`). A member so that fmt, clippy
+    # and the workspace test run hold the tooling to the same bar as the code it checks.
+    "xtask",
 ]
 
 [workspace.package]

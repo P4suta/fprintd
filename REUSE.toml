@@ -17,6 +17,7 @@ path = [
     "Cargo.toml",
     "Cargo.lock",
     "crates/**/Cargo.toml",
+    "xtask/Cargo.toml",
     "mise.toml",
     ".gitignore",
     "**/*.md",

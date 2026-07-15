@@ -40,7 +40,19 @@ mise run docker-test
 ```
 
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
-Docker path on Linux, and `reuse lint` — all must be green.
+Docker path on Linux, the declared MSRV, and `reuse lint` — all must be green.
+
+Two checks are not in CI because they need Docker for reasons CI's Linux job does not
+cover; run them when you touch what they check:
+
+```sh
+mise run unit-verify     # if you touched crates/fprintd/dbus/ — see xtask/src/main.rs
+mise run mindtct-oracle  # DELIBERATE: regenerates frozen golden fixtures
+```
+
+Tasks that only run one command live in `mise.toml`. Anything that has to *decide*
+something belongs in `xtask/` (`cargo xtask <task>`), where a compiler and clippy can
+see it: shell quoted inside TOML is read by nothing and rots quietly.
 
 ## License hygiene
 

@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[alias]
+# `cargo xtask <task>` — developer tasks that are a program, not shell in a task runner.
+# See xtask/src/main.rs.
+xtask = "run --quiet --package xtask --"

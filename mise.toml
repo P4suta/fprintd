@@ -60,6 +60,12 @@ description = "Hardware-free enroll+verify against fprintd over its D-Bus contra
 # verify-match -> Release exactly as a client would — the hardware-free daemon verification.
 run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fprintd --test dbus_integration -- --nocapture"
 
+[tasks.unit-verify]
+description = "Check the systemd unit against real systemd: it parses, and Alias= takes the seat"
+# The logic lives in xtask/, not here: it has to substitute @LIBEXECDIR@ and judge what systemd
+# said, and that is a program. See xtask/src/main.rs.
+run = "cargo xtask unit-verify"
+
 # --- BOZORTH3 matcher oracle: stock NBIS as the black-box score reference ---------------------
 [tasks.clone-ref-nbis]
 description = "Clone stock (public-domain) NIST NBIS for the BOZORTH3 spec/oracle (git-ignored)"
