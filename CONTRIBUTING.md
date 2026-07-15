@@ -22,6 +22,14 @@ zero-dependency and `#![forbid(unsafe_code)]`.
 
 ## Building and testing
 
+```sh
+mise run hooks   # once, per clone
+```
+
+That installs a pre-commit hook (`lefthook.yml`) which formats, then runs clippy,
+rustdoc, `reuse lint`, actionlint and `mise run lint`. Every one of them is also a CI
+job, so the hook is a faster failure and never the only one.
+
 Everything below runs offline, with no hardware, on any platform (the Linux-only
 crates compile to near-empty crates elsewhere):
 
@@ -54,7 +62,11 @@ mise run mindtct-oracle
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
 (`cargo xtask <task>`), where a compiler and clippy can see it. Shell quoted inside a
 task runner is read by nothing, and runs under whichever shell the runner picked —
-`cmd.exe` on Windows, `sh` in CI.
+`cmd.exe` on Windows, `sh` in CI. `mise run lint` enforces this, along with two other
+norms no compiler checks: no shell scripts, and no comment that narrates a past or a
+future the reader cannot check — say what is true now, and let git hold the history. The
+phrases it rejects are listed in [`xtask/src/lint.rs`](xtask/src/lint.rs), which is also
+where to add one.
 
 ## License hygiene
 

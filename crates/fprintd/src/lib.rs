@@ -13,12 +13,12 @@
 //! ## Shape
 //!
 //! * [`Daemon`] owns the backend and, at start-up, discovers devices and wires up the D-Bus
-//!   objects: one [`manager::Manager`] and one [`device::Device`] per reader.
-//! * Each device is confined to its own actor thread ([`actor`]) that owns the possibly
+//!   objects: one `manager::Manager` and one `device::Device` per reader.
+//! * Each device is confined to its own actor thread (`actor`) that owns the possibly
 //!   `!Send` `fprint_core::Device`; the D-Bus objects talk to it over `Send` channels
-//!   ([`command`]). This is ARCHITECTURE.md principle 7.
-//! * Wire quirks live at the edges: the `verify-*`/`enroll-*` strings in [`status`], the
-//!   `/var/lib/fprint` layout in [`storage`], the FP3 bytes in [`fprint_fp3`].
+//!   (`command`). This is ARCHITECTURE.md principle 7.
+//! * Wire quirks live at the edges: the `verify-*`/`enroll-*` strings in `status`, the
+//!   `/var/lib/fprint` layout in `storage`, the FP3 bytes in [`fprint_fp3`].
 //!
 //! The whole crate is `#![cfg(target_os = "linux")]`; on other platforms it compiles to
 //! nothing and the `fprintd` binary is a stub (see `main.rs`).

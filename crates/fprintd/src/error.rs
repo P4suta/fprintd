@@ -43,7 +43,7 @@ pub enum DaemonError {
 
 impl From<fprint_core::Error> for DaemonError {
     /// Lift a core operation error into the closest D-Bus error. Retry-class errors are
-    /// handled by the status-signal machinery ([`crate::status`]) and should never reach
+    /// handled by the status-signal machinery (`crate::status`) and should never reach
     /// here as a method reply, so they fall through to [`DaemonError::Internal`].
     fn from(e: fprint_core::Error) -> Self {
         use fprint_core::Error as E;

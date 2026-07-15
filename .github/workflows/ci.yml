@@ -58,8 +58,7 @@ jobs:
       - name: Test (workspace)
         run: cargo test --workspace
       # Strict rustdoc for the cross-platform library surface (the public face). The two Linux-only
-      # crates (fprintd, fprint-backend-libfprint) can only be documented where their cfg-gated
-      # modules and deps compile; their strict doc build belongs on a Linux box and is a follow-up.
+      # crates document in the `linux` job, where their cfg-gated modules and deps compile.
       - name: Rustdoc (library crates, warnings are errors)
         run: cargo doc --no-deps -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native -p fprint-integration
         env:
@@ -81,6 +80,12 @@ jobs:
         run: >
           docker compose -f docker/docker-compose.yml run --rm dev
           cargo test --workspace --all-features
+      # The `check` job documents everything that builds off Linux. These two only build here,
+      # so this is the only place their intra-doc links can be checked at all.
+      - name: Rustdoc (Linux-only crates, warnings are errors)
+        run: >
+          docker compose -f docker/docker-compose.yml run --rm -e RUSTDOCFLAGS=-D\ warnings dev
+          cargo doc --no-deps --all-features -p fprintd -p fprint-backend-libfprint
       # Already covered by --all-features above; named separately because these two are the M2
       # FP3 byte-identity proof against the real C library — Raw via virtual_device, NBIS via
       # virtual_image — and a silent loss of either would matter.

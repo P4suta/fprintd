@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# Git hooks. Install with `mise run hooks`.
+#
+# Everything here is also a CI job, so a hook is a faster failure, never the only one.
+#
+# `pre-commit` is the only hook declared, and that is deliberate: `lefthook install` syncs the
+# hooks this file names and leaves the rest alone. `.git/hooks/post-commit` and `pre-push`
+# enforce commit signing and are not lefthook-managed — naming either of them here would
+# replace it.
+
+assert_lefthook_installed: true
+
+pre-commit:
+  parallel: true
+  commands:
+    # --- formatters: fix and re-stage -------------------------------------------------
+    cargo-fmt:
+      tags: format
+      glob: "*.rs"
+      run: cargo fmt --all
+      stage_fixed: true
+
+    taplo-fmt:
+      tags: format
+      glob: "*.toml"
+      run: taplo fmt {staged_files}
+      stage_fixed: true
+
+    typos:
+      tags: spell
+      run: typos --write-changes {staged_files}
+      stage_fixed: true
+
+    # --- checks ----------------------------------------------------------------------
+    clippy:
+      tags: lint
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+
+    # The Linux-only crates (fprintd, fprint-backend-libfprint) compile to nothing off Linux,
+    # so their lints and docs are the `linux` CI job's, not this hook's.
+    rustdoc:
+      tags: lint
+      glob: "*.rs"
+      run: cargo doc --no-deps -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native -p fprint-integration
+      env:
+        RUSTDOCFLAGS: -D warnings
+
+    repo-rules:
+      tags: lint
+      run: cargo xtask lint
+
+    actionlint:
+      tags: ci
+      glob: ".github/workflows/*.yml"
+      run: actionlint {staged_files}
+
+    reuse:
+      tags: license
+      glob: "{**/*.rs,**/*.toml,**/*.md,**/*.yml,REUSE.toml,LICENSES/*}"
+      run: uvx --with charset-normalizer reuse lint

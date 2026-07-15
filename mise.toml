@@ -4,9 +4,9 @@
 # what THIS project needs so the dev environment is reproducible.
 
 [tools]
-rust = "stable"          # matches the global `rust = "stable"` symlink
-tokei = "latest"         # SLOC measurement for the M0 ground-truth estimate
-uv = "latest"            # runs the REUSE license linter via uvx (see `mise run reuse`)
+rust = "stable"  # matches the global `rust = "stable"` symlink
+tokei = "latest" # SLOC measurement for the M0 ground-truth estimate
+uv = "latest"    # runs the REUSE license linter via uvx (see `mise run reuse`)
 
 [env]
 # Where upstream C/Rust references are cloned for reading + SLOC measurement.
@@ -20,6 +20,14 @@ run = "cargo xtask clone-ref"
 [tasks.sloc]
 description = "M0: measure upstream libfprint SLOC by subsystem (drivers / nbis / core) with tokei"
 run = "cargo xtask sloc"
+
+[tasks.hooks]
+description = "Install the git hooks (see lefthook.yml)"
+run = "lefthook install"
+
+[tasks.lint]
+description = "Repository rules a compiler does not enforce (no shell, no narration)"
+run = "cargo xtask lint"
 
 [tasks.reuse]
 description = "Check REUSE/SPDX license compliance"

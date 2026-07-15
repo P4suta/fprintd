@@ -27,7 +27,7 @@
 //!
 //! `fprint-core`'s contract is "**dropping the future cancels the operation**" (principle 4).
 //! The binding, however, only exposes the *blocking* `*_sync` entry points: once
-//! [`LibfprintDevice::enroll`]/`verify`/`identify` calls into libfprint it does not return
+//! [`LibfprintDevice`]'s `enroll`/`verify`/`identify` calls into libfprint it does not return
 //! until libfprint does. A live [`gio::Cancellable`] is kept per in-flight operation and
 //! handed to libfprint, but it cannot be fired from a `Drop` that never runs while the
 //! calling thread is parked inside the FFI call. Cancellation here is therefore best-effort,

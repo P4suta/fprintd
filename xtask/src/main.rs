@@ -12,6 +12,7 @@
 //! Run with `cargo xtask <task>` (see `.cargo/config.toml` for the alias).
 
 mod docker;
+mod lint;
 mod oracle;
 mod references;
 mod sloc;
@@ -27,6 +28,7 @@ fn main() -> ExitCode {
     let task = std::env::args().nth(1);
 
     let result = match task.as_deref() {
+        Some("lint") => lint::check(&root),
         Some("unit-verify") => unit::verify(&root),
         Some("sloc") => sloc::measure(&root),
         Some("clone-ref") => references::clone_upstream(&root),
@@ -51,6 +53,7 @@ fn usage() -> String {
         "usage: cargo xtask <task>",
         "",
         "tasks:",
+        "  lint               repository rules a compiler does not enforce",
         "  unit-verify        check the systemd unit parses, and that Alias= takes the seat",
         "  sloc               M0: measure upstream libfprint by subsystem",
         "  clone-ref          clone the upstream C we read (libfprint, fprintd, the binding)",
