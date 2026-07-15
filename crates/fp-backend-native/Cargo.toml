@@ -13,6 +13,10 @@ fp-core = { workspace = true }
 # device keeps its non-biometric byte-equality stub; `matcher::nbis_match_score` is the real seam,
 # exercised end-to-end (enroll -> FP3 -> match) by fp-fp3's integration test.
 fp-bozorth3 = { workspace = true }
+# The pure-Rust MINDTCT minutiae detector a real host-image driver runs on a captured frame. Its
+# public-domain xyt output is converted to `fp_core::Minutia` in `detector`, closing the
+# image -> minutiae -> match loop (see `detector`, exercised end-to-end by tests/end_to_end.rs).
+fp-mindtct = { workspace = true }
 # Otherwise deliberately nothing: no async runtime, no USB, no serialization. Straight-line async
 # fns + a hand-rolled yield future (core::future).
 
