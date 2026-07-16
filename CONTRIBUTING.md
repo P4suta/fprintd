@@ -34,11 +34,19 @@ Everything below runs offline, with no hardware, on any platform (the Linux-only
 crates compile to near-empty crates elsewhere):
 
 ```sh
-cargo test --workspace                                    # unit + golden-fixture tests
-cargo clippy --workspace --all-targets -- -D warnings     # warnings are hard errors, like CI
+cargo test --workspace --all-features                     # unit + golden-fixture tests
+cargo clippy --workspace --all-targets --all-features -- -D warnings   # warnings are hard errors, like CI
 cargo fmt --all --check
+mise run lint                                             # repo rules, incl. the one rule
 mise run reuse                                            # REUSE/SPDX license-hygiene lint
+mise run deny                                             # advisories, licences, wildcard pins
+mise run publish-check                                    # the registry's rules for the published crates
 ```
+
+`--all-features` is not optional politeness: without it, `fprint-backend-native`'s `usb` seam
+(and its `nusb` dependency) compiles nowhere but Linux, so a contributor taking up the invitation
+in [`docs/adding-a-driver.md`](docs/adding-a-driver.md) on this project's own primary dev platform
+would be the first to find it broken.
 
 The full shim + daemon path (real libfprint virtual drivers, the D-Bus daemon) runs
 in Docker, mirroring the CI `linux` job:
@@ -48,8 +56,14 @@ mise run docker-test
 ```
 
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
-Docker path on Linux, the systemd unit, the declared MSRV, and `reuse lint` — all must
-be green.
+Docker path on Linux, the systemd unit, the declared MSRV, the published crates against
+the registry's rules, the supply chain, and `reuse lint` — all must be green.
+`.github/workflows/scheduled.yml` runs weekly and answers what no pull request asks: a new
+advisory against unchanged code, and the frozen goldens against the *next* toolchain.
+
+**`reuse lint` passing does not mean a crate can be published**, and `mise run publish-check`
+is the only thing that says otherwise: REUSE accepts a custom `LicenseRef-*` identifier and
+crates.io rejects it. They are different oracles, and only one of them gates publishing.
 
 The one thing CI does not do is regenerate the NBIS golden fixtures, because that is
 the thing they exist to catch:
@@ -62,11 +76,13 @@ mise run mindtct-oracle
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
 (`cargo xtask <task>`), where a compiler and clippy can see it. Shell quoted inside a
 task runner is read by nothing, and runs under whichever shell the runner picked —
-`cmd.exe` on Windows, `sh` in CI. `mise run lint` enforces this, along with two other
-norms no compiler checks: no shell scripts, and no comment that narrates a past or a
-future the reader cannot check — say what is true now, and let git hold the history. The
-phrases it rejects are listed in [`xtask/src/lint.rs`](xtask/src/lint.rs), which is also
-where to add one.
+`cmd.exe` on Windows, `sh` in CI. `mise run lint` enforces this, along with the norms no
+compiler checks: no shell scripts; no comment that narrates a past or a future the reader
+cannot check — say what is true now, and let git hold the history; and **the one rule
+itself**. The phrases it rejects are listed in [`xtask/src/lint.rs`](xtask/src/lint.rs), and
+the dependency graph it holds you to is in [`xtask/src/deps.rs`](xtask/src/deps.rs) — which
+also pins `fprint-core`'s dependency-freedom and the `#![forbid(unsafe_code)]` quarantine.
+Both are where to add one.
 
 ## License hygiene
 

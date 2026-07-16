@@ -32,22 +32,31 @@ library underneath.
 
 ```
   fprintd (bin)        net.reactivated.Fprint over zbus, PolicyKit, /var/lib/fprint
-        │                 Daemon<CompositeBackend>; one actor thread per device
-        ▼
-  integration crate       the ONLY layer that knows every backend
-        │                 CompositeBackend / enum CompositeDevice { Native, Shim }
+        │                 Daemon<F>, generic over a backend factory; one actor thread per device
+        │                 the shipped binary hands it fprint-backend-libfprint
         ▼
   fprint-backend-* (leaves)  fprint-backend-libfprint (FFI shim, !Send) · fprint-backend-native
         │                    each implements fprint-core's traits
         ▼
   fprint-core (lib)          domain model + Backend/Device traits
                              zero dependencies · #![forbid(unsafe_code)]
+
+  fprint-integration      the ONLY layer that may know every backend
+                          CompositeBackend / enum CompositeDevice { Native, Shim }
+                          Not in the shipped graph: no artifact consumes it, and the daemon
+                          would offer the native virtual device to real users if it did.
 ```
 
 **The one rule: dependencies flow only toward the leaves.** `fprint-core` knows nothing
 about any backend, any transport, any wire format. Backends know `fprint-core`. The
-integration crate knows the backends. The daemon knows the integration crate. There
-is never an arrow pointing back up.
+integration crate knows the backends. The daemon knows a backend. There is never an
+arrow pointing back up.
+
+The rule is machine-enforced: `cargo xtask lint` holds the whole graph, crate by crate, in
+`xtask/src/deps.rs` — along with `fprint-core`'s dependency-freedom (principle 2) and the
+`#![forbid(unsafe_code)]` quarantine (principle 6). A dev-dependency ships in nothing, so the
+rule does not reach it; what it may not do is close a cycle, which is how "the domain model is
+never tested in an implementor's terms" is checked without being a special case.
 
 ---
 

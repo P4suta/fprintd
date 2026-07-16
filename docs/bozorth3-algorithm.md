@@ -55,7 +55,9 @@ carry; we cap in input order then sort.)
 | `DEFAULT_BOZORTH_MINUTIAE` | 150 | default cap (`max_minutiae`) |
 | `MIN_COMPUTABLE_BOZORTH_MINUTIAE` | 10 | below this (either print) → score `0` |
 | `DM` | 125 | max inter-minutia distance; `distance` stored is `dx²+dy² ∈ [0, DM²]` |
-| `FD` | 5625 | (unused in match core paths we hit; kept for reference) |
+| `SQUARED(DM)` | 15625 | the cap actually compared against (`= 125²`) |
+| `FD` | 5625 | squared distance (`= 75²`) at which `bz_find` prunes each Web |
+| `FDD` | 500 | minimum pruned edge count `bz_find` keeps when enough edges exist |
 | `TK` | 0.05 (f32) | stage-2 distance-tolerance factor |
 | `TXS` | 121 | stage-2 angle window low bound (`= 11²`) |
 | `CTXS` | 121801 | stage-2 angle window high bound (`= 349²`) |
@@ -65,6 +67,10 @@ carry; we cap in input order then sort.)
 | `QQ_SIZE` | 4000 | work-queue size; overflow returns `QQ_OVERFLOW_SCORE = 4000` |
 | `DEFAULT_MAX_MATCH_SCORE` | 400 | CLI display cap only (not applied inside the score) |
 | `ZERO_MATCH_SCORE` | 0 | returned when a print has too few minutiae |
+
+The comparison and compatibility tables stop one row short of their 20000-row capacity
+(`TABLE_OVERFLOW_LIMIT = 19999`). Stage 2's limit is reachable; stage 1's is not, because the
+`DEFAULT_BOZORTH_MINUTIAE` cap bounds a Web at `C(150,2) = 11175` rows.
 
 Angle helper `IANGLE180(deg)` folds a degree value into `(-180, 180]`:
 `deg>180 ? deg-360 : (deg<=-180 ? deg+360 : deg)`.

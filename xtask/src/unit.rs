@@ -18,6 +18,11 @@ const UNIT_VERIFY_IMAGE: &str = "debian:bookworm";
 const UNIT_PATH: &str = "/etc/systemd/system/fprintd-rs.service";
 const ALIAS_PATH: &str = "/etc/systemd/system/fprintd.service";
 
+/// The daemon flag that swaps PolicyKit for an authorizer granting everything. It exists for
+/// bring-up against a virtual device with no PolicyKit daemon running, and the unit is the only
+/// path by which it could reach a real system.
+const TEST_MODE_FLAG: &str = "--test-mode";
+
 /// The first `@PLACEHOLDER@` left in `s`, if any.
 ///
 /// Matches the autotools convention the template follows — `@`, then upper-case, digits or
@@ -42,6 +47,14 @@ fn unsubstituted_placeholder(s: &str) -> Option<String> {
     None
 }
 
+/// The `ExecStart=` lines a unit declares.
+fn exec_starts(unit: &str) -> Vec<&str> {
+    unit.lines()
+        .map(str::trim)
+        .filter_map(|l| l.strip_prefix("ExecStart="))
+        .collect()
+}
+
 /// Check the systemd unit by giving it to systemd. Neither claim can be checked any other way:
 ///
 /// 1. `systemd-analyze verify` — the unit is well-formed and `systemctl enable` will accept it.
@@ -49,6 +62,9 @@ fn unsubstituted_placeholder(s: &str) -> Option<String> {
 ///    That symlink *is* the coexistence design (ARCHITECTURE.md §Coexistence): it outranks
 ///    upstream's unit in `/usr/lib`, so D-Bus activation reaches us, and `disable` hands the seat
 ///    back.
+///
+/// The third claim is checked here rather than by systemd, because systemd has no opinion about
+/// it: the unit must not start the daemon with [`TEST_MODE_FLAG`].
 pub fn verify(root: &Path) -> Result<(), String> {
     let template = root.join("crates/fprintd/dbus/fprintd-rs.service.in");
 
@@ -63,6 +79,19 @@ pub fn verify(root: &Path) -> Result<(), String> {
              placeholder needs teaching here (and to whatever packaging grows later)",
             template.display()
         ));
+    }
+
+    // PolicyKit is what stands between a local caller and someone else's enrolled fingers. The
+    // flag that disables it is a bring-up convenience, and packaging is the only way it could
+    // reach a real machine.
+    for exec in exec_starts(&unit) {
+        if exec.split_whitespace().any(|arg| arg == TEST_MODE_FLAG) {
+            return Err(format!(
+                "{} starts the daemon with {TEST_MODE_FLAG}, which disables every PolicyKit \
+                 check:\n  ExecStart={exec}",
+                template.display()
+            ));
+        }
     }
 
     let staging = std::env::temp_dir().join("fprintd-xtask-unit-verify");
@@ -113,4 +142,70 @@ pub fn verify(root: &Path) -> Result<(), String> {
         link.line()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_placeholder_is_at_at_upper_case_at() {
+        assert_eq!(
+            unsubstituted_placeholder("ExecStart=@LIBEXECDIR@/fprintd-rs"),
+            Some("@LIBEXECDIR@".to_string())
+        );
+        assert_eq!(
+            unsubstituted_placeholder("A@B_2@C"),
+            Some("@B_2@".to_string())
+        );
+    }
+
+    /// The false positives are the point: this check runs on every green build, and one that fires
+    /// on a correct unit is a check on its way to being switched off.
+    #[test]
+    fn systemd_syntax_is_not_a_placeholder() {
+        // The reason the check is not "contains an @".
+        assert_eq!(
+            unsubstituted_placeholder("SystemCallFilter=@system-service"),
+            None
+        );
+        assert_eq!(unsubstituted_placeholder("@lower@"), None, "lower case");
+        assert_eq!(unsubstituted_placeholder("@@"), None, "empty name");
+        assert_eq!(unsubstituted_placeholder("@Mixed@"), None, "mixed case");
+        assert_eq!(unsubstituted_placeholder("no ats here"), None);
+    }
+
+    /// `@A@B@` — the rescan starts one past the opening `@`, not past the whole pair, so a real
+    /// placeholder is still found when a stray `@` precedes it.
+    #[test]
+    fn a_placeholder_is_found_after_a_stray_at() {
+        assert_eq!(
+            unsubstituted_placeholder("Exec=@system-service @FOO@"),
+            Some("@FOO@".to_string())
+        );
+    }
+
+    #[test]
+    fn exec_starts_reads_every_exec_start_line_and_nothing_else() {
+        let unit = "[Service]\nType=dbus\nExecStart=/usr/libexec/fprintd-rs\nExecStop=/bin/true\n";
+        assert_eq!(exec_starts(unit), ["/usr/libexec/fprintd-rs"]);
+        assert!(exec_starts("[Unit]\nDescription=x\n").is_empty());
+    }
+
+    /// The flag is an argument, not a substring: a path that happens to contain the text is not a
+    /// finding, and one that passes the flag is.
+    #[test]
+    fn the_test_mode_flag_is_matched_as_a_whole_argument() {
+        let names_it = |unit: &str| {
+            exec_starts(unit)
+                .iter()
+                .any(|e| e.split_whitespace().any(|a| a == TEST_MODE_FLAG))
+        };
+        assert!(names_it("ExecStart=/usr/libexec/fprintd-rs --test-mode\n"));
+        assert!(!names_it("ExecStart=/usr/libexec/fprintd-rs\n"));
+        assert!(
+            !names_it("ExecStart=/opt/--test-mode-build/fprintd-rs\n"),
+            "a path containing the text is not the flag"
+        );
+    }
 }
