@@ -32,9 +32,14 @@ const NARRATION: [&str; 10] = [
     "no longer needed",
 ];
 
-/// Shell metacharacters. A task runner is not a shell script: `mise.toml` holds one-command
-/// tasks, anything longer belongs in this crate, where a compiler reads it.
-const SHELL_IN_TASKS: [&str; 5] = ["&&", "||", "bash -c", "set -e", "$("];
+/// Shell constructs whose meaning changes with the shell that runs them: command substitution,
+/// bash-only `set -e`, and naming a shell that may be absent. Logic that branches or captures
+/// output belongs in this crate, where a compiler reads it — never in a task runner or a workflow.
+const SHELL_SPECIFIC: [&str; 3] = ["$(", "set -e", "bash -c"];
+
+/// Pure sequencing. `&&`/`||` mean the same in every shell a runner might pick, so a workflow step
+/// may chain two single commands with them; `mise.toml`, which has no shell-selection story, may not.
+const TASK_RUNNER_ONLY: [&str; 2] = ["&&", "||"];
 
 pub(crate) struct Finding {
     pub(crate) file: PathBuf,
@@ -48,6 +53,7 @@ pub fn check(root: &Path) -> Result<(), String> {
     no_shell_scripts(root, &mut findings)?;
     no_shell_in_tasks(root, &mut findings)?;
     no_narration(root, &mut findings)?;
+    devcontainer_matches_ci(root, &mut findings)?;
     crate::deps::check(root, &mut findings)?;
 
     if findings.is_empty() {
@@ -84,29 +90,71 @@ fn no_shell_scripts(root: &Path, findings: &mut Vec<Finding>) -> Result<(), Stri
     Ok(())
 }
 
-/// No shell in the task runner or the workflow.
+/// No shell logic in the task runner or any workflow.
+///
+/// `mise.toml` takes the full ban: a task is one command, and anything longer belongs in this crate.
+/// A workflow may chain single commands with `&&`/`||` — those read the same under every shell — but
+/// still may not branch, loop, or capture output, so the shell-specific constructs are banned there
+/// too. Every workflow is scanned, not just `ci.yml`, so a new one inherits the rule.
 fn no_shell_in_tasks(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> {
-    for rel in ["mise.toml", ".github/workflows/ci.yml"] {
-        let path = root.join(rel);
-        let Ok(body) = std::fs::read_to_string(&path) else {
+    scan_shell(&root.join("mise.toml"), true, findings);
+
+    let workflows = root.join(".github").join("workflows");
+    if let Ok(entries) = std::fs::read_dir(&workflows) {
+        let mut paths: Vec<PathBuf> = entries
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "yml" || x == "yaml"))
+            .collect();
+        paths.sort();
+        for path in paths {
+            scan_shell(&path, false, findings);
+        }
+    }
+    Ok(())
+}
+
+/// Scan one file for banned shell. `task_runner` adds the `&&`/`||` ban that only `mise.toml` carries.
+fn scan_shell(path: &Path, task_runner: bool, findings: &mut Vec<Finding>) {
+    let Ok(body) = std::fs::read_to_string(path) else {
+        return;
+    };
+    for (i, line) in body.lines().enumerate() {
+        if line.trim_start().starts_with('#') {
             continue;
-        };
-        for (i, line) in body.lines().enumerate() {
-            let trimmed = line.trim_start();
-            if trimmed.starts_with('#') {
-                continue;
-            }
-            for pat in SHELL_IN_TASKS {
-                if line.contains(pat) {
-                    findings.push(Finding {
-                        file: path.clone(),
-                        line: i + 1,
-                        rule: "shell in a task — one command, or put it in xtask/",
-                        text: line.to_string(),
-                    });
-                }
+        }
+        let banned = SHELL_SPECIFIC
+            .iter()
+            .chain(TASK_RUNNER_ONLY.iter().filter(|_| task_runner));
+        for pat in banned {
+            if line.contains(pat) {
+                findings.push(Finding {
+                    file: path.to_path_buf(),
+                    line: i + 1,
+                    rule: "shell in a task or workflow — logic that branches or captures output \
+                           goes in xtask; a workflow may only chain single commands with && or ||",
+                    text: line.to_string(),
+                });
             }
         }
+    }
+}
+
+/// The devcontainer builds the same image CI does, rather than forking a second one: it must go
+/// through `docker/docker-compose.yml`, the base compose the `linux` CI job also builds from.
+fn devcontainer_matches_ci(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> {
+    let path = root.join(".devcontainer").join("devcontainer.json");
+    let Ok(body) = std::fs::read_to_string(&path) else {
+        return Ok(());
+    };
+    if !body.contains("docker/docker-compose.yml") {
+        findings.push(Finding {
+            file: path,
+            line: 1,
+            rule: "the devcontainer must reuse docker/docker-compose.yml (the image the linux CI \
+                   job builds), not fork a second image",
+            text: "docker/docker-compose.yml is not referenced".to_string(),
+        });
     }
     Ok(())
 }
@@ -117,6 +165,11 @@ fn no_narration(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> 
         let is_rust = path.extension().is_some_and(|e| e == "rs");
         let is_doc = path.extension().is_some_and(|e| e == "md");
         if !is_rust && !is_doc {
+            continue;
+        }
+        // A changelog is git's history rendered as prose — the one place dating a line against the
+        // past is the point, not a smell. git-cliff generates it, so it cannot be hand-narration.
+        if path.file_name().is_some_and(|n| n == "CHANGELOG.md") {
             continue;
         }
         let Ok(body) = std::fs::read_to_string(&path) else {

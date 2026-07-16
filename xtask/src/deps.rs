@@ -2,33 +2,39 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The one rule, and the three crate-level invariants around it, checked against the manifests.
+//! The one rule, and the crate-level invariants around it, checked against the resolved graph.
 //!
-//! ARCHITECTURE.md opens with "**dependencies flow only toward the leaves**" and CONTRIBUTING.md
-//! calls it "the core norm for every change". `cargo fmt` and `clippy` cannot see it, and until now
-//! neither could anything else — the project's supreme rule was held by review alone, while its
-//! lesser ones (no shell, no narration) were machine-enforced.
+//! ARCHITECTURE.md opens with "**dependencies flow only toward the leaves**". `cargo fmt` and
+//! `clippy` cannot see it; this can. The check reads `cargo metadata` — the resolver's own answer —
+//! rather than manifest text, because three of the things it must know are facts only the resolver
+//! holds: a `package = "..."` rename (which crate a dependency really is), a transitive third-party
+//! edge into a crate that claims zero dependencies, and the exact set of workspace members.
 //!
-//! ## Why a line scan is enough
+//! The rules, keyed to the crate they defend:
 //!
-//! This reads `[dependencies]` table keys and nothing else. No TOML parser and no `cargo metadata`
-//! JSON: hand-writing a parser to avoid a parser dependency is the cleverness this repo rejects,
-//! and a parser bug fires on correct code, which [`crate::lint`] predicts the fate of.
-//!
-//! A line scan is not weaker than a full-graph check, because [`ALLOWED`] is **transitively
-//! closed** and **every** crate's manifest is read. Any transitive upward edge `A ⇝ B` decomposes
-//! into declared edges, so some `C → B` lies on the path. Either `C`'s row permits `B` — and then
-//! transitive closure means `A`'s row permits it too, so there was nothing to catch — or it does
-//! not, and the scan fires on `C`'s manifest. Workspace crates are reachable only by `path`, so no
-//! external crate can smuggle an arrow back in.
-//!
-//! Anything unparsed is silence, not an alarm: precision over coverage.
+//! * **R1 — the one rule.** A workspace member's normal dependency on another member must be an
+//!   arrow [`ALLOWED`] carries.
+//! * **R2 — the charter's dependency-freedom.** A [`ZERO_DEP`] crate declares no normal dependency
+//!   of any kind (ARCHITECTURE.md principle 2).
+//! * **R3 — no dev cycle.** A dev-dependency ships in nothing, so the one rule does not reach it;
+//!   what it may not do is close a cycle, which would state the architecture backwards.
+//! * **R4 — the unsafe quarantine.** Every crate but the FFI leaf forbids unsafe (principle 6).
+//! * **R5 — the testkit is dev-only.** It is `publish = false` and must reach no shipped artifact.
+//! * **R6 — the charter takes no third party.** A [`ZERO_DEP`] crate holds no third-party crate in
+//!   *any* table, dev included — the purity is transitive, so it is checked against the graph.
+//! * **R7 — total coverage.** Every workspace member has an [`ALLOWED`] row; a new crate cannot slip
+//!   past the graph check by being unlisted.
+//! * **no external tool is a dependency.** The tools the workspace invokes but never links
+//!   ([`NEVER_A_DEP`]) appear in no dependency table.
 
 use std::path::{Path, PathBuf};
 
+use cargo_metadata::{DependencyKind, MetadataCommand};
+
 use crate::lint::Finding;
 
-/// Which workspace crates each crate may name. **Transitively closed** — see the module docs.
+/// Which workspace crates each crate may name. **Transitively closed** — a single lookup then
+/// answers "may `from` name `to`, directly or through anything it names" (see [`reaches`]).
 ///
 /// The rows are the shipped graph, which is the graph the rule is about. `fprintd` names the shim
 /// directly and does not consume `fprint-integration`; that is what the code does, and
@@ -43,6 +49,16 @@ const ALLOWED: &[(&str, &[&str])] = &[
     (
         "fprint-backend-native",
         &["fprint-core", "fprint-bozorth3", "fprint-mindtct"],
+    ),
+    (
+        "fprint-cli",
+        &[
+            "fprint-core",
+            "fprint-fp3",
+            "fprint-bozorth3",
+            "fprint-mindtct",
+            "fprint-backend-native",
+        ],
     ),
     ("fprint-backend-libfprint", &["fprint-core", "fprint-fp3"]),
     (
@@ -62,19 +78,13 @@ const ALLOWED: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// Crates whose dependency-freedom is architecture rather than circumstance.
+/// The charter: crates whose dependency-freedom is architecture, not circumstance.
 ///
-/// `fprint-core` is ARCHITECTURE.md principle 2. The two kernels take their input as an
-/// interoperability fact so they need no domain model. `xtask` is in the lockfile every published
-/// crate resolves against. `fprint-testkit` must stay free so it cannot cycle with the tests of the
-/// crates it feeds.
-const ZERO_DEP: &[&str] = &[
-    "fprint-core",
-    "fprint-bozorth3",
-    "fprint-mindtct",
-    "fprint-testkit",
-    "xtask",
-];
+/// `fprint-core` is ARCHITECTURE.md principle 2 — the beauty is concentrated there. The two kernels
+/// take their input as an interoperability fact (the xyt triple), so they need no domain model and
+/// carry the bit-exact NBIS port that *is* the product. These three take no third-party crate in any
+/// table; every other crate may take the dependencies it needs.
+const ZERO_DEP: &[&str] = &["fprint-core", "fprint-bozorth3", "fprint-mindtct"];
 
 /// The one crate that may omit `#![forbid(unsafe_code)]`: it is the FFI quarantine
 /// (ARCHITECTURE.md principle 6).
@@ -83,73 +93,24 @@ const UNSAFE_QUARANTINE: &[&str] = &["fprint-backend-libfprint"];
 /// Crates that may be named only from a dev-dependency table.
 const DEV_ONLY: &[&str] = &["fprint-testkit"];
 
-/// Which table a manifest line sits under.
-#[derive(Clone, Copy, PartialEq)]
-enum Table {
-    /// `[dependencies]` or `[build-dependencies]`, plain or under a `[target.'…']`.
-    Normal,
-    /// `[dev-dependencies]`, plain or under a `[target.'…']`.
-    Dev,
-    /// Anything else: `[package]`, `[lints]`, `[features]`, …
-    Other,
-}
-
-/// Classify a `[…]` header. `[target.'cfg(…)'.dev-dependencies]` is a dev table; the quoted cfg may
-/// itself contain dots and brackets, so the suffix decides rather than a split.
-fn table_of(header: &str) -> Table {
-    if header.ends_with("dev-dependencies") {
-        Table::Dev
-    } else if header.ends_with("dependencies") {
-        Table::Normal
-    } else {
-        Table::Other
-    }
-}
-
-/// The dependency names a manifest declares, as `(name, table)`.
-///
-/// Reads both shapes Cargo accepts: a key in a dependency table (`fprint-core = { … }`) and a
-/// table of its own (`[dependencies.fprint-core]`). `[features]` is `Table::Other`, so a
-/// `dep:fprint-x` there is never read as a dependency.
-fn declared(manifest: &str) -> Vec<(&str, Table)> {
-    let mut out = Vec::new();
-    let mut table = Table::Other;
-    for line in manifest.lines().map(str::trim) {
-        if line.starts_with('#') {
-            continue;
-        }
-        if let Some(header) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
-            table = table_of(header);
-            // `[dependencies.fprint-core]` declares one dependency and opens *its* table, whose
-            // keys are that dependency's fields (`version`, `workspace`, …) and not more
-            // dependencies. So the name is taken here and the table that follows is not read.
-            if table == Table::Other {
-                if let Some((prefix, name)) = header.rsplit_once('.') {
-                    let t = table_of(prefix);
-                    if t != Table::Other {
-                        out.push((name, t));
-                    }
-                }
-            }
-            continue;
-        }
-        if table == Table::Other {
-            continue;
-        }
-        if let Some((key, _)) = line.split_once('=') {
-            let key = key.trim();
-            if !key.is_empty() && !key.contains(' ') {
-                out.push((key, table));
-            }
-        }
-    }
-    out
-}
+/// Tools the workspace invokes as external programs and never links. They read the tree or the
+/// lockfile; a crate that named one as a dependency would have misunderstood what it is.
+const NEVER_A_DEP: &[&str] = &[
+    "cargo-nextest",
+    "cargo-llvm-cov",
+    "cargo-mutants",
+    "cargo-deny",
+    "release-plz",
+    "cargo-release",
+    "git-cliff",
+    "mdbook",
+    "bacon",
+    "committed",
+];
 
 /// Whether `from` may name `to`, directly or through anything it may name.
 ///
-/// One lookup, because [`ALLOWED`] is transitively closed — the same property the module docs rest
-/// on, doing a second job here.
+/// One lookup, because [`ALLOWED`] is transitively closed.
 fn reaches(from: &str, to: &str) -> bool {
     ALLOWED
         .iter()
@@ -157,63 +118,115 @@ fn reaches(from: &str, to: &str) -> bool {
         .is_some_and(|(_, allowed)| allowed.contains(&to))
 }
 
-/// Check every crate's manifest against the rules above.
+/// Check every workspace member against the rules above.
 pub fn check(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> {
+    let metadata = MetadataCommand::new()
+        .manifest_path(root.join("Cargo.toml"))
+        .exec()
+        .map_err(|e| format!("cargo metadata: {e}"))?;
+
+    let members = metadata.workspace_packages();
+    let is_member = |name: &str| members.iter().any(|p| p.name == name);
+
+    // R7 — every member has a row, so a new crate cannot escape the graph check by being unlisted.
+    for pkg in &members {
+        if !ALLOWED.iter().any(|(name, _)| *name == pkg.name) {
+            findings.push(Finding {
+                file: pkg.manifest_path.clone().into_std_path_buf(),
+                line: 1,
+                rule: "workspace member has no row in xtask/src/deps.rs ALLOWED — add one so the \
+                       one rule reaches it",
+                text: pkg.name.to_string(),
+            });
+        }
+    }
+
     for (krate, allowed) in ALLOWED {
-        let manifest_path = manifest_of(root, krate);
+        let Some(pkg) = members.iter().find(|p| p.name == *krate) else {
+            continue;
+        };
+        let manifest_path = pkg.manifest_path.clone().into_std_path_buf();
         let manifest = std::fs::read_to_string(&manifest_path)
             .map_err(|e| format!("read {}: {e}", manifest_path.display()))?;
 
-        for (dep, table) in declared(&manifest) {
-            let line = line_of(&manifest, dep);
+        for dep in &pkg.dependencies {
+            let dep_name = dep.name.as_str();
+            let line = line_of(&manifest, dep_name);
 
-            // R2 — a zero-dependency crate has no normal dependency of any kind, workspace or not.
-            if table == Table::Normal && ZERO_DEP.contains(krate) {
+            // No external tool is a dependency: the workspace invokes them, it does not link them.
+            if NEVER_A_DEP.contains(&dep_name) {
+                findings.push(Finding {
+                    file: manifest_path.clone(),
+                    line,
+                    rule: "this is a tool the workspace invokes, not a library — it belongs in \
+                           mise.toml or a CI step, not a dependency table",
+                    text: dep_name.to_string(),
+                });
+                continue;
+            }
+
+            let on_charter = ZERO_DEP.contains(krate);
+
+            // R2 — a charter crate declares no normal dependency of any kind, workspace or not.
+            if on_charter && dep.kind == DependencyKind::Normal {
                 findings.push(Finding {
                     file: manifest_path.clone(),
                     line,
                     rule: "this crate's dependency-freedom is architecture (ARCHITECTURE.md \
                            principle 2) — put the dependency in a leaf that may hold it",
-                    text: dep.to_string(),
+                    text: dep_name.to_string(),
                 });
                 continue;
             }
 
-            let is_workspace_crate = ALLOWED.iter().any(|(name, _)| *name == dep);
+            let is_workspace_crate = is_member(dep_name);
+
+            // R6 — a charter crate holds no third-party crate in any table, dev included.
+            if on_charter && !is_workspace_crate {
+                findings.push(Finding {
+                    file: manifest_path.clone(),
+                    line,
+                    rule: "a charter crate takes no third-party dependency in any table (the \
+                           purity is the product) — move the test that needs it to a crate off \
+                           the charter",
+                    text: dep_name.to_string(),
+                });
+                continue;
+            }
+
             if !is_workspace_crate {
                 continue;
             }
 
             // R5 — the testkit is a dev-dependency and nothing else.
-            if DEV_ONLY.contains(&dep) && table == Table::Normal {
+            if DEV_ONLY.contains(&dep_name) && dep.kind == DependencyKind::Normal {
                 findings.push(Finding {
                     file: manifest_path.clone(),
                     line,
                     rule: "this crate is a dev-dependency and nothing else — it is `publish = \
                            false` and must reach no shipped artifact",
-                    text: dep.to_string(),
+                    text: dep_name.to_string(),
                 });
                 continue;
             }
 
-            match table {
+            match dep.kind {
                 // R1 — the one rule. A normal dependency must be an arrow the shipped graph has.
-                Table::Normal if !allowed.contains(&dep) => findings.push(Finding {
+                DependencyKind::Normal if !allowed.contains(&dep_name) => findings.push(Finding {
                     file: manifest_path.clone(),
                     line,
                     rule: "dependency points back up — lift the coupling to the integration crate \
                            (ARCHITECTURE.md, the one rule)",
-                    text: dep.to_string(),
+                    text: dep_name.to_string(),
                 }),
-                // R3 — a dev-dependency ships in nothing, so the one rule does not reach it. What
-                // it may not do is close a cycle: a crate whose tests are written in the terms of
-                // something that depends on it has inverted, whatever the tarball contains.
-                Table::Dev if reaches(dep, krate) => findings.push(Finding {
+                // R3 — a dev-dependency may not close a cycle: a crate whose tests are written in
+                // the terms of something that depends on it has inverted, whatever the tarball holds.
+                DependencyKind::Development if reaches(dep_name, krate) => findings.push(Finding {
                     file: manifest_path.clone(),
                     line,
                     rule: "dev-dependency closes a cycle — this crate is below the one it is \
                            testing with, so the test states the architecture backwards",
-                    text: dep.to_string(),
+                    text: dep_name.to_string(),
                 }),
                 _ => {}
             }
@@ -251,10 +264,6 @@ fn crate_dir(root: &Path, krate: &str) -> PathBuf {
     }
 }
 
-fn manifest_of(root: &Path, krate: &str) -> PathBuf {
-    crate_dir(root, krate).join("Cargo.toml")
-}
-
 /// The 1-based line `dep` is declared on, for a message that points somewhere.
 fn line_of(manifest: &str, dep: &str) -> usize {
     manifest
@@ -270,82 +279,9 @@ fn line_of(manifest: &str, dep: &str) -> usize {
 mod tests {
     use super::*;
 
-    fn names(manifest: &str) -> Vec<(&str, bool)> {
-        declared(manifest)
-            .into_iter()
-            .map(|(n, t)| (n, t == Table::Dev))
-            .collect()
-    }
-
-    #[test]
-    fn a_dependency_key_is_read_with_its_table() {
-        let m = "\
-[package]
-name = \"x\"
-
-[dependencies]
-fprint-core = { workspace = true }
-
-[dev-dependencies]
-fprint-testkit = { workspace = true }
-";
-        assert_eq!(names(m), [("fprint-core", false), ("fprint-testkit", true)]);
-    }
-
-    #[test]
-    fn a_target_table_is_read_and_keeps_its_kind() {
-        // The quoted cfg contains dots and brackets, so the suffix must decide, not a split.
-        let m = "\
-[target.'cfg(target_os = \"linux\")'.dependencies]
-fprint-core = { workspace = true }
-
-[target.'cfg(target_os = \"linux\")'.dev-dependencies]
-fprint-backend-native = { workspace = true }
-";
-        assert_eq!(
-            names(m),
-            [("fprint-core", false), ("fprint-backend-native", true)]
-        );
-    }
-
-    #[test]
-    fn a_dependency_with_its_own_table_is_read_once() {
-        // The shape `cargo publish` generates. The keys under it are the dependency's fields, so
-        // reading them as dependencies too would make `version` a crate.
-        let m = "[dev-dependencies.fprint-bozorth3]\nversion = \"0.1.0\"\nfeatures = []\n";
-        assert_eq!(names(m), [("fprint-bozorth3", true)]);
-    }
-
-    #[test]
-    fn a_dep_prefixed_feature_is_not_a_dependency() {
-        // `[features]` is not a dependency table, so `dep:` syntax inside it must stay invisible.
-        let m = "[features]\nusb = [\"dep:nusb\"]\nhwtest = []\n";
-        assert!(names(m).is_empty());
-    }
-
-    #[test]
-    fn comments_and_other_tables_are_not_dependencies() {
-        let m = "\
-[package]
-name = \"fprint-fp3\"
-
-[dependencies]
-# fprint-backend-native = { workspace = true }
-fprint-core = { workspace = true }
-
-[lints]
-workspace = true
-
-[lints.clippy.all]
-level = \"deny\"
-";
-        assert_eq!(names(m), [("fprint-core", false)]);
-    }
-
     #[test]
     fn the_matrix_is_transitively_closed() {
-        // The claim the module docs rest on: if A may name B, then A may name everything B may.
-        // Without this, a per-manifest scan would not equal a full-graph check.
+        // The claim [`reaches`] rests on: if A may name B, then A may name everything B may.
         for (krate, allowed) in ALLOWED {
             for dep in *allowed {
                 let (_, deps_of_dep) = ALLOWED
@@ -371,16 +307,16 @@ level = \"deny\"
     }
 
     #[test]
-    fn every_zero_dep_crate_has_an_empty_row() {
+    fn every_charter_crate_has_an_empty_row() {
         // The two rules must agree: a crate that may depend on nothing has nothing in its row.
         for krate in ZERO_DEP {
             let (_, allowed) = ALLOWED
                 .iter()
                 .find(|(name, _)| name == krate)
-                .unwrap_or_else(|| panic!("{krate} is ZERO_DEP but has no ALLOWED row"));
+                .unwrap_or_else(|| panic!("{krate} is on the charter but has no ALLOWED row"));
             assert!(
                 allowed.is_empty(),
-                "{krate} is ZERO_DEP but may name {allowed:?}"
+                "{krate} is on the charter but may name {allowed:?}"
             );
         }
     }

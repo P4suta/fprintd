@@ -26,8 +26,11 @@
 //!   sibling say the goldens ship "so the golden suite is runnable straight from the published
 //!   crate". `cargo package`'s include/exclude rules decide whether that is true.
 
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::Command;
+
+use cargo_metadata::MetadataCommand;
 
 /// Crates whose `REUSE.toml` promises the golden fixtures travel with the tarball, and the file
 /// each one's golden suite reads first. A tarball missing these still compiles and still passes
@@ -37,16 +40,13 @@ const SHIPS_FIXTURES: &[(&str, &str)] = &[
     ("fprint-mindtct", "tests/fixtures/manifest.txt"),
 ];
 
-/// Crates that must never appear in a published manifest. Both are `publish = false` and both are
-/// dev-dependencies of a published crate; they are stripped only because their workspace entry
-/// omits `version`.
-const NEVER_PUBLISHED: &[&str] = &["fprint-backend-native", "fprint-testkit"];
-
 /// Check the published crates against the registry's own rules.
 pub fn check(root: &Path) -> Result<(), String> {
     println!("xtask: packaging the workspace as the registry would ...");
+    let never_published = publish_false_members(root)?;
+    release_parity(root, &never_published)?;
     dry_run(root)?;
-    stripped_deps_are_absent(root)?;
+    stripped_deps_are_absent(root, &never_published)?;
 
     for (krate, witness) in SHIPS_FIXTURES {
         let listing = package_list(root, krate)?;
@@ -90,12 +90,67 @@ fn dry_run(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The first [`NEVER_PUBLISHED`] crate `manifest` declares as a dependency, if any.
+/// The workspace members that carry `publish = false`, from the resolved metadata rather than a
+/// hardcoded list, so a new `publish = false` crate is covered the moment it exists.
 ///
-/// Reads dependency table keys rather than searching the text, so a crate merely *named* in a
+/// `cargo_metadata` reports `publish = false` as `Some(vec![])` — an empty allow-list of registries.
+fn publish_false_members(root: &Path) -> Result<Vec<String>, String> {
+    let metadata = MetadataCommand::new()
+        .manifest_path(root.join("Cargo.toml"))
+        .no_deps()
+        .exec()
+        .map_err(|e| format!("cargo metadata: {e}"))?;
+    Ok(metadata
+        .workspace_packages()
+        .iter()
+        .filter(|p| p.publish.as_ref().is_some_and(Vec::is_empty))
+        .map(|p| p.name.to_string())
+        .collect())
+}
+
+/// release-plz must mark exactly the `publish = false` members `release = false`, and no others.
+///
+/// The two configs answer the same question — which crates leave the workspace — from different
+/// files. If they disagree, a release either skips a publishable crate or tries to publish one that
+/// cannot go, and both fail late. This makes them agree as a checked fact.
+fn release_parity(root: &Path, publish_false: &[String]) -> Result<(), String> {
+    let path = root.join("release-plz.toml");
+    let text =
+        std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| format!("parse {}: {e}", path.display()))?;
+
+    let mut marked = BTreeSet::new();
+    if let Some(packages) = value.get("package").and_then(toml::Value::as_array) {
+        for pkg in packages {
+            let name = pkg.get("name").and_then(toml::Value::as_str);
+            let released = pkg.get("release").and_then(toml::Value::as_bool);
+            if let (Some(name), Some(false)) = (name, released) {
+                marked.insert(name.to_string());
+            }
+        }
+    }
+
+    let expected: BTreeSet<String> = publish_false.iter().cloned().collect();
+    if marked != expected {
+        let missing: Vec<_> = expected.difference(&marked).cloned().collect();
+        let extra: Vec<_> = marked.difference(&expected).cloned().collect();
+        return Err(format!(
+            "release-plz.toml and the `publish = false` set disagree.\n  \
+             publish = false but not `release = false` in release-plz.toml: {missing:?}\n  \
+             `release = false` in release-plz.toml but publishable: {extra:?}"
+        ));
+    }
+    println!("xtask: release-plz.toml holds back exactly the unpublishable crates");
+    Ok(())
+}
+
+/// The first crate in `never` that `manifest` declares as a dependency, if any.
+///
+/// Reads dependency table headers rather than searching the text, so a crate merely *named* in a
 /// string — a `description`, a `keywords` entry — is not a finding. Cargo's generated manifest
 /// gives each dependency its own `[…dependencies.<name>]` table, which is what this matches.
-fn names_unpublished(manifest: &str) -> Option<&'static str> {
+fn names_unpublished(manifest: &str, never: &[String]) -> Option<String> {
     manifest
         .lines()
         .map(str::trim)
@@ -104,7 +159,7 @@ fn names_unpublished(manifest: &str) -> Option<&'static str> {
             let (table, name) = header.rsplit_once('.')?;
             table.ends_with("dependencies").then_some(name)
         })
-        .find_map(|name| NEVER_PUBLISHED.iter().copied().find(|d| *d == name))
+        .find_map(|name| never.iter().find(|d| *d == name).cloned())
 }
 
 /// No packaged manifest may name a `publish = false` crate.
@@ -112,7 +167,7 @@ fn names_unpublished(manifest: &str) -> Option<&'static str> {
 /// Reads what [`dry_run`] just generated under `target/package`, which is the manifest a consumer
 /// resolves against — not the one in the source tree. Every packaged crate is checked by walking
 /// the directory, so nothing here has to be kept in step with the workspace membership.
-fn stripped_deps_are_absent(root: &Path) -> Result<(), String> {
+fn stripped_deps_are_absent(root: &Path, never: &[String]) -> Result<(), String> {
     let dir = root.join("target/package");
     let entries = std::fs::read_dir(&dir).map_err(|e| format!("read {}: {e}", dir.display()))?;
     let mut checked = 0usize;
@@ -123,7 +178,7 @@ fn stripped_deps_are_absent(root: &Path) -> Result<(), String> {
         }
         let text = std::fs::read_to_string(&manifest)
             .map_err(|e| format!("read {}: {e}", manifest.display()))?;
-        if let Some(dep) = names_unpublished(&text) {
+        if let Some(dep) = names_unpublished(&text, never) {
             return Err(format!(
                 "a published manifest names `{dep}`, which is `publish = false`. Its workspace \
                  entry in the root Cargo.toml must have a `path` and no `version` — that omission \
@@ -165,6 +220,14 @@ fn package_list(root: &Path, krate: &str) -> Result<String, String> {
 mod tests {
     use super::*;
 
+    /// The `publish = false` names, as [`publish_false_members`] would return them.
+    fn never() -> Vec<String> {
+        vec![
+            "fprint-backend-native".to_string(),
+            "fprint-testkit".to_string(),
+        ]
+    }
+
     /// The shape Cargo generates: one table per dependency, name in the header, comments dropped.
     const STRIPPED: &str = "\
 [package]
@@ -180,7 +243,7 @@ version = \"0.1.0\"
 
     #[test]
     fn a_stripped_manifest_names_nothing_unpublished() {
-        assert_eq!(names_unpublished(STRIPPED), None);
+        assert_eq!(names_unpublished(STRIPPED, &never()), None);
     }
 
     #[test]
@@ -188,14 +251,17 @@ version = \"0.1.0\"
         // `description` above says "fprint-backend-native". Searching the text would fire here;
         // reading table headers must not.
         assert!(STRIPPED.contains("fprint-backend-native"));
-        assert_eq!(names_unpublished(STRIPPED), None);
+        assert_eq!(names_unpublished(STRIPPED, &never()), None);
     }
 
     #[test]
     fn an_unstripped_dev_dependency_is_found() {
         let manifest =
             format!("{STRIPPED}\n[dev-dependencies.fprint-backend-native]\nversion = \"0.1.0\"\n");
-        assert_eq!(names_unpublished(&manifest), Some("fprint-backend-native"));
+        assert_eq!(
+            names_unpublished(&manifest, &never()).as_deref(),
+            Some("fprint-backend-native")
+        );
     }
 
     #[test]
@@ -208,7 +274,7 @@ version = \"0.1.0\"
         ] {
             let manifest = format!("[{table}.fprint-testkit]\nversion = \"0.1.0\"\n");
             assert_eq!(
-                names_unpublished(&manifest),
+                names_unpublished(&manifest, &never()).as_deref(),
                 Some("fprint-testkit"),
                 "table `{table}` was not read as a dependency table"
             );
@@ -219,6 +285,6 @@ version = \"0.1.0\"
     fn a_non_dependency_table_is_not_read() {
         // `[lints.clippy.all]` ends in a name, not a dependency; `[package]` has no dot at all.
         let manifest = "[lints.clippy.all]\nlevel = \"deny\"\n\n[package]\nname = \"x\"\n";
-        assert_eq!(names_unpublished(manifest), None);
+        assert_eq!(names_unpublished(manifest, &never()), None);
     }
 }

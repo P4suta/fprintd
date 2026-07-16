@@ -13,6 +13,7 @@
 
 #![forbid(unsafe_code)]
 
+mod ci;
 mod deps;
 mod docker;
 mod fuzz;
@@ -40,6 +41,7 @@ fn main() -> ExitCode {
 
     let result = match task.as_deref() {
         Some("lint") => lint::check(&root),
+        Some("ci-annotate") => ci::annotate(&root),
         Some("publish-check") => publish::check(&root),
         Some("unit-verify") => unit::verify(&root),
         Some("sloc") => sloc::measure(&root),
@@ -82,6 +84,7 @@ fn usage() -> String {
         "",
         "tasks:",
         "  lint               repository rules a compiler does not enforce",
+        "  ci-annotate        run clippy and emit GitHub PR annotations for each finding",
         "  publish-check      check the published crates against the registry's rules",
         "  unit-verify        check the systemd unit parses, and that Alias= takes the seat",
         "  sloc               M0: measure upstream libfprint by subsystem",

@@ -12,8 +12,14 @@ authors.workspace = true
 publish = false
 
 [dependencies]
-# Deliberately none: shelling out to Docker needs no dependency tree, and this crate is in the
-# lockfile every published crate resolves against.
+# The dependency linter reads the *resolved* graph, not manifest text: a `package = "..."` rename,
+# a transitive third-party edge into a charter crate, and the exact workspace membership are facts
+# only the resolver holds. `cargo metadata` is the resolver's own answer. xtask ships in nothing, so
+# this reaches no published crate.
+cargo_metadata = "0.19"
+# Reads release-plz.toml to check it against the resolved `publish = false` set. Parsing config is
+# not the linter's job to hand-roll.
+toml = "0.8"
 
 [lints]
 workspace = true
