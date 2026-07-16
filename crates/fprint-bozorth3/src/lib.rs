@@ -98,6 +98,27 @@ pub struct Minutia {
     pub theta: i32,
 }
 
+impl Minutia {
+    /// Construct a minutia from the `xyt` triple. The value is stored as given — see the `theta`
+    /// field for what "canonical" means and why this reader does not normalize.
+    #[must_use]
+    pub const fn from_xyt(x: i32, y: i32, theta: i32) -> Self {
+        Self { x, y, theta }
+    }
+
+    /// The `(x, y, theta)` triple, for moving a minutia between kernels that name the same fact.
+    #[must_use]
+    pub const fn as_xyt(&self) -> (i32, i32, i32) {
+        (self.x, self.y, self.theta)
+    }
+}
+
+impl From<(i32, i32, i32)> for Minutia {
+    fn from((x, y, theta): (i32, i32, i32)) -> Self {
+        Self { x, y, theta }
+    }
+}
+
 /// The BOZORTH3 match score between a `probe` and a `gallery` minutia set.
 ///
 /// Runs the full stock pipeline: build each print's intra-comparison Web (capped at

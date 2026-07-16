@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "fprint-cli"
+description = "Demo command-line tool (`fprint`) for the pure-Rust fingerprint stack: a hardware-free enroll/verify walkthrough, FP3 persistence, and direct access to the MINDTCT detector and BOZORTH3 matcher. A clone-and-run showcase, not a shipped binary."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+# A demo, not part of the stack: it wraps the `publish = false` virtual backend and carries no
+# semver promise for its fixtures, so it stays off crates.io. Run it with `cargo run -p fprint-cli`.
+publish = false
+
+[[bin]]
+name = "fprint"
+path = "src/main.rs"
+
+[dependencies]
+# The domain model (Print, Template, Finger, the Device trait).
+fprint-core = { workspace = true }
+# The FP3 codec: `enroll` writes a template to disk and `verify` reads it back.
+fprint-fp3 = { workspace = true }
+# The BOZORTH3 matcher, called directly by `match`.
+fprint-bozorth3 = { workspace = true }
+# The MINDTCT detector, called directly by `detect`.
+fprint-mindtct = { workspace = true }
+# The virtual device: `demo`, `enroll`, and `verify` drive enroll/verify across the Device seam
+# with no sensor, and reuse its host-image pipeline (image -> minutiae -> match).
+fprint-backend-native = { workspace = true }
+# Argument parsing (derive).
+clap = { version = "4", features = ["derive"] }
+# Drives the backend's `async fn` operations to completion on this thread, no runtime.
+pollster = "0.4"
+
+[lints]
+workspace = true

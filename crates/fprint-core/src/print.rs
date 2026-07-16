@@ -26,6 +26,27 @@ pub struct Minutia {
     pub theta: i32,
 }
 
+impl Minutia {
+    /// Construct a minutia from the `xyt` triple that crosses every kernel boundary.
+    #[must_use]
+    pub const fn from_xyt(x: i32, y: i32, theta: i32) -> Self {
+        Self { x, y, theta }
+    }
+
+    /// The `(x, y, theta)` triple, for handing this minutia to a matcher or detector that names
+    /// the same interoperability fact.
+    #[must_use]
+    pub const fn as_xyt(&self) -> (i32, i32, i32) {
+        (self.x, self.y, self.theta)
+    }
+}
+
+impl From<(i32, i32, i32)> for Minutia {
+    fn from((x, y, theta): (i32, i32, i32)) -> Self {
+        Self { x, y, theta }
+    }
+}
+
 /// Enrollment date (libfprint serializes this as a Julian-day int32; `None` ⇒ the
 /// `G_MININT32` "unset" sentinel).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

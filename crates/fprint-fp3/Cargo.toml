@@ -7,11 +7,17 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+readme = "README.md"
+keywords = ["fingerprint", "fprintd", "gvariant", "fp3", "serialization"]
+categories = ["encoding", "parser-implementations"]
 
 [dependencies]
 # The GVariant framing is hand-rolled in `src/gvariant.rs`; this crate is a self-contained
 # edge crystal over `fprint-core` alone (plus std). No serialization library, no derives.
 fprint-core = { workspace = true }
+# `Display`/`Error` for `Fp3Error`. fp3 sits outside the zero-dependency charter, so a leaf
+# derive crate is fair game.
+thiserror = "2"
 
 [dev-dependencies]
 # The end-to-end enroll -> FP3 -> verify round-trip test lives here (this crate sits
@@ -28,3 +34,7 @@ fprint-testkit = { workspace = true }
 
 [lints]
 workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]

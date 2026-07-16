@@ -65,6 +65,16 @@ pub struct Minutia {
     pub quality: i32,
 }
 
+impl Minutia {
+    /// The `(x, y, theta)` triple, dropping `quality` — the interoperability fact a matcher
+    /// (BOZORTH3) or the domain model names. There is no `from_xyt`: a bare triple cannot say how
+    /// reliable the detection was, and this detector is the thing that decides `quality`.
+    #[must_use]
+    pub const fn as_xyt(&self) -> (i32, i32, i32) {
+        (self.x, self.y, self.theta)
+    }
+}
+
 /// An 8-bit grayscale fingerprint image, row-major, one byte per pixel.
 ///
 /// `data` is exactly `width * height` bytes (0 = black, 255 = white). `ppi` is the scan resolution

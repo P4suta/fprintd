@@ -58,6 +58,16 @@ pub fn nbis_identify(scanned: &Template, gallery: &[Template], threshold: u32) -
     best.map(|(i, _)| i)
 }
 
+/// Convert a slice of domain [`fprint_core::Minutia`] into `fprint_bozorth3::Minutia`s ready to score.
+///
+/// One enrolled or scanned capture is one such slice; the result is the input BOZORTH3's
+/// [`match_score`](fprint_bozorth3::match_score) takes. Only the `xyt` triple crosses the boundary —
+/// the same interoperability fact [`nbis_match_score`] applies internally per sample.
+#[must_use]
+pub fn minutiae_to_bozorth(ms: &[fprint_core::Minutia]) -> Vec<fprint_bozorth3::Minutia> {
+    ms.iter().map(to_bz).collect()
+}
+
 /// Convert one domain minutia to the matcher's xyt triple (an interoperability fact, not coupling).
 #[inline]
 fn to_bz(m: &fprint_core::Minutia) -> fprint_bozorth3::Minutia {

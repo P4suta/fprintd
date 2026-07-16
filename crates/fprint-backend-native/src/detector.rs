@@ -30,7 +30,7 @@ use fprint_core::{Minutia, Template};
 pub fn extract_minutiae(img: fprint_mindtct::GrayImage<'_>) -> Vec<Minutia> {
     fprint_mindtct::detect_minutiae(img)
         .iter()
-        .map(to_core)
+        .map(minutia_to_core)
         .collect()
 }
 
@@ -46,9 +46,15 @@ pub fn template_from_images(images: &[fprint_mindtct::GrayImage<'_>]) -> Templat
     Template::Nbis(images.iter().map(|&img| extract_minutiae(img)).collect())
 }
 
-/// Convert one detected minutia to the domain's xyt triple (an interoperability fact, not coupling).
+/// Convert one MINDTCT [`fprint_mindtct::Minutia`] into an [`fprint_core::Minutia`].
+///
+/// The `xyt` triple (`x`, `y`, `theta`) is carried through verbatim — the interoperability fact both
+/// the detector and the matcher share — and MINDTCT's per-point `quality` is dropped, because
+/// `fprint_core::Minutia` (like libfprint's `xyt_struct` for BOZORTH3) does not carry it. This is the
+/// public form of the `mindtct → core` seam that [`extract_minutiae`] applies per detected point.
 #[inline]
-fn to_core(m: &fprint_mindtct::Minutia) -> Minutia {
+#[must_use]
+pub fn minutia_to_core(m: &fprint_mindtct::Minutia) -> Minutia {
     Minutia {
         x: m.x,
         y: m.y,

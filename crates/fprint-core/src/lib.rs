@@ -166,3 +166,15 @@ pub use error::{Error, Result, RetryReason};
 pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
 pub use finger::Finger;
 pub use print::{EnrollDate, Minutia, Print, Template};
+
+/// The names a backend or client reaches for most: the traits, the model, and the result types.
+///
+/// ```
+/// use fprint_core::prelude::*;
+/// ```
+pub mod prelude {
+    pub use crate::{
+        Backend, Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, EnrollProgress, Error,
+        Finger, IdentifyOutcome, Minutia, Print, Result, ScanType, Template, VerifyOutcome,
+    };
+}

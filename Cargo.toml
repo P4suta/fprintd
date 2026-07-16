@@ -15,6 +15,7 @@ members = [
   "crates/fprint-bozorth3",       # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
   "crates/fprint-mindtct",        # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
   "crates/fprint-backend-native", # pure-Rust virtual device: the first fprint-core Backend/Device implementor
+  "crates/fprint-cli",            # demo tool (`fprint`): clone-and-run enroll/verify over the virtual device
   "crates/fprint-integration",    # CompositeBackend / CompositeDevice (native-only off Linux)
   # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
   # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.

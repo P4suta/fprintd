@@ -59,3 +59,10 @@ pub use error::{Fp3Error, Result};
 
 /// The FP3 container's leading magic bytes (`"FP3"`).
 pub const MAGIC: &[u8; 3] = b"FP3";
+
+/// The crate's essentials, for a single glob import.
+///
+/// Pulls in the two verbs and the error type: `use fprint_fp3::prelude::*;`.
+pub mod prelude {
+    pub use crate::{from_bytes, to_bytes, Fp3Error};
+}
