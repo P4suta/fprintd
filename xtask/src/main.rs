@@ -17,6 +17,7 @@ mod deps;
 mod docker;
 mod fuzz;
 mod lint;
+mod mutants;
 mod oracle;
 mod publish;
 mod references;
@@ -47,6 +48,7 @@ fn main() -> ExitCode {
         Some("bozorth3-oracle") => oracle::regenerate(&root, Oracle::Bozorth3),
         Some("mindtct-oracle") => oracle::regenerate(&root, Oracle::Mindtct),
         Some("fuzz") => fuzz_task(&root, args),
+        Some("mutants") => mutants::run(&root, args.next()),
         Some(other) => Err(format!("unknown task `{other}`\n\n{}", usage())),
         None => Err(usage()),
     };
@@ -93,6 +95,7 @@ fn usage() -> String {
         "  bozorth3-oracle    regenerate the BOZORTH3 goldens from stock NBIS (DELIBERATE)",
         "  mindtct-oracle     regenerate the MINDTCT goldens from stock NBIS (DELIBERATE)",
         "  fuzz <target> [s]  fuzz one target in the nightly container (DELIBERATE; default 60s)",
+        "  mutants [base]     which lines the tests do not defend (DELIBERATE; [base] = that diff only)",
     ]
     .join("\n")
 }

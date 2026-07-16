@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# cargo-mutants: which lines the tests are asked to defend, and how to build the mutants.
+# This adds no dependency: cargo-mutants is a CLI that reads the source tree.
+#
+# A green golden is not evidence that the golden defends the code it covers. `cargo mutants` deletes
+# a line and asks whether anything goes red; `crates/fprint-mindtct/tests/corpus_adequacy.rs` asks
+# that question for one file by hand. Run it with `cargo xtask mutants` — see xtask/src/mutants.rs.
+
+# What is *not* mutated. A mutant is a claim about code that ships, so what remains is the four
+# published crates: fprint-core, fprint-fp3, fprint-bozorth3, fprint-mindtct.
+#
+# * fprint-testkit generates the test inputs. Mutating it corrupts the generator, not the subject.
+# * xtask is the tooling, and fprint-backend-native / fprint-integration are `publish = false`.
+# * fprintd and fprint-backend-libfprint gate their dependencies on `cfg(target_os = "linux")` and
+#   compile to (near-)empty crates elsewhere, so off Linux there is nothing in them to mutate.
+#
+# This is a deny list rather than the `examine_globs` allow list on purpose, and the reason is not
+# cosmetic: `examine_globs` silently overrides `--file` on the command line, which turns
+# `cargo mutants -f <one file>` into the whole 5,784-mutant sweep. `exclude_globs` composes with
+# `--file` instead — scoping down to one file is the normal way to use this tool, and it has to work.
+# The cost is that this list must gain an entry when a crate that does not ship is added.
+exclude_globs = [
+  "crates/fprint-testkit/**",
+  "crates/fprint-backend-native/**",
+  "crates/fprint-integration/**",
+  "crates/fprint-backend-libfprint/**",
+  "crates/fprintd/**",
+  "xtask/**",
+]
+
+# Equivalent mutants: the mutated program computes exactly what the original computes, so no test
+# can tell the two apart and a run that reports one is reporting noise. "Nothing caught it" is the
+# finding, never the reason to be here — each entry carries the argument for why nothing *can*.
+#
+# * `round_half_away`, crates/fprint-bozorth3/src/consts.rs. `f < 0.0` and `f <= 0.0` select
+#   different arms only at f == 0.0, and both arms land on the same integer there: the cast
+#   truncates toward zero, so `(0.0 + 0.5) as i32` and `(0.0 - 0.5) as i32` are both 0. Likewise at
+#   -0.0. NaN takes the else arm under either predicate.
+exclude_re = ["replace < with <= in round_half_away"]
+
+# CI sets `RUSTFLAGS: -D warnings` for every job. Without capping rustc's lints, a mutant that
+# leaves a variable unused fails to *build* and is filed as unviable — which reads as "no mutant
+# here" when the truth is the opposite. This is the same mechanism cargo uses to keep a dependency's
+# warnings from failing a build that denies them.
+cap_lints = true

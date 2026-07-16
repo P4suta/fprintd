@@ -26,6 +26,11 @@
 #  * `deny`   — supply chain: advisories, the licence boundary, wildcard pins, source registries.
 #               Reads Cargo.lock via `cargo metadata`, so it needs neither Linux nor Docker.
 #  * `reuse`  — SPDX/REUSE license compliance.
+#  * `mutants`— which of the lines this pull request changed the tests would not have noticed. The
+#               one job here that **reports rather than gates**: a surviving mutant is untested
+#               code, not broken code, and a check that fires on correct code gets switched off. It
+#               says so on the diff, as an annotation on the line, and lets the merge through. The
+#               whole-tree run is `mise run mutants` — hours, and deliberate. See xtask/src/mutants.rs.
 
 name: CI
 
@@ -149,3 +154,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: fsfe/reuse-action@v5
+
+  mutants:
+    name: mutants (the diff)
+    # A push has no base ref, so the question this job asks does not exist there.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    # Bounded so a pull request that rewrites a whole module reports nothing rather than holding a
+    # runner. The finding is advisory; the wait for it must not be.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # `git diff origin/<base>...HEAD` needs the base branch and the merge base
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: Which of the changed lines the tests do not defend
+        # Reports, never gates. The survivors land as annotations on the diff.
+        continue-on-error: true
+        run: cargo xtask mutants origin/${{ github.base_ref }}

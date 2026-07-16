@@ -97,3 +97,14 @@ run = "cargo xtask publish-check"
 [tasks.deny]
 description = "Check the dependency graph: advisories, licences, wildcard pins, sources"
 run = "cargo deny check"
+
+# --- Mutation testing: which lines the tests do not defend ----------------------------------
+# DELIBERATE because of its size, not its dependencies: it is 5,784 mutants over the published
+# crates, and each one is a build and a test run. Nothing else about it is exotic — no container, no
+# nightly, no network. A pull request gets the same question asked of its own diff, which is minutes
+# rather than hours; see the `mutants` job in .github/workflows/ci.yml.
+# Scope it down while working: `cargo mutants -f 'crates/fprint-bozorth3/src/cluster.rs'`.
+
+[tasks.mutants]
+description = "DELIBERATE: which lines the tests do not defend (`mutants <base-ref>` for that diff only)"
+run = "cargo xtask mutants"

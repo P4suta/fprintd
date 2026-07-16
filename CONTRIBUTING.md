@@ -73,6 +73,18 @@ mise run bozorth3-oracle   # DELIBERATE: overwrites frozen goldens
 mise run mindtct-oracle
 ```
 
+A green test suite says the goldens pass, not that they would notice if the code stopped working.
+`mise run mutants` asks the second question of the published crates: it deletes a line and checks
+whether anything goes red. It is deliberate for its size alone — 5,784 mutants, each a build and a
+test run, so hours — and needs no container, toolchain or network. Scope it down while working:
+
+```sh
+cargo mutants -f 'crates/fprint-bozorth3/src/cluster.rs'   # one file, minutes
+```
+
+A surviving mutant is untested code, not broken code, so this gates nothing. A pull request gets the
+same question asked of its own diff, and the answers arrive as annotations on the changed lines.
+
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
 (`cargo xtask <task>`), where a compiler and clippy can see it. Shell quoted inside a
 task runner is read by nothing, and runs under whichever shell the runner picked —
