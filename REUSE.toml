@@ -14,13 +14,16 @@ version = 1
 
 [[annotations]]
 path = [
-    "Cargo.toml",
-    "Cargo.lock",
-    "crates/**/Cargo.toml",
-    "xtask/Cargo.toml",
-    "mise.toml",
-    ".gitignore",
-    "**/*.md",
+  "Cargo.toml",
+  "Cargo.lock",
+  "crates/**/Cargo.toml",
+  "xtask/Cargo.toml",
+  "fuzz/Cargo.toml",
+  "fuzz/Cargo.lock",
+  "mise.toml",
+  ".gitignore",
+  "fuzz/.gitignore",
+  "**/*.md",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"

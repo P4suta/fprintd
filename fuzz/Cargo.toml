@@ -1,0 +1,77 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The coverage-guided fuzz harness, in a workspace of its own.
+#
+# The empty `[workspace]` table below is the wall. It makes this directory a workspace root with
+# its own Cargo.lock, and the root manifest's `exclude = ["fuzz"]` makes the exclusion mutual.
+# **`libfuzzer-sys` and `arbitrary` must never enter the root lockfile, the published crates, or
+# the MSRV job.** They are nightly-only and they instrument every crate they touch; the root
+# lockfile is the graph every published crate resolves against, and the MSRV job's floor is a
+# promise to a stable-toolchain user. So the dependency edge runs one way only: the targets here
+# name the workspace crates by `path`, and nothing in the workspace names this.
+#
+# That wall is what lets `fprint-testkit`'s generators be reused: `ByteSource` is implemented over
+# `arbitrary::Unstructured` in `src/lib.rs` rather than in the testkit, because the orphan rule
+# puts it on this side — which is exactly where `arbitrary` belongs.
+
+[package]
+name = "fprint-fuzz"
+version = "0.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# cargo-fuzz refuses a manifest without this: it is how the tool tells a fuzz crate from the
+# ordinary crate that would sit here otherwise.
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = "1"
+
+# The crates under test, and the generators. By `path` and version-less: nothing here is published,
+# so nothing here needs to resolve on the registry.
+fprint-fp3 = { path = "../crates/fprint-fp3" }
+fprint-bozorth3 = { path = "../crates/fprint-bozorth3" }
+fprint-mindtct = { path = "../crates/fprint-mindtct" }
+fprint-testkit = { path = "../crates/fprint-testkit" }
+
+# Fuzzing a debug build finds an overflow panic per run and little else. `debug-assertions` stays
+# on deliberately: the arithmetic panics are the bugs these targets hunt.
+[profile.release]
+debug = 1
+debug-assertions = true
+overflow-checks = true
+
+[[bin]]
+name = "fp3_from_bytes"
+path = "fuzz_targets/fp3_from_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fp3_fixed_point"
+path = "fuzz_targets/fp3_fixed_point.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bozorth3_match"
+path = "fuzz_targets/bozorth3_match.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mindtct_detect"
+path = "fuzz_targets/mindtct_detect.rs"
+test = false
+doc = false
+bench = false

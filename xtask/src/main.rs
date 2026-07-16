@@ -11,7 +11,10 @@
 //!
 //! Run with `cargo xtask <task>` (see `.cargo/config.toml` for the alias).
 
+#![forbid(unsafe_code)]
+
 mod docker;
+mod fuzz;
 mod lint;
 mod oracle;
 mod references;
@@ -23,9 +26,14 @@ use std::process::ExitCode;
 
 use oracle::Oracle;
 
+/// Default fuzzing budget, in seconds. Long enough to be a campaign, short enough to be a command
+/// someone runs while waiting.
+const FUZZ_SECONDS: u64 = 60;
+
 fn main() -> ExitCode {
     let root = repo_root();
-    let task = std::env::args().nth(1);
+    let mut args = std::env::args().skip(1);
+    let task = args.next();
 
     let result = match task.as_deref() {
         Some("lint") => lint::check(&root),
@@ -35,6 +43,7 @@ fn main() -> ExitCode {
         Some("clone-ref-nbis") => references::clone_nbis(&root),
         Some("bozorth3-oracle") => oracle::regenerate(&root, Oracle::Bozorth3),
         Some("mindtct-oracle") => oracle::regenerate(&root, Oracle::Mindtct),
+        Some("fuzz") => fuzz_task(&root, args),
         Some(other) => Err(format!("unknown task `{other}`\n\n{}", usage())),
         None => Err(usage()),
     };
@@ -46,6 +55,25 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `fuzz <target> [seconds]`: the one task that takes arguments.
+fn fuzz_task(root: &Path, mut args: impl Iterator<Item = String>) -> Result<(), String> {
+    let target = args.next().ok_or_else(|| {
+        format!(
+            "fuzz: which target?
+
+{}",
+            usage()
+        )
+    })?;
+    let seconds = match args.next() {
+        None => FUZZ_SECONDS,
+        Some(s) => s
+            .parse()
+            .map_err(|_| format!("fuzz: `{s}` is not a number of seconds"))?,
+    };
+    fuzz::run(root, &target, seconds)
 }
 
 fn usage() -> String {
@@ -60,6 +88,7 @@ fn usage() -> String {
         "  clone-ref-nbis     clone stock NIST NBIS, for the golden oracles",
         "  bozorth3-oracle    regenerate the BOZORTH3 goldens from stock NBIS (DELIBERATE)",
         "  mindtct-oracle     regenerate the MINDTCT goldens from stock NBIS (DELIBERATE)",
+        "  fuzz <target> [s]  fuzz one target in the nightly container (DELIBERATE; default 60s)",
     ]
     .join("\n")
 }

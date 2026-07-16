@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The fuzzing image: a nightly toolchain and cargo-fuzz, and nothing else.
+#
+# libFuzzer needs `-Z sanitizer`, so it needs nightly, and it does not work on windows-msvc — the
+# dev box this repo is written on. The container is what makes `cargo xtask fuzz` a command a
+# Windows developer can run.
+#
+# Separate from docker/Dockerfile, and small. The targets under fuzz/ are pure-Rust kernels: FP3
+# framing arithmetic, BOZORTH3, MINDTCT. None of them links the C libfprint, so none of the dev
+# image's meson/glib/clang/D-Bus/libfprint stack is here. The repo is bind-mounted at /work at run
+# time (see xtask/src/fuzz.rs), so the build context holds no source.
+
+FROM rustlang/rust:nightly-bookworm-slim
+
+# libfuzzer-sys compiles libFuzzer's own C++ runtime through the `cc` crate. The slim image ships
+# gcc and libc-dev for linking, but no C++ compiler.
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# cargo-fuzz builds a target with the sanitizer flags and drives libFuzzer. `--locked` so the image
+# is reproducible: the tool's dependency graph is resolved by its published lockfile rather than by
+# whatever the registry holds on the day the image is built.
+RUN cargo install cargo-fuzz --locked
+
+# CARGO_HOME is left at the image's default on purpose: it already holds the registry index that
+# `cargo install` warmed, and `docker run --rm` would discard anything written elsewhere. Build
+# artifacts persist instead through the bind mount, under fuzz/target.
+WORKDIR /work
+CMD ["bash"]

@@ -265,6 +265,9 @@ dependencies = [
 [[package]]
 name = "fprint-bozorth3"
 version = "0.1.0"
+dependencies = [
+ "fprint-testkit",
+]
 
 [[package]]
 name = "fprint-core"
@@ -277,6 +280,7 @@ dependencies = [
  "fprint-backend-native",
  "fprint-bozorth3",
  "fprint-core",
+ "fprint-testkit",
 ]
 
 [[package]]
@@ -292,6 +296,9 @@ dependencies = [
 [[package]]
 name = "fprint-mindtct"
 version = "0.1.0"
+dependencies = [
+ "fprint-testkit",
+]
 
 [[package]]
 name = "fprint-testkit"

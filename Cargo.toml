@@ -24,6 +24,11 @@ members = [
   # and the workspace test run hold the tooling to the same bar as the code it checks.
   "xtask",
 ]
+# The fuzz harness is its own workspace root (`fuzz/Cargo.toml` holds an empty `[workspace]`), and
+# this makes the exclusion mutual. libfuzzer-sys and arbitrary are nightly-only and instrument
+# everything they touch; this lockfile is the graph every published crate resolves against, so
+# they stay out of it. See `fuzz/Cargo.toml` and `cargo xtask fuzz`.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0" # first shape worth showing the world; all crates inherit via `version.workspace = true`

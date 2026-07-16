@@ -78,3 +78,14 @@ run = "cargo xtask bozorth3-oracle"
 [tasks.mindtct-oracle]
 description = "DELIBERATE: regenerate the MINDTCT golden corpus + minutiae/maps from the stock C tool"
 run = "cargo xtask mindtct-oracle"
+
+# --- Fuzzing: coverage-guided search behind the seeded sweeps -------------------------------
+# DELIBERATE, and for the same reason as the oracles: it needs a nightly toolchain and Docker, and
+# a nightly toolchain in CI is a moving dependency that reds the build on rustc's schedule. What a
+# campaign finds is frozen as an ordinary test (crates/fprint-fp3/tests/regressions.rs) that needs
+# neither. Pass a target and an optional budget: `mise run fuzz fp3_from_bytes 300`.
+# See fuzz/Cargo.toml for the wall that keeps libfuzzer-sys out of the published crates.
+
+[tasks.fuzz]
+description = "DELIBERATE: fuzz one target in the nightly container (`fuzz <target> [seconds]`)"
+run = "cargo xtask fuzz"
