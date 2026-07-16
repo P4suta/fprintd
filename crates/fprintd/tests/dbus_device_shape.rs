@@ -19,39 +19,13 @@
 #![cfg(target_os = "linux")]
 
 mod common;
-use common::PrivateBus;
+use common::{DeviceProxy, ManagerProxy, PrivateBus};
 
 use std::sync::Arc;
 
 use fprint_backend_native::{DeviceShape, VirtualBackend, VirtualDeviceBuilder};
 use fprint_core::{DeviceFeature, ScanType};
-use fprintd::{Authorizer, Daemon, Store};
-use zbus::zvariant::OwnedObjectPath;
-
-#[zbus::proxy(
-    interface = "net.reactivated.Fprint.Manager",
-    default_service = "net.reactivated.Fprint",
-    default_path = "/net/reactivated/Fprint/Manager"
-)]
-trait Manager {
-    fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
-}
-
-#[zbus::proxy(
-    interface = "net.reactivated.Fprint.Device",
-    default_service = "net.reactivated.Fprint"
-)]
-trait Device {
-    fn claim(&self, username: &str) -> zbus::Result<()>;
-    fn release(&self) -> zbus::Result<()>;
-
-    #[zbus(property, name = "num-enroll-stages")]
-    fn num_enroll_stages(&self) -> zbus::Result<i32>;
-    #[zbus(property, name = "scan-type")]
-    fn scan_type(&self) -> zbus::Result<String>;
-    #[zbus(property, name = "name")]
-    fn name(&self) -> zbus::Result<String>;
-}
+use fprintd::{ActionSet, Authorizer, Daemon, Store};
 
 /// A swipe reader whose shape is only known once it is open — the `upekts` case.
 fn backend() -> VirtualBackend {
@@ -71,14 +45,14 @@ fn backend() -> VirtualBackend {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn claim_publishes_the_settled_shape() {
-    let _bus = PrivateBus::start();
+    let _bus = PrivateBus::shared();
 
     let tmp = std::env::temp_dir().join(format!("fprintd-shape-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
 
     let daemon = Daemon::with_store(
         backend,
-        Arc::new(Authorizer::AllowAll),
+        Arc::new(Authorizer::Fixed(ActionSet::ALL)),
         Store::with_root(tmp.clone()),
     );
     let builder = zbus::connection::Builder::session()

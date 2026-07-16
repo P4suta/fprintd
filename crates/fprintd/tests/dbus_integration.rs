@@ -5,7 +5,7 @@
 //! Hardware-free, end-to-end exercise of the `net.reactivated.Fprint` D-Bus surface.
 //!
 //! It stands the daemon up over `fprint-backend-native`'s virtual backend and an
-//! [`Authorizer::AllowAll`], on a bus connection, then drives it as a real client would:
+//! [`Authorizer::Fixed`] granting every action, on a bus connection, then drives it as a real client would:
 //! `GetDevices` → `Claim` → `EnrollStart` → wait for `enroll-completed` → `VerifyStart` →
 //! wait for `verify-match` → `Release`. Because the enrolled print is written to disk as FP3
 //! and read back for verification, this also covers the storage + [`fprint_fp3`] round-trip.
@@ -17,7 +17,7 @@
 #![cfg(target_os = "linux")]
 
 mod common;
-use common::PrivateBus;
+use common::{DeviceProxy, ManagerProxy, PrivateBus};
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,46 +25,9 @@ use std::time::Duration;
 use fprint_backend_native::{
     EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder,
 };
-use fprintd::{Authorizer, Daemon, Store};
+use fprintd::{ActionSet, Authorizer, Daemon, Store};
 use futures_util::StreamExt;
 use tokio::time::timeout;
-use zbus::zvariant::OwnedObjectPath;
-
-#[zbus::proxy(
-    interface = "net.reactivated.Fprint.Manager",
-    default_service = "net.reactivated.Fprint",
-    default_path = "/net/reactivated/Fprint/Manager"
-)]
-trait Manager {
-    fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
-    fn get_default_device(&self) -> zbus::Result<OwnedObjectPath>;
-}
-
-#[zbus::proxy(
-    interface = "net.reactivated.Fprint.Device",
-    default_service = "net.reactivated.Fprint"
-)]
-trait Device {
-    fn claim(&self, username: &str) -> zbus::Result<()>;
-    fn release(&self) -> zbus::Result<()>;
-    fn enroll_start(&self, finger_name: &str) -> zbus::Result<()>;
-    fn enroll_stop(&self) -> zbus::Result<()>;
-    fn verify_start(&self, finger_name: &str) -> zbus::Result<()>;
-    fn verify_stop(&self) -> zbus::Result<()>;
-    fn list_enrolled_fingers(&self, username: &str) -> zbus::Result<Vec<String>>;
-
-    #[zbus(signal)]
-    fn enroll_status(&self, result: String, done: bool) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn verify_status(&self, result: String, done: bool) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn verify_finger_selected(&self, finger_name: String) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn verify_finger_matched(&self, finger_name: String) -> zbus::Result<()>;
-
-    #[zbus(property, name = "num-enroll-stages")]
-    fn num_enroll_stages(&self) -> zbus::Result<i32>;
-}
 
 /// A virtual host-image sensor that enrolls and then recognises finger identity `2`.
 fn backend() -> VirtualBackend {
@@ -81,7 +44,7 @@ fn backend() -> VirtualBackend {
 async fn enroll_then_verify_over_dbus() {
     // A private session bus, so the test needs no ambient D-Bus (self-contained under a plain
     // `cargo test`). Must outlive both connections.
-    let _bus = PrivateBus::start();
+    let _bus = PrivateBus::shared();
 
     let tmp = std::env::temp_dir().join(format!("fprintd-test-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&tmp);
@@ -91,7 +54,7 @@ async fn enroll_then_verify_over_dbus() {
     // serves directly — each actor thread builds its own virtual device from it.
     let daemon = Daemon::with_store(
         backend,
-        Arc::new(Authorizer::AllowAll),
+        Arc::new(Authorizer::Fixed(ActionSet::ALL)),
         Store::with_root(tmp.clone()),
     );
     let builder = zbus::connection::Builder::session()

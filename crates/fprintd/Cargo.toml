@@ -29,20 +29,22 @@ fprint-backend-libfprint = { workspace = true }
 # daemon is built on (the verify/enroll pumps `tokio::spawn` from inside handlers).
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 tokio = { version = "1", features = [
-    "rt",
-    "rt-multi-thread",
-    "sync",
-    "macros",
-    "signal",
-    "time",
+  "rt",
+  "rt-multi-thread",
+  "sync",
+  "macros",
+  "signal",
+  "time",
 ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# `StreamExt`, to drain the NameOwnerChanged stream a claim watches. zbus already resolves
+# futures-util, and its SignalStream is a bare `futures_core::Stream` with no inherent `next()`;
+# naming it here adds nothing to the graph and keeps the watcher readable.
+futures-util = { version = "0.3", default-features = false }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 fprint-backend-native = { workspace = true }
-# Only the D-Bus integration test uses `futures_util::StreamExt` to drain signal streams.
-futures-util = "0.3"
 
 [lints]
 workspace = true
