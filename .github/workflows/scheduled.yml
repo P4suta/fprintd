@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The checks that answer a question no pull request asks.
+#
+#  * `advisories` — a new advisory lands against unchanged code. A push-triggered CI never sees
+#                   one, and on an authentication path a red `main` with no commit behind it is
+#                   correct rather than a nuisance.
+#  * `beta`       — the frozen NBIS goldens against the next toolchain. `docs/mindtct-algorithm.md`
+#                   names libm `cos`/`sin` ULP as the main cross-platform hazard, and Rust lowers
+#                   those to the *system* libm — so CI's OS matrix is already a differential libm
+#                   test, and the best instrument this project has on that axis. Pinning a
+#                   toolchain would not protect it, only delay the news. Running it against `beta`
+#                   instead moves the canary ahead of the release train: drift is found with six
+#                   weeks of warning, rather than by reddening a stranger's pull request.
+#
+# Neither costs anything on the pull-request path.
+
+name: scheduled
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  advisories:
+    name: new advisories on unchanged code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
+
+  beta:
+    name: toolchain canary (${{ matrix.os }}, beta)
+    strategy:
+      fail-fast: false
+      matrix:
+        # The two libms most likely to disagree: the MSVC CRT and glibc.
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@beta
+      - uses: Swatinem/rust-cache@v2
+      # `RUSTFLAGS: -D warnings` is deliberately absent, unlike ci.yml: a new lint firing on beta
+      # is not a bit-exactness signal, and must not be able to mask one.
+      - name: Goldens against the next toolchain
+        run: cargo test --workspace --all-features
