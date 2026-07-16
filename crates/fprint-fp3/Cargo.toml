@@ -21,6 +21,10 @@ fprint-backend-native = { workspace = true }
 # The nbis-match seam test also drives the real BOZORTH3 matcher through fprint-backend-native's
 # `nbis_match_score`, proving a Print(Nbis) survives FP3 and still scores as a match.
 fprint-bozorth3 = { workspace = true }
+# `Lcg` drives the property sweep and the malformed-blob mutation harness. Version-less so
+# `cargo publish` strips it: `fprint-testkit` is `publish = false`, and `cargo xtask publish-check`
+# proves it is absent from this crate's packaged manifest.
+fprint-testkit = { workspace = true }
 
 [lints]
 workspace = true
