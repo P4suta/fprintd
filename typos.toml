@@ -19,6 +19,13 @@
 # errors about an image. The BOZORTH3 `.xyt` fixtures are decimal integers and read fine.
 extend-exclude = ["crates/fprint-mindtct/tests/fixtures/*.raw"]
 
+# Binary test fixtures are payloads, not prose: their bytes read as text spell stray letter runs.
+# `extend-exclude` filters directory walks, but the pre-commit hook names staged files explicitly, so
+# a type rule that turns off content checking is what skips them in both paths.
+[type.binfixture]
+extend-glob = ["*.bin", "*.png", "*.pcap", "*.pcapng", "*.cassette"]
+check-file = false
+
 [default.extend-identifiers]
 LfsParms = "LfsParms"             # the parameter block — `lfs.h`
 binar = "binar"                   # `binar.c`, cited by the binarization port's docs

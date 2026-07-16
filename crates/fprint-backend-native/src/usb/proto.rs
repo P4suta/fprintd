@@ -24,7 +24,7 @@ use crate::frame::Frame;
 ///
 /// HW-verified: required. This is a placeholder framing chosen so the header is self-describing and
 /// round-trippable in tests; the real VFS5011 image stream delimiting must be confirmed on hardware.
-const FRAME_MAGIC: [u8; 2] = [0x01, 0xFE];
+pub const FRAME_MAGIC: [u8; 2] = [0x01, 0xFE];
 
 /// Fixed size of the frame header this module emits/parses: `MAGIC(2) | width(2 LE) | height(2 LE)`.
 pub const FRAME_HEADER_LEN: usize = 6;
@@ -47,11 +47,10 @@ pub fn encode_capture_cmd() -> Vec<u8> {
 /// Encode a frame header for a `width`×`height` image (inverse of [`parse_frame_header`]).
 ///
 /// Production never encodes a header — the *device* emits it and the host only parses it — so this
-/// mirror exists solely to script a stream this module then parses back (round-trip tests and the
-/// mock transport).
-#[cfg(test)]
+/// mirror exists solely to script a stream this module then parses back: round-trip tests and
+/// [`super::scripted::ScriptedTransport`], which lifts recorded device bytes back onto the wire.
 #[must_use]
-pub(crate) fn encode_frame_header(width: u16, height: u16) -> Vec<u8> {
+pub fn encode_frame_header(width: u16, height: u16) -> Vec<u8> {
     let mut out = Vec::with_capacity(FRAME_HEADER_LEN);
     out.extend_from_slice(&FRAME_MAGIC);
     out.extend_from_slice(&width.to_le_bytes());

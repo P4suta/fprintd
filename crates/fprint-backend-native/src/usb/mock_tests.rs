@@ -2,29 +2,28 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! A scripted [`UsbTransport`] that drives [`UsbFrameSource`] end-to-end with no hardware and no
-//! `usb` feature.
+//! [`ScriptedTransport`] driving [`UsbFrameSource`] end-to-end with no hardware and no `usb` feature.
 //!
-//! The mock records every bulk-out/control write and replays a canned queue of bulk-in responses, so
-//! `ImageDevice<UsbFrameSource<MockTransport>>` runs the real
+//! The transport records every bulk-out/control write and replays a canned queue of bulk-in
+//! responses, so `ImageDevice<UsbFrameSource<ScriptedTransport>>` runs the real
 //! protocol → transport → frame-assembly → detect → match path over deterministic bytes. The bytes
 //! come from [`crate::SyntheticFrameSource`] (a genuine minutiae-rich reference finger), lifted into
 //! the transport's inbox exactly as they would arrive off the wire; a self-capture therefore
 //! verifies through real MINDTCT + BOZORTH3, proving the assembly is correct — all on the default
-//! (feature-free) build.
-
-use std::collections::VecDeque;
+//! (feature-free) build. The same capture also round-trips through a portable [`Session`], proving
+//! the recording drives the driver identically to a directly scripted transport.
 
 use fprint_core::{
-    Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, Print, Result, ScanType,
-    Template,
+    Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, Print, ScanType, Template,
 };
 
 use crate::frame::Frame;
 use crate::frame_source::{Capture, FrameSource};
 use crate::usb::proto;
+use crate::usb::scripted::ScriptedTransport;
 use crate::usb::source::UsbFrameSource;
-use crate::usb::transport::UsbTransport;
+use crate::usb::vfs5011;
+use crate::usb::wire::{Session, UsbId, UsbTransfer};
 use crate::{ImageDevice, SyntheticFrameSource};
 use fprint_testkit::block_on;
 
@@ -32,63 +31,11 @@ use fprint_testkit::block_on;
 const THRESHOLD: u32 = 40;
 const STAGES: u32 = 3;
 
-/// A UsbTransport whose bulk-in responses are pre-loaded and whose writes are recorded.
-struct MockTransport {
-    /// Canned responses handed out by successive `bulk_in` calls, in order.
-    inbox: VecDeque<Vec<u8>>,
-    /// Every payload written via `bulk_out` / `control`, for assertions.
-    sent: Vec<Vec<u8>>,
-}
-
-impl MockTransport {
-    fn new() -> Self {
-        MockTransport {
-            inbox: VecDeque::new(),
-            sent: Vec::new(),
-        }
-    }
-
-    /// Script one on-the-wire frame: the self-describing header followed by the pixel payload, the
-    /// exact pair `UsbFrameSource::capture` reads back (a header `bulk_in`, then a payload `bulk_in`).
-    fn push_frame(&mut self, frame: &Frame) {
-        let w = u16::try_from(frame.width).expect("test frame width fits u16");
-        let h = u16::try_from(frame.height).expect("test frame height fits u16");
-        self.inbox.push_back(proto::encode_frame_header(w, h));
-        self.inbox.push_back(frame.data.clone());
-    }
-}
-
-impl UsbTransport for MockTransport {
-    async fn bulk_out(&mut self, _ep: u8, data: &[u8]) -> Result<()> {
-        self.sent.push(data.to_vec());
-        Ok(())
-    }
-
-    async fn bulk_in(&mut self, _ep: u8, _len: usize) -> Result<Vec<u8>> {
-        self.inbox
-            .pop_front()
-            .ok_or_else(|| Error::Transport("mock inbox exhausted".to_string()))
-    }
-
-    async fn control(
-        &mut self,
-        _request_type: u8,
-        _request: u8,
-        _value: u16,
-        _index: u16,
-        data: &[u8],
-    ) -> Result<Vec<u8>> {
-        // Init/deinit control transfers need no response; record the payload and acknowledge.
-        self.sent.push(data.to_vec());
-        Ok(Vec::new())
-    }
-}
-
 fn info() -> DeviceInfo {
     DeviceInfo {
         id: DeviceId("usb_vfs5011".to_string()),
         driver: DriverId("vfs5011".to_string()),
-        name: "VFS5011 (mock transport)".to_string(),
+        name: "VFS5011 (scripted transport)".to_string(),
         scan_type: ScanType::Press,
         features: DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
         enroll_stages: STAGES,
@@ -104,23 +51,54 @@ fn reference_frame() -> Frame {
     }
 }
 
-fn device_serving(frames: usize) -> ImageDevice<UsbFrameSource<MockTransport>> {
-    let frame = reference_frame();
-    let mut mock = MockTransport::new();
-    for _ in 0..frames {
-        mock.push_frame(&frame);
-    }
-    let mut dev = ImageDevice::new(info(), UsbFrameSource::new(mock), THRESHOLD);
-    block_on(dev.open()).unwrap(); // runs the vfs5011 init sequence through the mock
+/// Open an [`ImageDevice`] over `transport` (running the vfs5011 init sequence through it).
+fn device_from(transport: ScriptedTransport) -> ImageDevice<UsbFrameSource<ScriptedTransport>> {
+    let mut dev = ImageDevice::new(info(), UsbFrameSource::new(transport), THRESHOLD);
+    block_on(dev.open()).unwrap(); // runs the vfs5011 init sequence through the transport
     dev
+}
+
+/// A device serving `frames` scripted captures of the reference finger.
+fn device_serving(frames: usize) -> ImageDevice<UsbFrameSource<ScriptedTransport>> {
+    let frame = reference_frame();
+    let mut transport = ScriptedTransport::new();
+    for _ in 0..frames {
+        transport.push_frame(&frame);
+    }
+    device_from(transport)
+}
+
+/// A portable recording of `frames` reference captures: the two device-to-host bulk-ins per capture
+/// (header, then payload), tagged with the VFS5011 identity — a [`Session`] a [`ScriptedTransport`]
+/// can replay.
+fn session_serving(frames: usize) -> Session {
+    let frame = reference_frame();
+    let w = u16::try_from(frame.width).expect("reference frame width fits u16");
+    let h = u16::try_from(frame.height).expect("reference frame height fits u16");
+    let mut session = Session::for_device(UsbId {
+        vid: vfs5011::VENDOR_ID,
+        pid: vfs5011::PRODUCT_ID,
+    });
+    for _ in 0..frames {
+        session
+            .push(UsbTransfer::BulkIn {
+                ep: vfs5011::EP_IN,
+                data: proto::encode_frame_header(w, h),
+            })
+            .push(UsbTransfer::BulkIn {
+                ep: vfs5011::EP_IN,
+                data: frame.data.clone(),
+            });
+    }
+    session
 }
 
 #[test]
 fn capture_assembles_the_scripted_frame_exactly() {
     let frame = reference_frame();
-    let mut mock = MockTransport::new();
-    mock.push_frame(&frame);
-    let mut source = UsbFrameSource::new(mock);
+    let mut transport = ScriptedTransport::new();
+    transport.push_frame(&frame);
+    let mut source = UsbFrameSource::new(transport);
 
     match block_on(source.capture()).unwrap() {
         Capture::Frame(assembled) => {
@@ -131,32 +109,30 @@ fn capture_assembles_the_scripted_frame_exactly() {
                 "assembly must reproduce the wire bytes"
             );
         }
-        Capture::Retry(_) => unreachable!("the mock always yields a frame"),
+        Capture::Retry(_) => unreachable!("the transport always yields a frame"),
     }
 }
 
 #[test]
 fn capture_sends_the_capture_command() {
     let frame = reference_frame();
-    let mut mock = MockTransport::new();
-    mock.push_frame(&frame);
-    let mut source = UsbFrameSource::new(mock);
+    let mut transport = ScriptedTransport::new();
+    transport.push_frame(&frame);
+    let mut source = UsbFrameSource::new(transport);
     let _ = block_on(source.capture()).unwrap();
 
     // The recorded writes must include the encoded capture command.
     assert!(
-        source_sent(&source).contains(&proto::encode_capture_cmd()),
+        source
+            .transport_ref()
+            .sent()
+            .contains(&proto::encode_capture_cmd()),
         "capture must issue the encoded capture command on bulk-out"
     );
 }
 
-/// Small helper: reach the mock's recorded writes back out of the driver for assertions.
-fn source_sent(source: &UsbFrameSource<MockTransport>) -> Vec<Vec<u8>> {
-    source.transport_ref().sent.clone()
-}
-
 #[test]
-fn enroll_then_self_verify_through_the_mock() {
+fn enroll_then_self_verify_through_the_transport() {
     // Enroll needs one frame per stage; the init sequence consumes no inbox entries.
     let mut enroll_dev = device_serving(STAGES as usize);
     let enrolled =
@@ -169,7 +145,29 @@ fn enroll_then_self_verify_through_the_mock() {
     let outcome = block_on(verify_dev.verify(&enrolled)).unwrap();
     assert!(
         outcome.matched,
-        "a self-capture must verify through the mock transport"
+        "a self-capture must verify through the scripted transport"
+    );
+    assert!(outcome.scanned.is_some());
+}
+
+#[test]
+fn session_recording_drives_a_self_verify() {
+    // Build the enroll device from a portable Session rather than a directly scripted transport:
+    // the recording alone must carry enough to enroll.
+    let mut enroll_dev = device_from(ScriptedTransport::from_session(&session_serving(
+        STAGES as usize,
+    )));
+    let enrolled =
+        block_on(enroll_dev.enroll(Print::new_for_enroll(Finger::LeftIndex), &mut |_p| {}))
+            .unwrap();
+    assert!(matches!(enrolled.template, Template::Nbis(_)));
+
+    // A one-capture Session must then self-verify through the same replay path.
+    let mut verify_dev = device_from(ScriptedTransport::from_session(&session_serving(1)));
+    let outcome = block_on(verify_dev.verify(&enrolled)).unwrap();
+    assert!(
+        outcome.matched,
+        "a Session-scripted self-capture must verify through the replay transport"
     );
     assert!(outcome.scanned.is_some());
 }

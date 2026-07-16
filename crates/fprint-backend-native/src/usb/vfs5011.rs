@@ -19,6 +19,8 @@
 //! plausible (reset → configure → start; stop → reset) but must be finalized against a physical
 //! sensor before any real capture will succeed.
 
+use crate::usb::wire::UsbTransfer;
+
 // The USB identity below is this driver's canonical, HW-verifiable device match. No enumerator
 // consumes it yet (USB device discovery is a later stage), so it is `allow(dead_code)` today; it is
 // part of the driver's definition and is asserted by this module's tests. Kept as named constants
@@ -73,34 +75,20 @@ pub const MAX_FRAME_BYTES: usize = WIDTH * HEIGHT;
 /// VFS5011 resolution must be confirmed: MINDTCT's thresholds are relative to it.
 pub const PPI: u16 = 500;
 
-/// One step of a device bring-up or teardown handshake.
-///
-/// A sequence of these is what [`init_sequence`] / [`deinit_sequence`] describe and what
-/// `crate::usb::UsbFrameSource` replays through a [`crate::UsbTransport`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum InitStep {
-    /// A control transfer: `bmRequestType`, `bRequest`, `wValue`, `wIndex`, then the payload.
-    Control {
-        request_type: u8,
-        request: u8,
-        value: u16,
-        index: u16,
-        data: Vec<u8>,
-    },
-    /// A command written to the bulk-out endpoint.
-    BulkOut(Vec<u8>),
-}
-
 /// The device bring-up handshake, replayed by `crate::usb::UsbFrameSource::arm`.
+///
+/// A bring-up step is just a host-to-device [`UsbTransfer`] (a control transfer or a bulk-out
+/// write), so the handshake shares the one wire vocabulary the rest of the driver records and
+/// replays; a [`UsbTransfer::BulkIn`] never appears here because arm/disarm only write.
 ///
 /// HW-verified: required. The *structure* — a vendor control reset, then a bulk-out configure —
 /// is plausible for this family, but the concrete bytes are placeholders to be confirmed on
 /// hardware. Written originally from that structural spec, not copied from `vfs5011.c`.
 #[must_use]
-pub fn init_sequence() -> Vec<InitStep> {
+pub fn init_sequence() -> Vec<UsbTransfer> {
     vec![
         // Vendor reset (device recipient, host-to-device). Placeholder request/bytes.
-        InitStep::Control {
+        UsbTransfer::Control {
             request_type: 0x40, // OUT | Vendor | Device
             request: 0x01,
             value: 0x0000,
@@ -108,7 +96,10 @@ pub fn init_sequence() -> Vec<InitStep> {
             data: Vec::new(),
         },
         // Configure/prepare the imager. Placeholder command byte.
-        InitStep::BulkOut(vec![0x01]),
+        UsbTransfer::BulkOut {
+            ep: EP_OUT,
+            data: vec![0x01],
+        },
     ]
 }
 
@@ -116,12 +107,15 @@ pub fn init_sequence() -> Vec<InitStep> {
 ///
 /// HW-verified: required. Placeholder stop-then-reset; confirm on hardware.
 #[must_use]
-pub fn deinit_sequence() -> Vec<InitStep> {
+pub fn deinit_sequence() -> Vec<UsbTransfer> {
     vec![
         // Stop imaging. Placeholder command byte.
-        InitStep::BulkOut(vec![0x00]),
+        UsbTransfer::BulkOut {
+            ep: EP_OUT,
+            data: vec![0x00],
+        },
         // Vendor reset back to idle. Placeholder request.
-        InitStep::Control {
+        UsbTransfer::Control {
             request_type: 0x40, // OUT | Vendor | Device
             request: 0x01,
             value: 0x0000,

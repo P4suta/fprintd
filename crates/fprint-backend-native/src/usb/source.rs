@@ -18,7 +18,8 @@ use fprint_core::{Error, Result};
 use crate::frame_source::{Capture, FrameSource};
 use crate::usb::proto;
 use crate::usb::transport::UsbTransport;
-use crate::usb::vfs5011::{self, InitStep};
+use crate::usb::vfs5011;
+use crate::usb::wire::UsbTransfer;
 
 /// A host-image capture source that speaks the VFS5011 protocol over a [`UsbTransport`].
 pub struct UsbFrameSource<T: UsbTransport> {
@@ -50,9 +51,13 @@ impl<T: UsbTransport> UsbFrameSource<T> {
     }
 
     /// Replay one handshake step through the transport.
-    async fn run_step(&mut self, step: &InitStep) -> Result<()> {
+    ///
+    /// A handshake only ever writes to the device, so a [`UsbTransfer::BulkIn`] here is a
+    /// construction bug in the sequence, not a wire condition — the arm/disarm sequences are this
+    /// crate's own [`vfs5011`] data and never contain one.
+    async fn run_step(&mut self, step: &UsbTransfer) -> Result<()> {
         match step {
-            InitStep::Control {
+            UsbTransfer::Control {
                 request_type,
                 request,
                 value,
@@ -63,7 +68,11 @@ impl<T: UsbTransport> UsbFrameSource<T> {
                 .control(*request_type, *request, *value, *index, data)
                 .await
                 .map(|_| ()),
-            InitStep::BulkOut(bytes) => self.transport.bulk_out(self.ep_out, bytes).await,
+            UsbTransfer::BulkOut { ep, data } => self.transport.bulk_out(*ep, data).await,
+            UsbTransfer::BulkIn { .. } => Err(Error::Other(
+                "init/deinit sequence contains a bulk-in transfer, which arm/disarm never replay"
+                    .to_string(),
+            )),
         }
     }
 }

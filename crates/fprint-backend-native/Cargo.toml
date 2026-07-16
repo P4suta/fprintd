@@ -21,6 +21,10 @@ publish = false
 # project goal (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
 default = []
 usb = ["dep:nusb"]
+# Off by default: derives `Serialize`/`Deserialize` on the wire model (`UsbTransfer`/`UsbId`/`Session`)
+# so a captured session round-trips through a file. The driver-author toolkit turns it on to read and
+# write `.cassette` recordings; a plain build carries no serialization code.
+serde = ["dep:serde"]
 
 [dependencies]
 fprint-core = { workspace = true }
@@ -36,8 +40,12 @@ fprint-mindtct = { workspace = true }
 # graph but compiles no USB code. Our wrapper is `#![forbid(unsafe_code)]`; nusb's internal `unsafe`
 # is nusb's concern, quarantined to the leaf transport as `ARCHITECTURE.md` requires.
 nusb = { version = "0.1", optional = true }
-# Otherwise deliberately nothing: no async runtime, no serialization. Straight-line async fns + a
-# hand-rolled yield future (core::future).
+# The wire model's serialization, behind the optional `serde` feature only: a default build derives
+# nothing. Payload bytes are written as a hex string (see `usb::wire`), so a `.cassette` reads and
+# diffs as text.
+serde = { version = "1", features = ["derive"], optional = true }
+# Otherwise deliberately nothing: no async runtime. Straight-line async fns + a hand-rolled yield
+# future (core::future).
 
 [lints]
 workspace = true

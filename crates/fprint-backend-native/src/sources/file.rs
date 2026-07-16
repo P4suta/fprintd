@@ -159,9 +159,12 @@ fn parse_pgm(bytes: &[u8], ppi: u16) -> Result<Frame> {
 }
 
 /// Serialize a [`Frame`] as a binary PGM (`P5`) image with `maxval` 255 (pure; inverse of
-/// [`parse_pgm`] for 8-bit data).
-#[cfg(test)]
-fn write_pgm(frame: &Frame) -> Vec<u8> {
+/// `parse_pgm` for 8-bit data).
+///
+/// Public so a caller that captured a frame can persist or inspect it in a portable image format —
+/// the natural companion to [`FileFrameSource::from_pgm`], which reads one back.
+#[must_use]
+pub fn frame_to_pgm(frame: &Frame) -> Vec<u8> {
     let mut out = format!("P5\n{} {}\n255\n", frame.width, frame.height).into_bytes();
     out.extend_from_slice(&frame.data);
     out
@@ -234,7 +237,7 @@ mod tests {
     #[test]
     fn pgm_round_trips_exactly() {
         let frame = tiny_frame();
-        let pgm = write_pgm(&frame);
+        let pgm = frame_to_pgm(&frame);
         let parsed = parse_pgm(&pgm, 500).expect("valid PGM parses");
         assert_eq!(parsed.width, frame.width);
         assert_eq!(parsed.height, frame.height);

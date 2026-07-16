@@ -65,6 +65,35 @@ impl NusbTransport {
     pub fn new(iface: nusb::Interface) -> Self {
         NusbTransport { iface }
     }
+
+    /// Open the first bus device matching `id` and claim its interface 0.
+    ///
+    /// HW-verified: required. The enumeration and claim shapes render `nusb` 0.1's API, and
+    /// interface 0 is the assumed control/bulk interface; the real interface number, and that any
+    /// bytes flow at all, can only be confirmed against a physical sensor. This is the live seam
+    /// `fpdev shell` drives; nothing offline depends on it.
+    ///
+    /// # Errors
+    /// [`fprint_core::Error::Transport`] if no matching device is present, or the OS refuses the
+    /// open or the interface claim.
+    pub fn open(id: super::UsbId) -> Result<Self> {
+        let info = nusb::list_devices()
+            .map_err(|e| fprint_core::Error::Transport(format!("list USB devices: {e}")))?
+            .find(|d| d.vendor_id() == id.vid && d.product_id() == id.pid)
+            .ok_or_else(|| {
+                fprint_core::Error::Transport(format!(
+                    "no device {:04x}:{:04x} on the bus",
+                    id.vid, id.pid
+                ))
+            })?;
+        let device = info.open().map_err(|e| {
+            fprint_core::Error::Transport(format!("open {:04x}:{:04x}: {e}", id.vid, id.pid))
+        })?;
+        let iface = device
+            .claim_interface(0)
+            .map_err(|e| fprint_core::Error::Transport(format!("claim interface 0: {e}")))?;
+        Ok(NusbTransport { iface })
+    }
 }
 
 #[cfg(feature = "usb")]

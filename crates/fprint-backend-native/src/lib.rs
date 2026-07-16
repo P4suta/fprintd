@@ -40,6 +40,7 @@ mod backend;
 mod builder;
 mod detector;
 mod device;
+pub mod device_db;
 mod frame;
 mod frame_source;
 mod image_backend;
@@ -56,17 +57,21 @@ pub use backend::VirtualBackend;
 pub use builder::{DeviceShape, VirtualDeviceBuilder};
 pub use detector::{extract_minutiae, minutia_to_core, template_from_images};
 pub use device::VirtualDevice;
+pub use device_db::{lookup as lookup_device, DeviceRecord, Family};
 pub use frame::Frame;
 pub use frame_source::{Capture, FrameSource};
 pub use image_backend::ImageBackend;
 pub use image_device::ImageDevice;
 pub use matcher::{minutiae_to_bozorth, nbis_identify, nbis_match_score};
 pub use scenario::{CaptureOutcome, EnrollScript, FingerId, Scenario};
-pub use sources::{FileFrameSource, SyntheticFrameSource};
+pub use sources::{frame_to_pgm, FileFrameSource, SyntheticFrameSource};
 /// The real `nusb`-backed transport is public only when the `usb` feature is on.
 #[cfg(feature = "usb")]
 pub use usb::NusbTransport;
-pub use usb::{UsbFrameSource, UsbTransport};
+pub use usb::{
+    assemble_frame, encode_frame_header, parse_frame_header, ScriptedTransport, Session,
+    UsbFrameSource, UsbId, UsbTransfer, UsbTransport, FRAME_HEADER_LEN, FRAME_MAGIC,
+};
 
 /// The types a caller reaches for first: build a device, script it, drive it.
 ///

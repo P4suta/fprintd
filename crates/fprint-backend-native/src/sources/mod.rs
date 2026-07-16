@@ -11,5 +11,5 @@
 mod file;
 mod synthetic;
 
-pub use file::FileFrameSource;
+pub use file::{frame_to_pgm, FileFrameSource};
 pub use synthetic::SyntheticFrameSource;

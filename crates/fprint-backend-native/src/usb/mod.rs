@@ -21,8 +21,11 @@
 //!   "usb")]`, so a default build pulls no USB stack at all.
 //! - [`source::UsbFrameSource`] is a [`crate::FrameSource`] generic over any `UsbTransport`, so
 //!   `ImageDevice<UsbFrameSource<NusbTransport>>` runs the genuine host-image pipeline over real
-//!   hardware, and `ImageDevice<UsbFrameSource<MockTransport>>` exercises the same code path with
-//!   scripted bytes and no hardware.
+//!   hardware, and `ImageDevice<UsbFrameSource<ScriptedTransport>>` exercises the same code path
+//!   with scripted bytes and no hardware.
+//! - `wire` is the transport-agnostic record of USB traffic ([`wire::UsbTransfer`] / [`wire::Session`]);
+//!   `scripted` ([`scripted::ScriptedTransport`]) replays a recording through the trait so a capture
+//!   round-trips offline, and `vfs5011`'s init/deinit sequences are expressed in that same vocabulary.
 //! - `vfs5011` holds the Validity VFS5011 device constants and init/deinit sequences, written as
 //!   original code from interoperability facts (see that module's provenance note).
 //!
@@ -31,15 +34,22 @@
 //! only be confirmed against physical hardware. Such spots are marked "HW-verified: required".
 
 pub mod proto;
+pub mod scripted;
 mod source;
 mod transport;
 mod vfs5011;
+pub mod wire;
 
 #[cfg(test)]
 mod mock_tests;
 
+pub use proto::{
+    assemble_frame, encode_frame_header, parse_frame_header, FRAME_HEADER_LEN, FRAME_MAGIC,
+};
+pub use scripted::ScriptedTransport;
 pub use source::UsbFrameSource;
 pub use transport::UsbTransport;
+pub use wire::{Session, UsbId, UsbTransfer};
 
 // The real transport is the sole feature-gated surface; the rest of the module is always built.
 #[cfg(feature = "usb")]
