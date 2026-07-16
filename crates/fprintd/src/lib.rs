@@ -48,7 +48,7 @@ use crate::actor::DeviceActor;
 use crate::device::Device;
 use crate::manager::Manager;
 
-pub use crate::authorizer::{Authorizer, PolkitAction, PolkitAuthorizer};
+pub use crate::authorizer::{ActionSet, Authorizer, PolkitAction, PolkitAuthorizer};
 pub use crate::error::DaemonError;
 pub use crate::error::DaemonError as Error;
 pub use crate::storage::Store;
@@ -157,8 +157,9 @@ where
 /// The `fprintd` binary entry point. Serves `net.reactivated.Fprint` on the system bus using
 /// the libfprint shim, until `SIGINT`/`SIGTERM`.
 ///
-/// `--test-mode` swaps PolicyKit for [`Authorizer::AllowAll`], for bring-up against a virtual
-/// libfprint device without a running PolicyKit daemon.
+/// `--test-mode` swaps PolicyKit for [`Authorizer::Fixed`] granting [`ActionSet::ALL`], for
+/// bring-up against a virtual libfprint device without a running PolicyKit daemon. Packaging must
+/// never pass it: `cargo xtask unit-verify` refuses a unit whose `ExecStart` names it.
 pub fn run() {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -184,7 +185,7 @@ pub fn run() {
 async fn serve(test_mode: bool) -> Result<(), DaemonError> {
     let authz: Arc<Authorizer> = if test_mode {
         tracing::warn!("running in --test-mode: PolicyKit checks are DISABLED");
-        Arc::new(Authorizer::AllowAll)
+        Arc::new(Authorizer::Fixed(ActionSet::ALL))
     } else {
         Arc::new(Authorizer::Polkit(PolkitAuthorizer::new().await?))
     };

@@ -17,16 +17,27 @@
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Finger {
+    /// `FP_FINGER_UNKNOWN`: no finger recorded. Not one of [`Finger::ALL`].
     Unknown = 0,
+    /// `FP_FINGER_LEFT_THUMB`.
     LeftThumb = 1,
+    /// `FP_FINGER_LEFT_INDEX`.
     LeftIndex = 2,
+    /// `FP_FINGER_LEFT_MIDDLE`.
     LeftMiddle = 3,
+    /// `FP_FINGER_LEFT_RING`.
     LeftRing = 4,
+    /// `FP_FINGER_LEFT_LITTLE`.
     LeftLittle = 5,
+    /// `FP_FINGER_RIGHT_THUMB`.
     RightThumb = 6,
+    /// `FP_FINGER_RIGHT_INDEX`.
     RightIndex = 7,
+    /// `FP_FINGER_RIGHT_MIDDLE`.
     RightMiddle = 8,
+    /// `FP_FINGER_RIGHT_RING`.
     RightRing = 9,
+    /// `FP_FINGER_RIGHT_LITTLE`.
     RightLittle = 10,
 }
 
@@ -87,6 +98,28 @@ mod tests {
         }
         assert_eq!(Finger::from_u8(0), Some(Finger::Unknown));
         assert_eq!(Finger::from_u8(11), None);
+    }
+
+    /// [`Finger::from_u8`] is total over its input, so the accepted set is checked over the whole
+    /// byte rather than at the `10`/`11` boundary: **`Some` iff `0..=10`.**
+    #[test]
+    fn from_u8_accepts_exactly_zero_through_ten() {
+        for v in u8::MIN..=u8::MAX {
+            let decoded = Finger::from_u8(v);
+            assert_eq!(decoded.is_some(), v <= 10, "from_u8({v}) = {decoded:?}");
+            // Whatever it decodes to must encode back to the byte it came from.
+            if let Some(f) = decoded {
+                assert_eq!(f.as_u8(), v);
+            }
+        }
+    }
+
+    /// [`Finger::ALL`] is the ten real fingers — `Unknown` is not one of them — in byte order.
+    #[test]
+    fn all_lists_the_ten_real_fingers_in_byte_order() {
+        let bytes: Vec<u8> = Finger::ALL.iter().map(|f| f.as_u8()).collect();
+        assert_eq!(bytes, (1..=10).collect::<Vec<u8>>());
+        assert!(!Finger::ALL.contains(&Finger::Unknown));
     }
 
     #[test]

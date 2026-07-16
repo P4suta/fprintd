@@ -6,8 +6,10 @@
 //!
 //! Hand-rolled (no `thiserror`), matching `fprint-core`'s error type. The failure modes are
 //! the ways a byte stream can fail to be a well-formed FP3 template: the `"FP3"` magic, the
-//! fixed GVariant tuple framing, the three `FpiPrintType` payload kinds, and the per-sample
-//! "three equal-length arrays" rule.
+//! fixed GVariant tuple framing, the three `FpiPrintType` payload kinds, the per-sample
+//! "three equal-length arrays" rule, and the Julian day's range.
+
+use fprint_core::EnrollDate;
 
 /// Crate result alias.
 pub type Result<T> = core::result::Result<T, Fp3Error>;
@@ -38,6 +40,11 @@ pub enum Fp3Error {
     UnevenSampleArrays,
     /// The `finger` byte was outside the `FpFinger` range (`0..=10`).
     BadFinger(u8),
+    /// The [`EnrollDate`](fprint_core::EnrollDate) has no FP3 Julian day: an `i32` year spans
+    /// further than an `i32` count of days, so dates outside
+    /// `-5879610-06-23 ..= 5879611-07-11` are unrepresentable, as is the single date whose
+    /// Julian day would collide with the `G_MININT32` "unset" sentinel.
+    DateOutOfRange(EnrollDate),
 }
 
 impl core::fmt::Display for Fp3Error {
@@ -53,6 +60,11 @@ impl core::fmt::Display for Fp3Error {
                 f.write_str("NBIS sample x/y/theta arrays have unequal lengths")
             }
             Fp3Error::BadFinger(b) => write!(f, "invalid finger byte: {b}"),
+            Fp3Error::DateOutOfRange(d) => write!(
+                f,
+                "enroll date {}-{}-{} has no FP3 Julian day",
+                d.year, d.month, d.day
+            ),
         }
     }
 }

@@ -63,3 +63,88 @@ pub(crate) fn prepare(minutiae: &[Minutia], max: usize) -> Prepared {
     }
     Prepared { nrows, x, y, theta }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::consts::DEFAULT_BOZORTH_MINUTIAE;
+
+    fn m(x: i32, y: i32, theta: i32) -> Minutia {
+        Minutia { x, y, theta }
+    }
+
+    /// The `(x, y)` columns as pairs, for asserting order without three parallel indexes.
+    fn xy(p: &Prepared) -> Vec<(i32, i32)> {
+        p.x.iter().copied().zip(p.y.iter().copied()).collect()
+    }
+
+    #[test]
+    fn prepare_sorts_by_x_then_y() {
+        let p = prepare(&[m(3, 1, 0), m(1, 9, 0), m(3, 0, 0), m(1, 2, 0)], 150);
+        assert_eq!(xy(&p), [(1, 2), (1, 9), (3, 0), (3, 1)]);
+    }
+
+    #[test]
+    fn prepare_theta_is_single_conditional_subtract() {
+        // Canonical input (`0..=359`) lands in `(-180, 180]` — what stage 1 expects.
+        for (input, want) in [
+            (0, 0),
+            (1, 1),
+            (180, 180),
+            (181, -179),
+            (270, -90),
+            (359, -1),
+        ] {
+            let p = prepare(&[m(0, 0, input)], 150);
+            assert_eq!(p.theta[0], want, "canonical theta {input}");
+        }
+        // Non-canonical input is not folded: one subtract happens, or none. These are the values
+        // that make "any integer is folded into 0..=359" false, and they are the reference's
+        // behaviour, not ours — a `rem_euclid` "fix" here would move every score.
+        for (input, want) in [(360, 0), (400, 40), (-90, -90), (720, 360), (-270, -270)] {
+            let p = prepare(&[m(0, 0, input)], 150);
+            assert_eq!(p.theta[0], want, "non-canonical theta {input}");
+        }
+    }
+
+    #[test]
+    fn prepare_caps_at_max_in_input_order() {
+        // 200 minutiae at descending x, so input order and sorted order disagree everywhere. The
+        // cap keeps the first `max` *as given*, then sorts; it does not keep the 150 smallest x.
+        let input: Vec<Minutia> = (0..200).map(|i| m(200 - i, 0, 0)).collect();
+        let p = prepare(&input, DEFAULT_BOZORTH_MINUTIAE);
+        assert_eq!(p.nrows, DEFAULT_BOZORTH_MINUTIAE);
+        // The first 150 given were x = 200 down to 51; sorting puts 51 first and 200 last.
+        assert_eq!(p.x.first(), Some(&51));
+        assert_eq!(p.x.last(), Some(&200));
+    }
+
+    #[test]
+    fn prepare_is_stable_for_duplicate_xy() {
+        // Same pixel, different theta: the reference's qsort leaves this order unspecified, so we
+        // pin ours. Input order decides.
+        let p = prepare(&[m(5, 5, 10), m(5, 5, 20), m(5, 5, 30)], 150);
+        assert_eq!(p.theta, [10, 20, 30]);
+    }
+
+    #[test]
+    fn prepare_keeps_columns_row_aligned() {
+        // Three parallel Vecs are built from one row list; a reorder that touched one and not the
+        // others would still sort correctly and still be wrong.
+        let p = prepare(&[m(9, 90, 9), m(1, 10, 1), m(5, 50, 5)], 150);
+        for i in 0..p.nrows {
+            assert_eq!(p.y[i], p.x[i] * 10, "row {i} lost its y");
+            assert_eq!(p.theta[i], p.x[i], "row {i} lost its theta");
+        }
+    }
+
+    #[test]
+    fn prepare_empty_and_single() {
+        let empty = prepare(&[], 150);
+        assert_eq!(empty.nrows, 0);
+        assert!(empty.x.is_empty() && empty.y.is_empty() && empty.theta.is_empty());
+
+        let one = prepare(&[m(7, 8, 9)], 150);
+        assert_eq!((one.nrows, one.x[0], one.y[0], one.theta[0]), (1, 7, 8, 9));
+    }
+}

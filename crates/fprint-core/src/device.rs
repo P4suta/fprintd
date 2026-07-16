@@ -19,6 +19,32 @@
 //! Every operation takes `&mut self`, so the borrow checker forbids concurrent
 //! enroll/verify on one device — libfprint's single-in-flight-operation contract enforced
 //! by the type system rather than runtime checks.
+//!
+//! The pair of doctests below is the proof, and **only the pair proves anything**: a lone
+//! `compile_fail` passes for any reason at all, including a typo. These two differ in exactly one
+//! thing — whether the two futures are alive at once — so the failure is attributable to the
+//! overlap. Both are generic over `D: Device`, so the borrow checker rejects at the trait bound
+//! and no implementor is needed.
+//!
+//! The `E0499` on the negative states the intended cause; stable rustdoc does not verify it, so
+//! attribution rests on the control, not on the code.
+//!
+//! The positive control — the two operations in sequence compile:
+//! ```
+//! async fn sequential<D: fprint_core::Device>(dev: &mut D, p: &fprint_core::Print) {
+//!     let _ = dev.enroll(p.clone(), |_| {}).await;
+//!     let _ = dev.verify(p).await;
+//! }
+//! ```
+//!
+//! The negative — the same two operations overlapping do not:
+//! ```compile_fail,E0499
+//! fn concurrent<D: fprint_core::Device>(dev: &mut D, p: &fprint_core::Print) {
+//!     let enrolling = dev.enroll(p.clone(), |_| {});
+//!     let verifying = dev.verify(p);
+//!     let _ = (enrolling, verifying);
+//! }
+//! ```
 
 use crate::error::RetryReason;
 use crate::{DeviceFeature, Print, Result, ScanType};
@@ -35,12 +61,15 @@ pub struct DriverId(pub String);
 /// Static description of a device, known once it is discovered.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DeviceInfo {
+    /// Backend-assigned identity of this reader.
     pub id: DeviceId,
     /// Driver id, which templates are bound to.
     pub driver: DriverId,
     /// Human-readable model name.
     pub name: String,
+    /// How the finger is presented to this sensor.
     pub scan_type: ScanType,
+    /// Everything this device advertises it can do; query it via [`Device::has_feature`].
     pub features: DeviceFeature,
     /// Number of finger presentations a full enrollment needs.
     pub enroll_stages: u32,
@@ -51,6 +80,7 @@ pub struct DeviceInfo {
 pub struct EnrollProgress {
     /// Stages completed so far (`0..=total_stages`).
     pub completed_stages: u32,
+    /// Stages a full enrollment needs, mirroring [`DeviceInfo::enroll_stages`].
     pub total_stages: u32,
     /// `Some` when this capture failed and the user should present the finger again;
     /// the stage count did not advance.
@@ -60,6 +90,7 @@ pub struct EnrollProgress {
 /// Result of a 1:1 [`Device::verify`].
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct VerifyOutcome {
+    /// Whether the scan matched the enrolled print.
     pub matched: bool,
     /// The freshly scanned print, when the backend surfaces it (host-side sensors do; many
     /// match-on-chip sensors do not).
@@ -71,6 +102,7 @@ pub struct VerifyOutcome {
 pub struct IdentifyOutcome {
     /// Index into the gallery passed to `identify`, or `None` for no match.
     pub match_index: Option<usize>,
+    /// The freshly scanned print, on the same terms as [`VerifyOutcome::scanned`].
     pub scanned: Option<Print>,
 }
 
@@ -137,6 +169,7 @@ pub trait Device {
 /// The associated `Device` type keeps this on static dispatch.
 #[allow(async_fn_in_trait)]
 pub trait Backend {
+    /// The concrete reader type this backend hands out.
     type Device: Device;
 
     /// Enumerate the readers currently attached.
@@ -144,4 +177,86 @@ pub trait Backend {
 
     /// Open a specific reader by id (convenience over `enumerate` + find).
     async fn open(&self, id: &DeviceId) -> Result<Self::Device>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Device, DeviceId, DeviceInfo, DriverId, EnrollProgress, IdentifyOutcome};
+    use crate::feature::FLAGS;
+    use crate::{DeviceFeature, Print, Result, ScanType, VerifyOutcome};
+
+    /// Carries a [`DeviceInfo`] and nothing else. Only `info` is ever called: [`Device::has_feature`]
+    /// is a default method over it, so the sensor operations need no bodies to test it.
+    struct InfoOnly(DeviceInfo);
+
+    impl Device for InfoOnly {
+        fn info(&self) -> &DeviceInfo {
+            &self.0
+        }
+
+        async fn open(&mut self) -> Result<()> {
+            todo!("has_feature never opens the device")
+        }
+        async fn close(&mut self) -> Result<()> {
+            todo!("has_feature never opens the device")
+        }
+        async fn enroll<F: FnMut(EnrollProgress)>(&mut self, _: Print, _: F) -> Result<Print> {
+            todo!("has_feature never scans")
+        }
+        async fn verify(&mut self, _: &Print) -> Result<VerifyOutcome> {
+            todo!("has_feature never scans")
+        }
+        async fn identify(&mut self, _: &[Print]) -> Result<IdentifyOutcome> {
+            todo!("has_feature never scans")
+        }
+        async fn list_prints(&mut self) -> Result<Vec<Print>> {
+            todo!("has_feature never touches storage")
+        }
+        async fn delete_print(&mut self, _: &Print) -> Result<()> {
+            todo!("has_feature never touches storage")
+        }
+        async fn clear_storage(&mut self) -> Result<()> {
+            todo!("has_feature never touches storage")
+        }
+        async fn suspend(&mut self) -> Result<()> {
+            todo!("has_feature never suspends")
+        }
+        async fn resume(&mut self) -> Result<()> {
+            todo!("has_feature never suspends")
+        }
+    }
+
+    fn device_with(features: DeviceFeature) -> InfoOnly {
+        InfoOnly(DeviceInfo {
+            id: DeviceId("test-0".to_string()),
+            driver: DriverId("test".to_string()),
+            name: "Test Reader".to_string(),
+            scan_type: ScanType::Press,
+            features,
+            enroll_stages: 1,
+        })
+    }
+
+    /// **`has_feature` is `info().features.contains`, for every representable set and every defined
+    /// flag** — the default body must not develop a rule of its own.
+    ///
+    /// The sets and the flags both come from [`crate::feature::FLAGS`], so an eleventh flag widens
+    /// this test on its own rather than escaping it.
+    #[test]
+    fn has_feature_agrees_with_the_advertised_set() {
+        let defined = DeviceFeature::from_bits_truncate(u32::MAX).bits();
+        for bits in 0..=u32::from(defined) {
+            let advertised = DeviceFeature::from_bits_truncate(bits);
+            let device = device_with(advertised);
+            for flag in
+                core::iter::once(DeviceFeature::NONE).chain(FLAGS.into_iter().map(|(f, _)| f))
+            {
+                assert_eq!(
+                    device.has_feature(flag),
+                    advertised.contains(flag),
+                    "{advertised:?}.has_feature({flag:?})"
+                );
+            }
+        }
+    }
 }

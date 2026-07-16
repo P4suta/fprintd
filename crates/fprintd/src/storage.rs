@@ -13,11 +13,28 @@
 //!
 //! `<root>` follows systemd's `STATE_DIRECTORY` (first entry of a colon-separated list) and
 //! falls back to `/var/lib/fprint`, exactly as upstream.
+//!
+//! # The trust boundary
+//!
+//! `<user>` arrives from a D-Bus caller (`device::resolve_user`), `<driver>` and `<device_id>`
+//! from the backend. None of the three is a trusted file name, so [`component`] checks all
+//! three: **`Path::join` replaces the base when the component is absolute, and `..` steps out
+//! of the tree** — either would aim this module's root-privileged `mkdir`, write and unlink at
+//! a path the caller picked. Reaching that through `<user>` requires the `setusername`
+//! authorization, so it is an escalation from an authorized administrator to arbitrary root
+//! write, not an unauthenticated hole. The store owns the layout, so the store decides what a
+//! legal component is (ARCHITECTURE.md principle 3).
+//!
+//! The store follows symlinks: `<root>/eve -> <root>/alice` makes a save as `eve` overwrite
+//! alice's print, which `a_symlinked_user_directory_is_followed` pins. Planting that link means
+//! creating an entry in a root-owned `0700` tree, so the mitigation is that mode — set here and
+//! pinned by `a_directory_is_created_0700` — and not `O_NOFOLLOW` on every open, which would
+//! defend a root-owned directory against root.
 
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use fprint_core::{DeviceId, DriverId, Finger, Print};
 
@@ -71,6 +88,30 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
+/// The one spelling this store accepts for a path component: a single, ordinary file name.
+///
+/// Everything else is refused — absolute paths, `.`, `..`, embedded separators, the empty
+/// string, interior NUL. Each of those either escapes the store root or cannot be a file name.
+fn component(s: &str) -> Result<&str, DaemonError> {
+    let mut parts = Path::new(s).components();
+    // `Components` yields `/` as `RootDir`, `.` as `CurDir` and `..` as `ParentDir`, so one
+    // lone `Normal` is already none of those, and anything with a separator inside yields two.
+    // What is left is that `Components` normalizes: `a/` parses as the single `Normal` `a`.
+    // Demanding the component be spelled exactly as it parses is what refuses that.
+    let legal = match (parts.next(), parts.next()) {
+        (Some(Component::Normal(only)), None) => only.to_str() == Some(s),
+        _ => false,
+    };
+    // A NUL parses as an ordinary `Normal` but cannot cross a syscall. Refusing it here makes
+    // every rejection one `DaemonError`, not an `InvalidInput` from some later `open`.
+    if !legal || s.contains('\0') {
+        return Err(DaemonError::Internal(format!(
+            "illegal path component {s:?}"
+        )));
+    }
+    Ok(s)
+}
+
 /// The on-disk print store rooted at a state directory.
 #[derive(Clone, Debug)]
 pub struct Store {
@@ -99,9 +140,20 @@ impl Store {
         Store { root: root.into() }
     }
 
-    /// `<root>/<user>/<driver>/<device_id>`.
-    fn dir(&self, user: &str, driver: &DriverId, device_id: &DeviceId) -> PathBuf {
-        self.root.join(user).join(&driver.0).join(&device_id.0)
+    /// `<root>/<user>/<driver>/<device_id>`, or an error if any of the three is not a legal
+    /// file name. Every path this store touches is built here, so this is the only place the
+    /// check has to hold.
+    fn dir(
+        &self,
+        user: &str,
+        driver: &DriverId,
+        device_id: &DeviceId,
+    ) -> Result<PathBuf, DaemonError> {
+        Ok(self
+            .root
+            .join(component(user)?)
+            .join(component(&driver.0)?)
+            .join(component(&device_id.0)?))
     }
 
     /// `<root>/<user>/<driver>/<device_id>/<hex-finger>`.
@@ -111,9 +163,10 @@ impl Store {
         driver: &DriverId,
         device_id: &DeviceId,
         finger: Finger,
-    ) -> PathBuf {
-        self.dir(user, driver, device_id)
-            .join(format!("{:x}", finger.as_u8()))
+    ) -> Result<PathBuf, DaemonError> {
+        Ok(self
+            .dir(user, driver, device_id)?
+            .join(format!("{:x}", finger.as_u8())))
     }
 
     /// Serialize `print` to FP3 and write it to its canonical path (creating the directory
@@ -139,7 +192,7 @@ impl Store {
         let bytes = fprint_fp3::to_bytes(print)
             .map_err(|e| DaemonError::Internal(format!("FP3 serialize failed: {e}")))?;
 
-        let dir = self.dir(user, driver, device_id);
+        let dir = self.dir(user, driver, device_id)?;
         fs::DirBuilder::new()
             .recursive(true)
             .mode(DIR_MODE)
@@ -161,7 +214,7 @@ impl Store {
         device_id: &DeviceId,
         finger: Finger,
     ) -> Option<Print> {
-        let path = self.print_path(user, driver, device_id, finger);
+        let path = self.print_path(user, driver, device_id, finger).ok()?;
         let bytes = fs::read(&path).ok()?;
         let print = fprint_fp3::from_bytes(&bytes).ok()?;
 
@@ -180,8 +233,10 @@ impl Store {
     /// The fingers enrolled for `user` on this device: entries whose name is a single hex
     /// digit naming a valid real finger (`1..=10`).
     pub fn list_fingers(&self, user: &str, driver: &DriverId, device_id: &DeviceId) -> Vec<Finger> {
-        let dir = self.dir(user, driver, device_id);
         let mut fingers = Vec::new();
+        let Ok(dir) = self.dir(user, driver, device_id) else {
+            return fingers;
+        };
         let Ok(entries) = fs::read_dir(&dir) else {
             return fingers;
         };
@@ -211,7 +266,7 @@ impl Store {
         device_id: &DeviceId,
         finger: Finger,
     ) -> Result<(), DaemonError> {
-        let path = self.print_path(user, driver, device_id, finger);
+        let path = self.print_path(user, driver, device_id, finger)?;
         match fs::remove_file(&path) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -246,6 +301,20 @@ mod tests {
 
     const USER: &str = "tester";
 
+    /// Spellings that must never reach the filesystem as a path component. Each one either
+    /// escapes the store root, names something that is not a single directory, or cannot be a
+    /// file name at all.
+    const HOSTILE: &[&str] = &[
+        "/tmp/pwned",
+        "../../../../tmp/pwned",
+        "a/../../b",
+        "..",
+        ".",
+        "",
+        "a/b",
+        "al\0ice",
+    ];
+
     fn ids() -> (DriverId, DeviceId) {
         (
             DriverId("virtual_image".into()),
@@ -261,14 +330,242 @@ mod tests {
         Store::with_root(root)
     }
 
-    fn print_of(bytes_tag: &str) -> Print {
-        let (driver, device_id) = ids();
-        let mut p = Print::new_for_enroll(Finger::RightIndex);
-        p.username = Some(USER.to_string());
-        p.driver = Some(driver);
+    fn print_for(user: &str, driver: &DriverId, finger: Finger, bytes_tag: &str) -> Print {
+        let (_, device_id) = ids();
+        let mut p = Print::new_for_enroll(finger);
+        p.username = Some(user.to_string());
+        p.driver = Some(driver.clone());
         p.device_id = Some(device_id);
         p.template = Template::Raw(bytes_tag.as_bytes().to_vec());
         p
+    }
+
+    fn print_of(bytes_tag: &str) -> Print {
+        print_for(USER, &ids().0, Finger::RightIndex, bytes_tag)
+    }
+
+    /// Assert that `dir_of` refuses every hostile spelling, and — stated independently of the
+    /// refusal, because it is the property the refusal exists to protect — that anything it
+    /// does accept stays under `root`.
+    fn assert_refuses_hostile(
+        what: &str,
+        root: &Path,
+        mut dir_of: impl FnMut(&str) -> Result<PathBuf, DaemonError>,
+    ) {
+        for hostile in HOSTILE {
+            let built = dir_of(hostile);
+            if let Ok(path) = &built {
+                assert!(
+                    path.starts_with(root),
+                    "{what} {hostile:?} escaped the store root: {}",
+                    path.display()
+                );
+            }
+            assert!(built.is_err(), "{what} {hostile:?} must be refused");
+        }
+    }
+
+    /// `<user>` is caller-supplied, so this is the boundary that matters: `save` runs `mkdir`
+    /// and an atomic write as root, and `delete` unlinks as root, all at `dir`'s result.
+    #[test]
+    fn a_hostile_username_cannot_escape_the_store_root() {
+        let store = store("hostile-user");
+        let (driver, device_id) = ids();
+        let root = store.root.clone();
+
+        assert_refuses_hostile("username", &root, |user| {
+            store.dir(user, &driver, &device_id)
+        });
+        // `print_path` is the one `load` and `delete` open, so pin it too rather than trusting
+        // that it still goes through `dir`.
+        assert_refuses_hostile("username", &root, |user| {
+            store.print_path(user, &driver, &device_id, Finger::RightIndex)
+        });
+    }
+
+    /// `<driver>` and `<device_id>` come from the backend, which derives them from strings the
+    /// device reports and from `FP_VIRTUAL_DEVICE`. Defence in depth: the store does not model
+    /// its backend as trusted.
+    #[test]
+    fn a_hostile_driver_or_device_id_cannot_escape_the_store_root() {
+        let store = store("hostile-ids");
+        let (driver, device_id) = ids();
+        let root = store.root.clone();
+
+        assert_refuses_hostile("driver", &root, |d| {
+            store.dir(USER, &DriverId(d.to_string()), &device_id)
+        });
+        assert_refuses_hostile("device id", &root, |d| {
+            store.dir(USER, &driver, &DeviceId(d.to_string()))
+        });
+    }
+
+    /// The directory layout is not by itself what separates one user's prints from another's:
+    /// `load` re-checks the username the blob carries. Without that, a print planted in — or
+    /// left behind in — the wrong directory would return as this user's.
+    #[test]
+    fn a_print_belonging_to_another_user_does_not_load() {
+        let store = store("cross-user");
+        let (driver, device_id) = ids();
+        store
+            .save(&print_for("alice", &driver, Finger::RightIndex, "alice's"))
+            .expect("save alice");
+
+        // Alice's blob, byte for byte, in bob's directory.
+        let alice = store
+            .print_path("alice", &driver, &device_id, Finger::RightIndex)
+            .expect("alice's path");
+        let bob = store
+            .print_path("bob", &driver, &device_id, Finger::RightIndex)
+            .expect("bob's path");
+        fs::create_dir_all(bob.parent().expect("bob's dir")).expect("create bob's dir");
+        fs::copy(&alice, &bob).expect("plant alice's print on bob");
+
+        assert!(
+            store
+                .load("bob", &driver, &device_id, Finger::RightIndex)
+                .is_none(),
+            "a print naming alice must not load as bob's"
+        );
+        assert!(
+            store
+                .load("alice", &driver, &device_id, Finger::RightIndex)
+                .is_some(),
+            "the guard must reject the planted copy, not the format"
+        );
+    }
+
+    /// The file name encodes the finger, and `load` re-checks it against the blob.
+    #[test]
+    fn a_print_stored_under_another_fingers_name_does_not_load() {
+        let store = store("cross-finger");
+        let (driver, device_id) = ids();
+        store.save(&print_of("right index")).expect("save");
+
+        let right = store
+            .print_path(USER, &driver, &device_id, Finger::RightIndex)
+            .expect("right index path");
+        let left = store
+            .print_path(USER, &driver, &device_id, Finger::LeftIndex)
+            .expect("left index path");
+        fs::copy(&right, &left).expect("plant it as the left index");
+
+        assert!(
+            store
+                .load(USER, &driver, &device_id, Finger::LeftIndex)
+                .is_none(),
+            "a right-index print must not load as the left index"
+        );
+    }
+
+    /// The directory encodes the driver, and `load` re-checks it: a template from one driver is
+    /// not meaningful to another.
+    #[test]
+    fn a_print_from_another_driver_does_not_load() {
+        let store = store("cross-driver");
+        let (driver, device_id) = ids();
+        let other = DriverId("upektc_img".into());
+        store.save(&print_of("virtual")).expect("save");
+
+        let src = store
+            .print_path(USER, &driver, &device_id, Finger::RightIndex)
+            .expect("source path");
+        let dst = store
+            .print_path(USER, &other, &device_id, Finger::RightIndex)
+            .expect("other driver's path");
+        fs::create_dir_all(dst.parent().expect("other driver's dir")).expect("create it");
+        fs::copy(&src, &dst).expect("plant it under the other driver");
+
+        assert!(
+            store
+                .load(USER, &other, &device_id, Finger::RightIndex)
+                .is_none(),
+            "a print naming another driver must not load"
+        );
+    }
+
+    /// Every directory the store creates is `0700`. The file mode alone is not enough: a
+    /// traversable tree lets another local user list which fingers a user enrolled.
+    ///
+    /// The root itself is not asserted — systemd's `StateDirectory` owns its mode, not this
+    /// module.
+    #[test]
+    fn a_directory_is_created_0700() {
+        let store = store("dir-mode");
+        let (driver, device_id) = ids();
+        store.save(&print_of("first")).expect("save");
+
+        let user_dir = store.root.join(USER);
+        let driver_dir = user_dir.join(&driver.0);
+        let device_dir = driver_dir.join(&device_id.0);
+        for level in [&user_dir, &driver_dir, &device_dir] {
+            let mode = fs::metadata(level).expect("stat").permissions().mode() & 0o777;
+            assert_eq!(
+                mode,
+                DIR_MODE,
+                "{} must not be readable by other local users",
+                level.display()
+            );
+        }
+    }
+
+    /// Deleting the last print prunes the emptied tree, and stops at the root: the store does
+    /// not remove the state directory it was handed.
+    #[test]
+    fn delete_prunes_no_further_than_the_root() {
+        let store = store("prune");
+        let (driver, device_id) = ids();
+        store.save(&print_of("only")).expect("save");
+
+        store
+            .delete(USER, &driver, &device_id, Finger::RightIndex)
+            .expect("delete");
+
+        assert!(
+            !store.root.join(USER).exists(),
+            "the emptied user directory must be pruned"
+        );
+        assert!(
+            store.root.is_dir(),
+            "the store root must survive its last print"
+        );
+    }
+
+    /// The store follows symlinks — this pins that, it does not endorse it. `root/eve ->
+    /// root/alice` makes a save as eve land on alice's print. Planting the link requires
+    /// creating an entry in a root-owned `0700` tree, so the mode asserted by
+    /// `a_directory_is_created_0700` is the mitigation; `O_NOFOLLOW` here would defend a
+    /// root-owned directory against root.
+    #[test]
+    fn a_symlinked_user_directory_is_followed() {
+        let store = store("symlink");
+        let (driver, device_id) = ids();
+        store
+            .save(&print_for("alice", &driver, Finger::RightIndex, "alice's"))
+            .expect("save alice");
+
+        std::os::unix::fs::symlink(store.root.join("alice"), store.root.join("eve"))
+            .expect("link eve at alice");
+        store
+            .save(&print_for("eve", &driver, Finger::RightIndex, "eve's"))
+            .expect("save eve");
+
+        let alice = store
+            .print_path("alice", &driver, &device_id, Finger::RightIndex)
+            .expect("alice's path");
+        let landed = fprint_fp3::from_bytes(&fs::read(&alice).expect("read alice's file"))
+            .expect("parse what landed there");
+        assert_eq!(
+            landed.username.as_deref(),
+            Some("eve"),
+            "the save followed the link onto alice's print"
+        );
+        assert!(
+            store
+                .load("alice", &driver, &device_id, Finger::RightIndex)
+                .is_none(),
+            "alice's print is gone; the username guard is what catches the overwrite"
+        );
     }
 
     #[test]
@@ -277,7 +574,7 @@ mod tests {
         let (driver, device_id) = ids();
         store.save(&print_of("first")).expect("save");
 
-        let dir = store.dir(USER, &driver, &device_id);
+        let dir = store.dir(USER, &driver, &device_id).expect("dir");
         let names: Vec<String> = fs::read_dir(&dir)
             .expect("read dir")
             .flatten()
@@ -286,7 +583,9 @@ mod tests {
         // The rename consumed the temp file.
         assert_eq!(names, vec![format!("{:x}", Finger::RightIndex.as_u8())]);
 
-        let path = store.print_path(USER, &driver, &device_id, Finger::RightIndex);
+        let path = store
+            .print_path(USER, &driver, &device_id, Finger::RightIndex)
+            .expect("print path");
         let mode = fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
         assert_eq!(mode, FILE_MODE, "a template must not be readable by others");
     }
@@ -301,7 +600,7 @@ mod tests {
         let (driver, device_id) = ids();
         store.save(&print_of("original")).expect("first save");
 
-        let dir = store.dir(USER, &driver, &device_id);
+        let dir = store.dir(USER, &driver, &device_id).expect("dir");
         let name = format!("{:x}", Finger::RightIndex.as_u8());
         fs::create_dir(dir.join(format!(".{name}.tmp"))).expect("block the temp path");
 
@@ -324,7 +623,7 @@ mod tests {
         let (driver, device_id) = ids();
         store.save(&print_of("first")).expect("save");
 
-        let dir = store.dir(USER, &driver, &device_id);
+        let dir = store.dir(USER, &driver, &device_id).expect("dir");
         let name = format!("{:x}", Finger::RightIndex.as_u8());
         fs::write(dir.join(format!(".{name}.tmp")), b"debris").expect("leave debris");
 

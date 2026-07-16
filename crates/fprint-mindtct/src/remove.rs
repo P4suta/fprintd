@@ -546,7 +546,7 @@ fn remove_near_invblock_v2(
     mh: i32,
     lfsparms: &LfsParms,
 ) {
-    // PORT L1591–L1610: neighbor-index LUTs (indexed by iy*3+ix) and per-neighbor coord offsets.
+    // PORT L1591–L1610: neighbor-index LUTs (indexed by it*3+ix) and per-neighbor coord offsets.
     const STARTBLK: [i32; 9] = [6, 0, 0, 6, -1, 2, 4, 4, 2];
     const ENDBLK: [i32; 9] = [8, 0, 2, 6, -1, 2, 6, 4, 4];
     const BLKDX: [i32; 9] = [0, 1, 1, 1, 0, -1, -1, -1, 0];
@@ -574,7 +574,7 @@ fn remove_near_invblock_v2(
         } else {
             1
         };
-        let iy = if py < lo_margin {
+        let it = if py < lo_margin {
             0
         } else if py > hi_margin {
             2
@@ -585,10 +585,10 @@ fn remove_near_invblock_v2(
         let mut removed = false;
 
         // PORT L1674: only act when the point is in a margin.
-        if ix != 1 || iy != 1 {
-            // PORT L1677–L1679: neighbor index range for this (ix, iy).
-            let sbi = STARTBLK[(iy * 3 + ix) as usize];
-            let ebi = ENDBLK[(iy * 3 + ix) as usize];
+        if ix != 1 || it != 1 {
+            // PORT L1677–L1679: neighbor index range for this (ix, it).
+            let sbi = STARTBLK[(it * 3 + ix) as usize];
+            let ebi = ENDBLK[(it * 3 + ix) as usize];
 
             // PORT L1682: examine each neighbor in range.
             let mut ni = sbi;
@@ -687,7 +687,12 @@ fn remove_or_adjust_side_minutiae_v2(
             let side_minutia_adjust =
                 adjust_side_minutia(&mut minutiae[i], &contour, loc, direction_map, mw, lfsparms);
             match side_minutia_adjust {
-                SideAdjust::Removed => {}
+                // PORT L3317: the reference removes it and does not advance — "the next minutia has
+                // slid into position pointed to by 'i'". Both halves are load-bearing: the relocated
+                // minutia is still at `i`, so leaving it there re-enters this arm forever.
+                SideAdjust::Removed => {
+                    minutiae.remove(i);
+                }
                 SideAdjust::Kept => i += 1,
             }
         }
@@ -700,7 +705,10 @@ fn remove_or_adjust_side_minutiae_v2(
             };
             match adjust_side_minutia(&mut minutiae[i], &contour, loc, direction_map, mw, lfsparms)
             {
-                SideAdjust::Removed => {}
+                // PORT L3376: as above — remove, and do not advance.
+                SideAdjust::Removed => {
+                    minutiae.remove(i);
+                }
                 SideAdjust::Kept => i += 1,
             }
         }
@@ -1306,6 +1314,17 @@ fn remove_flagged(minutiae: &mut Vec<DetMinutia>, to_remove: &[bool]) {
     }
 }
 
+/// The number of numbered stages `remove_false_minutia_V2` runs — the width of a [`RemovalTally`].
+pub(crate) const NUM_REMOVAL_STAGES: usize = 10;
+
+/// How many minutiae each numbered stage of [`remove_false_minutia_v2`] dropped, indexed by the
+/// reference's own stage number minus one (slot `0` is stage 1, slot `9` is stage 10).
+///
+/// Slot `0` is the sort, which permutes the list and so is always `0`. Slot `5` (stage 6,
+/// `remove_or_adjust_side_minutiae_v2`) both removes and *adjusts*; an adjust leaves the length
+/// alone, so the slot counts its remove path only.
+pub(crate) type RemovalTally = [usize; NUM_REMOVAL_STAGES];
+
 /// Detect and remove false minutiae — port of stock `remove_false_minutia_V2` (`remove.c` L172).
 ///
 /// Runs the ten removal stages in the reference order over the detected minutiae list, editing the
@@ -1313,9 +1332,12 @@ fn remove_flagged(minutiae: &mut Vec<DetMinutia>, to_remove: &[bool]) {
 /// `high_curve_map` are the `mw`×`mh` **block** maps (indexed by block, not pixel); `bdata` is the
 /// `iw`×`ih` binary image in stock convention (`0 == white/valley`, `1 == black/ridge`).
 ///
+/// Returns the [`RemovalTally`] — the per-stage drop counts. The reference returns nothing but the
+/// error code; the tally is a measurement taken around the same calls, and changes no behaviour.
+///
 /// # Errors
 ///
-/// Returns `Ok(())`; the `Result` mirrors the reference signature (whose negative error codes are
+/// Returns `Ok`; the `Result` mirrors the reference signature (whose negative error codes are
 /// unreachable in the port) so the driver in `lib.rs` can stay uniform with the detection stage.
 pub(crate) fn remove_false_minutia_v2(
     minutiae: &mut Vec<DetMinutia>,
@@ -1328,49 +1350,78 @@ pub(crate) fn remove_false_minutia_v2(
     mw: i32,
     mh: i32,
     lfsparms: &LfsParms,
-) -> Result<(), i32> {
+) -> Result<RemovalTally, i32> {
+    let mut tally: RemovalTally = [0; NUM_REMOVAL_STAGES];
+
+    /// Record the drop across one stage: the length before, minus the length after.
+    macro_rules! staged {
+        ($slot:expr, $call:expr) => {{
+            let before = minutiae.len();
+            $call;
+            tally[$slot] = before - minutiae.len();
+        }};
+    }
+
     // 1. PORT L179–L182: sort top-to-bottom, left-to-right.
-    sort_minutiae_y_x(minutiae, iw);
+    staged!(0, sort_minutiae_y_x(minutiae, iw));
 
     // 2. PORT L184–L189: remove minutiae on lakes/islands (edits the binary image).
-    remove_islands_and_lakes(minutiae, bdata, iw, ih, lfsparms);
+    staged!(
+        1,
+        remove_islands_and_lakes(minutiae, bdata, iw, ih, lfsparms)
+    );
 
     // 3. PORT L191–L195: remove minutiae on single-point holes.
-    remove_holes(minutiae, bdata, iw, ih, lfsparms);
+    staged!(2, remove_holes(minutiae, bdata, iw, ih, lfsparms));
 
     // 4. PORT L197–L202: remove minutiae pointing at an invalid block.
-    remove_pointing_invblock_v2(minutiae, direction_map, mw, mh, lfsparms);
+    staged!(
+        3,
+        remove_pointing_invblock_v2(minutiae, direction_map, mw, mh, lfsparms)
+    );
 
     // 5. PORT L204–L209: remove minutiae near an invalid block.
-    remove_near_invblock_v2(minutiae, direction_map, mw, mh, lfsparms);
+    staged!(
+        4,
+        remove_near_invblock_v2(minutiae, direction_map, mw, mh, lfsparms)
+    );
 
     // 6. PORT L211–L216: remove or adjust side minutiae.
-    remove_or_adjust_side_minutiae_v2(minutiae, bdata, iw, ih, direction_map, mw, lfsparms);
+    staged!(
+        5,
+        remove_or_adjust_side_minutiae_v2(minutiae, bdata, iw, ih, direction_map, mw, lfsparms)
+    );
 
     // 7. PORT L218–L221: remove hooks.
-    remove_hooks(minutiae, bdata, iw, ih, lfsparms);
+    staged!(6, remove_hooks(minutiae, bdata, iw, ih, lfsparms));
 
     // 8. PORT L223–L226: remove overlaps.
-    remove_overlaps(minutiae, bdata, iw, lfsparms);
+    staged!(7, remove_overlaps(minutiae, bdata, iw, lfsparms));
 
     // 9. PORT L228–L232: remove malformations.
-    remove_malformations(minutiae, bdata, iw, ih, low_flow_map, mw, lfsparms);
+    staged!(
+        8,
+        remove_malformations(minutiae, bdata, iw, ih, low_flow_map, mw, lfsparms)
+    );
 
     // 10. PORT L234–L240: remove pores.
-    remove_pores_v2(
-        minutiae,
-        bdata,
-        iw,
-        ih,
-        direction_map,
-        low_flow_map,
-        high_curve_map,
-        mw,
-        lfsparms,
+    staged!(
+        9,
+        remove_pores_v2(
+            minutiae,
+            bdata,
+            iw,
+            ih,
+            direction_map,
+            low_flow_map,
+            high_curve_map,
+            mw,
+            lfsparms,
+        )
     );
 
     // PORT L242: normal return.
-    Ok(())
+    Ok(tally)
 }
 
 #[cfg(test)]

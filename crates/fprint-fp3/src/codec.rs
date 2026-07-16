@@ -28,7 +28,7 @@ const FPI_PRINT_NBIS: i32 = 2;
 const NBIS_SIGNATURE: &[u8] = b"(a(aiaiai))";
 
 /// The static shape of the top-level tuple `(issbymsmsia{sv}v)`, in member order.
-const TOP_SPECS: [Spec; 10] = [
+pub(crate) const TOP_SPECS: [Spec; 10] = [
     Spec::fixed(4, 4), // 0 `i`  kind
     Spec::var(1),      // 1 `s`  driver
     Spec::var(1),      // 2 `s`  device_id
@@ -43,8 +43,12 @@ const TOP_SPECS: [Spec; 10] = [
 
 /// Serialize a [`Print`] to an FP3 blob: `"FP3"` magic followed by the GVariant tuple.
 ///
-/// Errors with [`Fp3Error::UndefinedTemplate`] for an un-enrolled print — it has no on-disk
-/// form.
+/// Partial in exactly two ways:
+///
+/// * [`Fp3Error::UndefinedTemplate`] for an un-enrolled print — it has no on-disk form.
+/// * [`Fp3Error::DateOutOfRange`] for an `enroll_date` whose Julian day leaves `i32`.
+///   [`EnrollDate`](fprint_core::EnrollDate)'s year is an unvalidated `i32`, so the domain model
+///   can name dates the wire cannot hold.
 pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
     let (kind, payload) = match &print.template {
         Template::Undefined => return Err(Fp3Error::UndefinedTemplate),
@@ -64,6 +68,12 @@ pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
         _ => return Err(Fp3Error::UndefinedTemplate),
     };
 
+    // An absent date is the sentinel; a present one must fit the wire's `i32` day count.
+    let julian = match print.enroll_date {
+        Some(date) => date::to_julian(date)?,
+        None => date::G_MININT32,
+    };
+
     let tuple = gvariant::tuple(
         vec![
             gvariant::int32(kind),
@@ -73,7 +83,7 @@ pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
             gvariant::byte(print.finger.map_or(0, Finger::as_u8)),
             gvariant::maybe_string(print.username.as_deref()),
             gvariant::maybe_string(print.description.as_deref()),
-            gvariant::int32(print.enroll_date.map_or(date::G_MININT32, date::to_julian)),
+            gvariant::int32(julian),
             gvariant::empty_vardict(),
             payload,
         ],
@@ -89,9 +99,12 @@ pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
 
 /// Parse an FP3 blob back into a [`Print`].
 ///
-/// The inverse of [`to_bytes`] for every print this crate can produce (see the round-trip
-/// tests). A zero `finger` byte decodes to `Some(Finger::Unknown)`, and empty driver/device
-/// ids decode to `None`.
+/// The inverse of [`to_bytes`] for every print this crate can produce, up to the wire's two
+/// collapses: a zero `finger` byte decodes to `Some(Finger::Unknown)`, and empty driver/device
+/// ids decode to `None`. `tests/property.rs` states that law exactly and sweeps it.
+///
+/// Total over arbitrary bytes: every input yields `Ok` or `Err`, never a panic
+/// (`tests/malformed.rs`).
 pub fn from_bytes(bytes: &[u8]) -> Result<Print> {
     if bytes.len() < MAGIC.len() {
         return Err(Fp3Error::Truncated);
@@ -540,6 +553,53 @@ mod tests {
         let idx = a.iter().zip(&b).position(|(x, y)| x != y).unwrap();
         a[idx] = 11;
         assert!(matches!(from_bytes(&a), Err(Fp3Error::BadFinger(11))));
+    }
+
+    // ---- enroll date ------------------------------------------------------------------
+
+    /// `EnrollDate.year` is a public `i32` with no validation, and an `i32` year outranges the
+    /// wire's `i32` Julian day. **An unrepresentable date is an error, not a panic and not a
+    /// silently wrapped day.** No hostile bytes are needed to reach this.
+    #[test]
+    fn enroll_date_outside_the_julian_range_is_rejected() {
+        for year in [i32::MIN, i32::MAX] {
+            let print = Print {
+                template: Template::Nbis(vec![]),
+                finger: Some(Finger::Unknown),
+                enroll_date: Some(EnrollDate {
+                    year,
+                    month: 1,
+                    day: 1,
+                }),
+                ..Default::default()
+            };
+            assert!(matches!(to_bytes(&print), Err(Fp3Error::DateOutOfRange(_))));
+        }
+    }
+
+    /// The lowest Julian day a non-sentinel blob can carry decodes to a date that re-encodes to
+    /// the same day. The intermediate day count leaves `i32` here while the Julian day does not.
+    #[test]
+    fn extreme_julian_from_wire_reencodes_unchanged() {
+        let mut bytes = to_bytes(&nbis_print()).unwrap();
+        // The `enroll_date` i32 is tuple member 7; find it by diffing against a print whose
+        // date differs only in that field.
+        let other = Print {
+            enroll_date: Some(EnrollDate {
+                year: 2026,
+                month: 7,
+                day: 16,
+            }),
+            ..nbis_print()
+        };
+        let idx = bytes
+            .iter()
+            .zip(&to_bytes(&other).unwrap())
+            .position(|(a, b)| a != b)
+            .unwrap();
+        bytes[idx..idx + 4].copy_from_slice(&(i32::MIN + 1).to_le_bytes());
+        let print = from_bytes(&bytes).unwrap();
+        assert_eq!(to_bytes(&print).unwrap(), bytes);
     }
 
     // ---- determinism ------------------------------------------------------------------

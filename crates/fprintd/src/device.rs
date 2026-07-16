@@ -34,6 +34,7 @@ use crate::error::DaemonError;
 use crate::names;
 use crate::status;
 use crate::storage::Store;
+use futures_util::StreamExt;
 
 /// Who currently holds the device, recorded at `Claim`.
 struct Session {
@@ -41,6 +42,20 @@ struct Session {
     sender: String,
     /// The resolved username whose prints this session reads/writes.
     username: String,
+    /// Watches for `sender` leaving the bus, and releases the claim when it does.
+    ///
+    /// A claim is held by a *connection*, not by a request, so nothing in the protocol obliges a
+    /// client to release one — it can simply exit. Without this, that claim outlives its owner
+    /// and every later caller, `pam_fprintd` included, gets `AlreadyInUse` until the daemon
+    /// restarts. Aborted by [`Device::release`], and on drop, so the watcher never outlives the
+    /// session it belongs to.
+    watcher: tokio::task::JoinHandle<()>,
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        self.watcher.abort();
+    }
 }
 
 /// Which streaming operation an [`ActiveOp`] is driving.
@@ -70,8 +85,10 @@ pub struct Device {
     handle: DeviceHandle,
     store: Arc<Store>,
     authz: Arc<Authorizer>,
-    claim: Mutex<Option<Session>>,
-    active: Mutex<Option<ActiveOp>>,
+    /// `Arc` so the name watcher a claim starts can perform the same teardown `Release` does.
+    /// The watcher outlives the method that spawned it, and zbus owns the `Device` itself.
+    claim: Arc<Mutex<Option<Session>>>,
+    active: Arc<Mutex<Option<ActiveOp>>>,
 }
 
 impl Device {
@@ -88,8 +105,8 @@ impl Device {
             handle,
             store,
             authz,
-            claim: Mutex::new(None),
-            active: Mutex::new(None),
+            claim: Arc::new(Mutex::new(None)),
+            active: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -113,6 +130,64 @@ impl Device {
                 "Device already in use by another user".into(),
             )),
         }
+    }
+
+    /// Watch for `sender` leaving the bus, and run [`Device::teardown`] when it does.
+    ///
+    /// The bus filters for us: `receive_name_owner_changed_with_args` adds a match rule on
+    /// argument 0, so this stream carries only the one name. A `new_owner` of `None` is the
+    /// vanish — the same signal `pam_fprintd`'s own bus uses to notice a peer die.
+    async fn spawn_name_watcher(
+        conn: &zbus::Connection,
+        sender: &str,
+        handle: DeviceHandle,
+        claim: Arc<Mutex<Option<Session>>>,
+        active: Arc<Mutex<Option<ActiveOp>>>,
+    ) -> Result<tokio::task::JoinHandle<()>, DaemonError> {
+        let dbus = zbus::fdo::DBusProxy::new(conn).await?;
+        let mut vanished = dbus
+            .receive_name_owner_changed_with_args(&[(0, sender)])
+            .await?;
+
+        Ok(tokio::spawn(async move {
+            while let Some(signal) = vanished.next().await {
+                let Ok(args) = signal.args() else { continue };
+                if args.new_owner().is_none() {
+                    Device::teardown(&handle, &claim, &active).await;
+                    return;
+                }
+            }
+        }))
+    }
+
+    /// Stop any operation, close the sensor, drop the session.
+    ///
+    /// Free-standing over the two pieces of shared state rather than a method, because the name
+    /// watcher runs it too and zbus owns the `Device`. `Release` and a vanished client must take
+    /// *the same* path: two teardowns would be two things to keep in step.
+    async fn teardown(
+        handle: &DeviceHandle,
+        claim: &Mutex<Option<Session>>,
+        active: &Mutex<Option<ActiveOp>>,
+    ) {
+        if let Some(op) = active.lock().unwrap().take() {
+            if !op.task.is_finished() {
+                let _ = op.stop.send(());
+            }
+        }
+
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if handle
+            .send(DeviceCommand::Close { reply: reply_tx })
+            .await
+            .is_ok()
+        {
+            let _ = reply_rx.await;
+        }
+
+        // Last: dropping the `Session` aborts the watcher, and a watcher that ran this must not
+        // be aborted before it finishes.
+        *claim.lock().unwrap() = None;
     }
 
     // --- active-operation bookkeeping -------------------------------------------------
@@ -300,6 +375,21 @@ impl Device {
         }
         let user = resolve_user(conn, &sender, username, &self.authz).await?;
 
+        // Built before the claim is taken, so every path that does not take it drops the session
+        // and aborts the watcher with it. A `JoinHandle` dropped on its own detaches instead.
+        let session = Session {
+            sender: sender.clone(),
+            username: user,
+            watcher: Self::spawn_name_watcher(
+                conn,
+                &sender,
+                self.handle.clone(),
+                Arc::clone(&self.claim),
+                Arc::clone(&self.active),
+            )
+            .await?,
+        };
+
         {
             let mut guard = self.claim.lock().unwrap();
             if guard.is_some() {
@@ -307,10 +397,7 @@ impl Device {
                     "Device was already claimed".into(),
                 ));
             }
-            *guard = Some(Session {
-                sender: sender.clone(),
-                username: user,
-            });
+            *guard = Some(session);
         }
 
         // Open the sensor on the actor thread.
@@ -351,19 +438,7 @@ impl Device {
         let sender = sender_of(&hdr)?;
         let _ = self.require_claimed(&sender)?;
 
-        if let Some(op) = self.active.lock().unwrap().take() {
-            if !op.task.is_finished() {
-                let _ = op.stop.send(());
-            }
-        }
-
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.handle
-            .send(DeviceCommand::Close { reply: reply_tx })
-            .await?;
-        let _ = reply_rx.await;
-
-        *self.claim.lock().unwrap() = None;
+        Device::teardown(&self.handle, &self.claim, &self.active).await;
         Ok(())
     }
 

@@ -16,16 +16,37 @@
 pub struct DeviceFeature(u16);
 
 impl DeviceFeature {
+    /// The empty set (`FP_DEVICE_FEATURE_NONE`). Every set contains it.
     pub const NONE: DeviceFeature = DeviceFeature(0);
+    /// `FP_DEVICE_FEATURE_CAPTURE`: the device can return a raw image (`fp_device_capture`).
+    /// Image sensors have it; match-on-chip sensors normally do not.
     pub const CAPTURE: DeviceFeature = DeviceFeature(1 << 0);
+    /// `FP_DEVICE_FEATURE_IDENTIFY`: the device can match one scan against a gallery
+    /// ([`Device::identify`](crate::Device::identify)).
     pub const IDENTIFY: DeviceFeature = DeviceFeature(1 << 1);
+    /// `FP_DEVICE_FEATURE_VERIFY`: the device can match one scan against one print
+    /// ([`Device::verify`](crate::Device::verify)).
     pub const VERIFY: DeviceFeature = DeviceFeature(1 << 2);
+    /// `FP_DEVICE_FEATURE_STORAGE`: the device keeps templates on the sensor. This is what makes
+    /// a device match-on-chip — see [`DeviceFeature::is_match_on_chip`].
     pub const STORAGE: DeviceFeature = DeviceFeature(1 << 3);
+    /// `FP_DEVICE_FEATURE_STORAGE_LIST`: on-sensor storage can be enumerated
+    /// ([`Device::list_prints`](crate::Device::list_prints)).
     pub const STORAGE_LIST: DeviceFeature = DeviceFeature(1 << 4);
+    /// `FP_DEVICE_FEATURE_STORAGE_DELETE`: a single template can be removed from on-sensor
+    /// storage ([`Device::delete_print`](crate::Device::delete_print)).
     pub const STORAGE_DELETE: DeviceFeature = DeviceFeature(1 << 5);
+    /// `FP_DEVICE_FEATURE_STORAGE_CLEAR`: on-sensor storage can be erased wholesale
+    /// ([`Device::clear_storage`](crate::Device::clear_storage)).
     pub const STORAGE_CLEAR: DeviceFeature = DeviceFeature(1 << 6);
+    /// `FP_DEVICE_FEATURE_DUPLICATES_CHECK`: the device rejects enrolling a finger it already
+    /// holds, reporting [`Error::DataDuplicate`](crate::Error::DataDuplicate).
     pub const DUPLICATES_CHECK: DeviceFeature = DeviceFeature(1 << 7);
+    /// `FP_DEVICE_FEATURE_ALWAYS_ON`: the sensor runs continuously rather than being powered up
+    /// per operation.
     pub const ALWAYS_ON: DeviceFeature = DeviceFeature(1 << 8);
+    /// `FP_DEVICE_FEATURE_UPDATE_PRINT`: enrolling can extend an existing template with new scans
+    /// instead of replacing it.
     pub const UPDATE_PRINT: DeviceFeature = DeviceFeature(1 << 9);
 
     /// Raw bitmask (as returned by `fp_device_get_features`).
@@ -45,6 +66,7 @@ impl DeviceFeature {
     }
 
     /// `fp_device_has_feature`: true iff every bit in `other` is set in `self`.
+    #[must_use]
     pub const fn contains(self, other: DeviceFeature) -> bool {
         self.0 & other.0 == other.0
     }
@@ -55,6 +77,38 @@ impl DeviceFeature {
         self.contains(DeviceFeature::STORAGE)
     }
 }
+
+/// Every defined flag with its libfprint name — the one registry the [`Debug`] rendering and the
+/// [`DeviceFeature::from_bits_truncate`] mask are both derived from, and the one list the tests
+/// across this crate quantify over.
+pub(crate) const FLAGS: [(DeviceFeature, &str); 10] = [
+    (DeviceFeature::CAPTURE, "CAPTURE"),
+    (DeviceFeature::IDENTIFY, "IDENTIFY"),
+    (DeviceFeature::VERIFY, "VERIFY"),
+    (DeviceFeature::STORAGE, "STORAGE"),
+    (DeviceFeature::STORAGE_LIST, "STORAGE_LIST"),
+    (DeviceFeature::STORAGE_DELETE, "STORAGE_DELETE"),
+    (DeviceFeature::STORAGE_CLEAR, "STORAGE_CLEAR"),
+    (DeviceFeature::DUPLICATES_CHECK, "DUPLICATES_CHECK"),
+    (DeviceFeature::ALWAYS_ON, "ALWAYS_ON"),
+    (DeviceFeature::UPDATE_PRINT, "UPDATE_PRINT"),
+];
+
+/// The union of every flag in [`FLAGS`].
+const fn defined_bits() -> u16 {
+    let mut acc = 0u16;
+    let mut i = 0;
+    while i < FLAGS.len() {
+        acc |= FLAGS[i].0.bits();
+        i += 1;
+    }
+    acc
+}
+
+/// **The truncation mask is exactly the defined flags.** An eleventh flag registered in [`FLAGS`]
+/// without widening the `0x03FF` literal in [`DeviceFeature::from_bits_truncate`] fails to compile
+/// here, rather than being silently masked off at runtime.
+const _: () = assert!(DeviceFeature::from_bits_truncate(u32::MAX).bits() == defined_bits());
 
 impl core::ops::BitOr for DeviceFeature {
     type Output = DeviceFeature;
@@ -71,23 +125,11 @@ impl core::ops::BitOrAssign for DeviceFeature {
 
 impl core::fmt::Debug for DeviceFeature {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        const NAMES: [(DeviceFeature, &str); 10] = [
-            (DeviceFeature::CAPTURE, "CAPTURE"),
-            (DeviceFeature::IDENTIFY, "IDENTIFY"),
-            (DeviceFeature::VERIFY, "VERIFY"),
-            (DeviceFeature::STORAGE, "STORAGE"),
-            (DeviceFeature::STORAGE_LIST, "STORAGE_LIST"),
-            (DeviceFeature::STORAGE_DELETE, "STORAGE_DELETE"),
-            (DeviceFeature::STORAGE_CLEAR, "STORAGE_CLEAR"),
-            (DeviceFeature::DUPLICATES_CHECK, "DUPLICATES_CHECK"),
-            (DeviceFeature::ALWAYS_ON, "ALWAYS_ON"),
-            (DeviceFeature::UPDATE_PRINT, "UPDATE_PRINT"),
-        ];
         if self.0 == 0 {
             return f.write_str("NONE");
         }
         let mut first = true;
-        for (flag, name) in NAMES {
+        for (flag, name) in FLAGS {
             if self.contains(flag) {
                 if !first {
                     f.write_str(" | ")?;
@@ -117,13 +159,22 @@ pub enum ScanType {
 pub struct FingerStatus(u8);
 
 impl FingerStatus {
+    /// `FP_FINGER_STATUS_NONE`: no status information available. Every set contains it.
     pub const NONE: FingerStatus = FingerStatus(0);
+    /// `FP_FINGER_STATUS_NEEDED`: the device is waiting for a finger on the sensor — the cue to
+    /// prompt the user.
     pub const NEEDED: FingerStatus = FingerStatus(1 << 0);
+    /// `FP_FINGER_STATUS_PRESENT`: the device reports a finger on the sensor.
     pub const PRESENT: FingerStatus = FingerStatus(1 << 1);
 
+    /// Raw bitmask (as carried by libfprint's `finger-status` property).
+    #[must_use]
     pub const fn bits(self) -> u8 {
         self.0
     }
+
+    /// True iff every bit in `other` is set in `self`.
+    #[must_use]
     pub const fn contains(self, other: FingerStatus) -> bool {
         self.0 & other.0 == other.0
     }
@@ -139,8 +190,11 @@ impl core::ops::BitOr for FingerStatus {
 /// Sensor thermal state (`FpTemperature`); some sensors throttle when warm/hot.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Temperature {
+    /// `FP_TEMPERATURE_COLD`: the device can run indefinitely.
     Cold,
+    /// `FP_TEMPERATURE_WARM`: the device can run for a limited time before it must cool.
     Warm,
+    /// `FP_TEMPERATURE_HOT`: the device must cool down; operations are throttled or refused.
     Hot,
 }
 
@@ -165,5 +219,132 @@ mod tests {
         assert!(moc.contains(DeviceFeature::STORAGE));
         assert!(moc.is_match_on_chip());
         assert!(!DeviceFeature::CAPTURE.is_match_on_chip());
+    }
+
+    /// The defined flags, taken from the [`FLAGS`] registry rather than relisted: an eleventh flag
+    /// is quantified over by the properties below the moment it is registered.
+    const DEFINED: [DeviceFeature; FLAGS.len()] = {
+        let mut out = [DeviceFeature::NONE; FLAGS.len()];
+        let mut i = 0;
+        while i < FLAGS.len() {
+            out[i] = FLAGS[i].0;
+            i += 1;
+        }
+        out
+    };
+
+    /// **The mask keeps the defined bits and drops every other one**, checked over every `u16`
+    /// input plus the high halfword the `u32` parameter admits. Expected values come from
+    /// [`defined_bits`], not from a relisted `0x03FF`, so this pins truncation to the registry
+    /// rather than to the literal it is implemented with.
+    #[test]
+    fn from_bits_truncate_keeps_exactly_the_defined_bits() {
+        for b in 0..=u32::from(u16::MAX) {
+            let kept = DeviceFeature::from_bits_truncate(b).bits();
+            assert_eq!(
+                kept,
+                b as u16 & defined_bits(),
+                "from_bits_truncate({b:#06x})"
+            );
+        }
+        // Bits above the u16 the type stores must not wrap into it.
+        assert_eq!(DeviceFeature::from_bits_truncate(0x1_0000).bits(), 0);
+        assert_eq!(
+            DeviceFeature::from_bits_truncate(u32::MAX).bits(),
+            defined_bits()
+        );
+    }
+
+    /// `BitOr` is a set union: associative, commutative, with [`DeviceFeature::NONE`] as identity.
+    /// Checked over all 100 ordered pairs of the ten flags.
+    #[test]
+    fn bitor_is_associative_commutative_with_none_identity() {
+        for a in DEFINED {
+            assert_eq!(a | DeviceFeature::NONE, a, "identity for {a:?}");
+            for b in DEFINED {
+                assert_eq!(a | b, b | a, "commutativity for {a:?}, {b:?}");
+                for c in DEFINED {
+                    assert_eq!(
+                        (a | b) | c,
+                        a | (b | c),
+                        "associativity for {a:?}, {b:?}, {c:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Over every one of the 1024 representable sets: **`NONE` is contained in all of them**, a set
+    /// contains each flag it was built from, and `is_match_on_chip` is exactly `contains(STORAGE)`.
+    #[test]
+    fn contains_none_always_and_moc_is_exactly_storage() {
+        for bits in 0..=u32::from(defined_bits()) {
+            let set = DeviceFeature::from_bits_truncate(bits);
+            assert!(
+                set.contains(DeviceFeature::NONE),
+                "{set:?} must contain NONE"
+            );
+            assert!(set.contains(set), "{set:?} must contain itself");
+            assert_eq!(
+                set.is_match_on_chip(),
+                set.contains(DeviceFeature::STORAGE),
+                "{set:?}"
+            );
+            for flag in DEFINED {
+                assert_eq!(
+                    set.contains(flag),
+                    bits & u32::from(flag.bits()) != 0,
+                    "{set:?}.contains({flag:?})"
+                );
+                assert!(
+                    (set | flag).contains(flag),
+                    "{set:?} | {flag:?} must contain {flag:?}"
+                );
+            }
+        }
+    }
+
+    /// `BitOrAssign` agrees with `BitOr` over all 100 pairs — the two must not drift apart.
+    #[test]
+    fn bitor_assign_agrees_with_bitor() {
+        for a in DEFINED {
+            for b in DEFINED {
+                let mut acc = a;
+                acc |= b;
+                assert_eq!(acc, a | b, "{a:?} |= {b:?}");
+            }
+        }
+    }
+
+    /// [`FingerStatus`] gets the same treatment over its three values.
+    #[test]
+    fn finger_status_bitor_is_associative_commutative_with_none_identity() {
+        const THREE: [FingerStatus; 3] = [
+            FingerStatus::NONE,
+            FingerStatus::NEEDED,
+            FingerStatus::PRESENT,
+        ];
+        for a in THREE {
+            assert_eq!(a | FingerStatus::NONE, a, "identity for {a:?}");
+            assert!(a.contains(FingerStatus::NONE), "{a:?} must contain NONE");
+            for b in THREE {
+                assert_eq!(a | b, b | a, "commutativity for {a:?}, {b:?}");
+                assert!(
+                    (a | b).contains(a) && (a | b).contains(b),
+                    "union for {a:?}, {b:?}"
+                );
+                for c in THREE {
+                    assert_eq!(
+                        (a | b) | c,
+                        a | (b | c),
+                        "associativity for {a:?}, {b:?}, {c:?}"
+                    );
+                }
+            }
+        }
+        // The two flags are distinct bits, so a finger can be both needed and present.
+        let both = FingerStatus::NEEDED | FingerStatus::PRESENT;
+        assert_eq!(both.bits(), 0b11);
+        assert!(!FingerStatus::NEEDED.contains(FingerStatus::PRESENT));
     }
 }

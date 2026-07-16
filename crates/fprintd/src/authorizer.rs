@@ -2,18 +2,24 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! PolicyKit authorization, as a two-variant enum so tests can bypass it.
+//! PolicyKit authorization: a fixed answer, or ask.
 //!
 //! fprintd gates every privileged method on a PolicyKit action —
 //! `net.reactivated.fprint.device.{verify,enroll,setusername}`. The action definitions come
 //! from the fprintd package, which we depend on rather than duplicate (ARCHITECTURE.md
 //! §Coexistence); these ids must match it exactly. We express the check as the
-//! [`Authorizer`] enum:
-//! [`Authorizer::Polkit`] performs the real `CheckAuthorization` call against
-//! `org.freedesktop.PolicyKit1.Authority` (via [`PolkitAuthorizer`]), while
-//! [`Authorizer::AllowAll`] grants everything so the hardware-free D-Bus integration test can
-//! run without a PolicyKit daemon. The enum uses native `async fn` and hand-written
-//! delegation, so the daemon needs neither `async-trait` nor `Arc<dyn Authorizer>`.
+//! [`Authorizer`] enum: [`Authorizer::Polkit`] performs the real `CheckAuthorization` call
+//! against `org.freedesktop.PolicyKit1.Authority` (via [`PolkitAuthorizer`]), and
+//! [`Authorizer::Fixed`] answers from a set decided in advance. The enum uses native `async fn`
+//! and hand-written delegation, so the daemon needs neither `async-trait` nor
+//! `Arc<dyn Authorizer>`.
+//!
+//! [`Authorizer::Fixed`] is not a test hook. `Fixed(ActionSet::ALL)` is the bring-up authorizer
+//! the `--test-mode` daemon takes; `Fixed(ActionSet::NONE)` is its dual, and both are honest
+//! answers a production enum can hold. That the D-Bus tests can also ask for
+//! `Fixed(ActionSet::VERIFY)` and watch enrolment be refused is a consequence of the type being
+//! expressive, not the reason it exists — which is why there is no `#[cfg(test)]` here, and no
+//! cargo feature to forget to turn off.
 
 use std::collections::HashMap;
 
@@ -43,13 +49,54 @@ impl PolkitAction {
     }
 }
 
+/// A set of [`PolkitAction`]s.
+///
+/// Hand-rolled bitflags, mirroring `fprint_core::DeviceFeature`; no bitflags crate.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ActionSet(u8);
+
+impl ActionSet {
+    /// Grants nothing.
+    pub const NONE: ActionSet = ActionSet(0);
+    /// `net.reactivated.fprint.device.verify`
+    pub const VERIFY: ActionSet = ActionSet(1 << 0);
+    /// `net.reactivated.fprint.device.enroll`
+    pub const ENROLL: ActionSet = ActionSet(1 << 1);
+    /// `net.reactivated.fprint.device.setusername`
+    pub const SET_USERNAME: ActionSet = ActionSet(1 << 2);
+    /// Every action.
+    pub const ALL: ActionSet = ActionSet(0b111);
+
+    /// The bit for one action.
+    const fn bit(action: PolkitAction) -> ActionSet {
+        match action {
+            PolkitAction::Verify => ActionSet::VERIFY,
+            PolkitAction::Enroll => ActionSet::ENROLL,
+            PolkitAction::SetUsername => ActionSet::SET_USERNAME,
+        }
+    }
+
+    /// Whether this set grants `action`.
+    #[must_use]
+    pub const fn contains(self, action: PolkitAction) -> bool {
+        self.0 & ActionSet::bit(action).0 != 0
+    }
+}
+
+impl std::ops::BitOr for ActionSet {
+    type Output = ActionSet;
+    fn bitor(self, rhs: ActionSet) -> ActionSet {
+        ActionSet(self.0 | rhs.0)
+    }
+}
+
 /// Decides whether a D-Bus caller may perform a [`PolkitAction`].
 ///
-/// [`Authorizer::AllowAll`] grants everything (tests and the `--test-mode` daemon only);
-/// [`Authorizer::Polkit`] delegates to a real [`PolkitAuthorizer`].
+/// [`Authorizer::Fixed`] answers from a set decided in advance; [`Authorizer::Polkit`] asks a
+/// real [`PolkitAuthorizer`].
 pub enum Authorizer {
-    /// Grants every request unconditionally.
-    AllowAll,
+    /// Grants exactly the actions in the set and refuses the rest.
+    Fixed(ActionSet),
     /// Consults PolicyKit on the system bus.
     Polkit(PolkitAuthorizer),
 }
@@ -63,7 +110,11 @@ impl Authorizer {
         action: PolkitAction,
     ) -> Result<(), DaemonError> {
         match self {
-            Authorizer::AllowAll => Ok(()),
+            Authorizer::Fixed(granted) if granted.contains(action) => Ok(()),
+            Authorizer::Fixed(_) => Err(DaemonError::PermissionDenied(format!(
+                "Not Authorized: {}",
+                action.id()
+            ))),
             Authorizer::Polkit(p) => p.check(subject_bus_name, action).await,
         }
     }
@@ -131,5 +182,78 @@ impl PolkitAuthorizer {
                 action.id()
             )))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ACTIONS: [PolkitAction; 3] = [
+        PolkitAction::Verify,
+        PolkitAction::Enroll,
+        PolkitAction::SetUsername,
+    ];
+
+    /// The ids the fprintd package's PolicyKit policy declares. A typo here is not a failed check
+    /// but an *unfindable* action, which PolicyKit refuses — so every privileged method would
+    /// break at once, on a real system only.
+    #[test]
+    fn action_ids_match_the_fprintd_policy() {
+        assert_eq!(
+            PolkitAction::Verify.id(),
+            "net.reactivated.fprint.device.verify"
+        );
+        assert_eq!(
+            PolkitAction::Enroll.id(),
+            "net.reactivated.fprint.device.enroll"
+        );
+        assert_eq!(
+            PolkitAction::SetUsername.id(),
+            "net.reactivated.fprint.device.setusername"
+        );
+    }
+
+    #[test]
+    fn none_grants_nothing_and_all_grants_everything() {
+        for action in ACTIONS {
+            assert!(!ActionSet::NONE.contains(action), "NONE granted {action:?}");
+            assert!(ActionSet::ALL.contains(action), "ALL refused {action:?}");
+        }
+    }
+
+    /// Each flag is its own bit: a set built from one action grants that one and no other. A
+    /// duplicated or overlapping bit would silently widen every grant that names it.
+    #[test]
+    fn each_action_has_its_own_bit() {
+        for granted in ACTIONS {
+            let set = ActionSet::bit(granted);
+            for action in ACTIONS {
+                assert_eq!(
+                    set.contains(action),
+                    action == granted,
+                    "{granted:?} alone: contains({action:?})"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bitor_unions_and_all_is_the_union_of_every_action() {
+        let union = ACTIONS
+            .into_iter()
+            .fold(ActionSet::NONE, |acc, a| acc | ActionSet::bit(a));
+        assert_eq!(union, ActionSet::ALL, "ALL must be exactly every action");
+        let two = ActionSet::VERIFY | ActionSet::ENROLL;
+        assert!(two.contains(PolkitAction::Verify) && two.contains(PolkitAction::Enroll));
+        assert!(!two.contains(PolkitAction::SetUsername));
+        assert_eq!(ActionSet::NONE | ActionSet::ALL, ActionSet::ALL);
+    }
+
+    /// `Default` is the safe answer. A set that defaulted to `ALL` would make a forgotten
+    /// initializer grant everything.
+    #[test]
+    fn the_default_set_grants_nothing() {
+        assert_eq!(ActionSet::default(), ActionSet::NONE);
     }
 }

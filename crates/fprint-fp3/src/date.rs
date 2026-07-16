@@ -12,15 +12,32 @@
 //! The calendar math is Howard Hinnant's branch-free `days_from_civil` /`civil_from_days`
 //! (a public-domain algorithm), anchored so that day 0 is `1970-01-01`. Adding
 //! [`EPOCH_OFFSET`] then shifts onto GLib's `0001-01-01 = 1` origin.
+//!
+//! ## The representable range
+//!
+//! [`EnrollDate`] holds an `i32` year, so it spans about 4.3 billion years; an FP3 Julian day
+//! is an `i32` count of *days*, so it spans about 11.7 million. **The domain model is therefore
+//! wider than the wire**, and [`to_julian`] is partial: a date outside
+//! `-5879610-06-23 ..= 5879611-07-11` has no FP3 encoding and yields
+//! [`Fp3Error::DateOutOfRange`]. Those two dates are the exact ends — they map to `i32::MIN + 1`
+//! and `i32::MAX`. `G_MININT32` is excluded rather than used: the wire spends it on "unset", so
+//! the one date that would land there is not representable either.
+//!
+//! The arithmetic is `i64` end to end, and only the final Julian day is narrowed to `i32`. The
+//! intermediate day count legitimately leaves `i32` for dates whose Julian day is still in range
+//! (the day count and the Julian day differ by [`EPOCH_OFFSET`]), so narrowing before the shift
+//! would reject — or silently wrap — dates that FP3 can hold.
 
 use fprint_core::EnrollDate;
+
+use crate::error::{Fp3Error, Result};
 
 /// GLib's "date unset" sentinel (`G_MININT32`), written when [`EnrollDate`] is absent.
 pub(crate) const G_MININT32: i32 = i32::MIN;
 
 /// Julian day of the Unix epoch (`1970-01-01`), i.e. the offset between Hinnant's
 /// epoch-relative day count and GLib's `0001-01-01 = 1` Julian day.
-const EPOCH_OFFSET: i32 = 719_163;
+const EPOCH_OFFSET: i64 = 719_163;
 
 /// Days from `1970-01-01` to `year-month-day` in the proleptic Gregorian calendar.
 ///
@@ -53,8 +70,18 @@ fn civil_from_days(z: i64) -> (i32, u8, u8) {
 }
 
 /// Encode an [`EnrollDate`] as a GLib Julian day.
-pub(crate) fn to_julian(date: EnrollDate) -> i32 {
-    days_from_civil(date.year, date.month, date.day) as i32 + EPOCH_OFFSET
+///
+/// Partial, because [`EnrollDate`]'s `i32` year outranges the wire's `i32` day count: a date
+/// whose Julian day leaves `i32`, or lands exactly on the `G_MININT32` "unset" sentinel, has no
+/// FP3 encoding and gives [`Fp3Error::DateOutOfRange`]. Total over every `EnrollDate` value —
+/// including an unvalidated `month`/`day` — because the calendar math is `i64` and only the
+/// result is narrowed.
+pub(crate) fn to_julian(date: EnrollDate) -> Result<i32> {
+    let julian = days_from_civil(date.year, date.month, date.day) + EPOCH_OFFSET;
+    match i32::try_from(julian) {
+        Ok(j) if j != G_MININT32 => Ok(j),
+        _ => Err(Fp3Error::DateOutOfRange(date)),
+    }
 }
 
 /// Decode a GLib Julian day back into an [`EnrollDate`]. `G_MININT32` (the "unset"
@@ -63,7 +90,7 @@ pub(crate) fn from_julian(julian: i32) -> Option<EnrollDate> {
     if julian == G_MININT32 {
         return None;
     }
-    let (year, month, day) = civil_from_days(julian as i64 - EPOCH_OFFSET as i64);
+    let (year, month, day) = civil_from_days(i64::from(julian) - EPOCH_OFFSET);
     Some(EnrollDate { year, month, day })
 }
 
@@ -79,7 +106,8 @@ mod tests {
                 year: 1,
                 month: 1,
                 day: 1
-            }),
+            })
+            .unwrap(),
             1
         );
         assert_eq!(
@@ -87,7 +115,8 @@ mod tests {
                 year: 1970,
                 month: 1,
                 day: 1
-            }),
+            })
+            .unwrap(),
             719_163
         );
         // One modern date, cross-checked against a known g_date value.
@@ -96,7 +125,8 @@ mod tests {
                 year: 2026,
                 month: 7,
                 day: 15
-            }),
+            })
+            .unwrap(),
             739_812
         );
     }
@@ -131,7 +161,7 @@ mod tests {
             },
         ];
         for d in dates {
-            assert_eq!(from_julian(to_julian(d)), Some(d));
+            assert_eq!(from_julian(to_julian(d).unwrap()), Some(d));
         }
     }
 
@@ -139,5 +169,99 @@ mod tests {
     fn sentinel_is_none_both_ways() {
         assert_eq!(from_julian(G_MININT32), None);
         assert_eq!(from_julian(i32::MIN), None);
+    }
+
+    /// The extreme Julian day a non-sentinel blob can carry, and the date it decodes to. Its
+    /// epoch-relative day count is `-2148202810`, which does **not** fit `i32` even though the
+    /// Julian day itself is exactly `i32::MIN + 1`, which does.
+    const EDGE_JULIAN: i32 = i32::MIN + 1;
+    const EDGE_DATE: EnrollDate = EnrollDate {
+        year: -5_879_610,
+        month: 6,
+        day: 23,
+    };
+
+    /// **A date is encodable whenever its Julian day fits `i32`, not whenever its intermediate
+    /// day count does.** The two differ by [`EPOCH_OFFSET`], so narrowing the day count first
+    /// wraps this date's `-2148202810` to `2146764486` and overflows the shift.
+    #[test]
+    fn julian_at_the_i32_edge_is_not_truncated() {
+        assert_eq!(from_julian(EDGE_JULIAN), Some(EDGE_DATE));
+        assert_eq!(to_julian(EDGE_DATE).unwrap(), EDGE_JULIAN);
+        assert!(
+            days_from_civil(EDGE_DATE.year, EDGE_DATE.month, EDGE_DATE.day) < i64::from(i32::MIN)
+        );
+    }
+
+    /// The domain model's `i32` year outranges the wire's `i32` day count by ~365x, so the ends
+    /// of the year range have no encoding. `EnrollDate.year` is public and unvalidated, so
+    /// `to_bytes` reaches this with no hostile bytes involved.
+    #[test]
+    fn dates_outside_the_julian_i32_range_are_rejected() {
+        for year in [i32::MIN, i32::MAX, -5_879_611, 5_879_612] {
+            let date = EnrollDate {
+                year,
+                month: 1,
+                day: 1,
+            };
+            assert!(
+                matches!(to_julian(date), Err(Fp3Error::DateOutOfRange(d)) if d == date),
+                "year {year} must be rejected, not wrapped"
+            );
+        }
+    }
+
+    /// The wire spends `G_MININT32` on "unset", so the one date whose Julian day would land
+    /// there is unrepresentable — encoding it would decode back as `None`.
+    #[test]
+    fn the_date_colliding_with_the_unset_sentinel_is_rejected() {
+        // One day before the edge date is exactly `G_MININT32`.
+        let collides = EnrollDate {
+            year: -5_879_610,
+            month: 6,
+            day: 22,
+        };
+        assert_eq!(
+            days_from_civil(collides.year, collides.month, collides.day) + EPOCH_OFFSET,
+            i64::from(G_MININT32)
+        );
+        assert!(matches!(
+            to_julian(collides),
+            Err(Fp3Error::DateOutOfRange(_))
+        ));
+    }
+
+    /// The representable range, to the day: `EDGE_DATE` maps to `i32::MIN + 1` and
+    /// `5879611-07-11` to `i32::MAX`, and the date on either side of those has no Julian day.
+    /// **The bound is exact, not approximate** — the docs quote these dates.
+    #[test]
+    fn the_representable_range_ends_exactly_here() {
+        let date = |year, month, day| EnrollDate { year, month, day };
+
+        assert_eq!(to_julian(EDGE_DATE).unwrap(), i32::MIN + 1);
+        assert_eq!(to_julian(date(5_879_611, 7, 11)).unwrap(), i32::MAX);
+
+        // One day below is the sentinel; one day above overflows `i32`.
+        assert!(matches!(
+            to_julian(date(-5_879_610, 6, 22)),
+            Err(Fp3Error::DateOutOfRange(_))
+        ));
+        assert!(matches!(
+            to_julian(date(5_879_611, 7, 12)),
+            Err(Fp3Error::DateOutOfRange(_))
+        ));
+    }
+
+    /// `to_julian` never panics, for any `EnrollDate` value — including the unvalidated
+    /// `month`/`day` the public struct permits.
+    #[test]
+    fn to_julian_is_total_over_unvalidated_fields() {
+        for year in [i32::MIN, -1, 0, 1970, i32::MAX] {
+            for month in [0u8, 1, 12, 13, u8::MAX] {
+                for day in [0u8, 1, 31, 32, u8::MAX] {
+                    let _ = to_julian(EnrollDate { year, month, day });
+                }
+            }
+        }
     }
 }

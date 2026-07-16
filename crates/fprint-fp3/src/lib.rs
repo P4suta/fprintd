@@ -15,19 +15,39 @@
 //!
 //! The public surface is two verbs:
 //!
-//! ```no_run
-//! use fprint_core::Print;
-//! # fn demo(print: &Print, blob: &[u8]) -> fprint_fp3::Result<()> {
-//! let bytes: Vec<u8> = fprint_fp3::to_bytes(print)?;
-//! let print: Print = fprint_fp3::from_bytes(blob)?;
-//! # let _ = bytes; let _ = print; Ok(())
-//! # }
+//! ```
+//! use fprint_core::{Finger, Minutia, Print, Template};
+//!
+//! let print = Print {
+//!     template: Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]),
+//!     finger: Some(Finger::RightIndex),
+//!     username: Some("alice".into()),
+//!     ..Default::default()
+//! };
+//!
+//! let bytes: Vec<u8> = fprint_fp3::to_bytes(&print)?;
+//! assert!(bytes.starts_with(fprint_fp3::MAGIC));
+//! assert_eq!(fprint_fp3::from_bytes(&bytes)?, print);
+//! # Ok::<(), fprint_fp3::Fp3Error>(())
 //! ```
 //!
-//! For every [`Print`](fprint_core::Print) this crate can serialize, `from_bytes(to_bytes(p))`
-//! reproduces `p` exactly.
+//! ## What round-trips, exactly
+//!
+//! `from_bytes(to_bytes(p))` reproduces `p` for every [`Print`](fprint_core::Print) whose
+//! `finger` is `Some` and whose `driver`/`device_id` are either `None` or non-empty. **Outside
+//! that, two distinctions collapse**, because the wire cannot express them:
+//!
+//! * `finger: None` decodes as `Some(Finger::Unknown)` — the FP3 `y` byte has no "absent".
+//! * `driver`/`device_id` of `Some("")` decode as `None` — GVariant `s` is not nullable, so the
+//!   empty string is how the format spells "unset".
+//!
+//! `tests/property.rs` states the exact law, collapse included, and sweeps it. `to_bytes` is
+//! partial for two further reasons of its own: [`Template::Undefined`](fprint_core::Template)
+//! has no on-disk form, and an [`EnrollDate`](fprint_core::EnrollDate) outside the Julian day's
+//! `i32` range has no encoding ([`Fp3Error::DateOutOfRange`]).
 
 #![forbid(unsafe_code)]
+#![deny(missing_docs)]
 
 mod codec;
 mod date;

@@ -25,6 +25,12 @@
 //! into its member slices given a static description of the members; the scalar/string/array
 //! readers turn a member slice into a value. Every access is checked and yields
 //! [`Fp3Error::Malformed`] rather than panicking.
+//!
+//! **The reader cannot recurse**: the codec names each shape it reads, and FP3's grammar is
+//! depth-fixed — a `Template::Raw` payload's bytes are never parsed, and the NBIS payload
+//! bottoms out at `(aiaiai)`. Nesting depth is therefore not an input, and no recursion limit
+//! exists or is needed. Attacker-controlled *breadth* is bounded instead by
+//! [`read_var_array`]'s disjointness rule.
 
 use crate::error::{Fp3Error, Result};
 
@@ -457,4 +463,298 @@ where
         prev = end;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::codec::TOP_SPECS;
+
+    /// A real libfprint NBIS blob, magic included — the only input here that is not hand-framed.
+    const FIXTURE: &[u8] = include_bytes!("../tests/fixtures/libfprint_virtual_image_nbis.fp3");
+
+    /// Decode an array of variable-width elements into each element's length. The lengths are
+    /// what the framing arithmetic decides, so they are what these tests assert on.
+    fn elem_lens(slice: &[u8], elem_align: usize) -> Result<Vec<usize>> {
+        read_var_array(slice, elem_align, |s| Ok(s.len()))
+    }
+
+    // ---- the framing-offset width: writer and reader must agree -----------------------
+
+    /// **[`chosen_offset_size`] and [`offset_size`] are duals**: the width the writer picks for
+    /// a body plus `n` offsets is the width the reader recovers from the resulting total size.
+    /// The two are computed from different quantities — the writer from the body it has, the
+    /// reader from the size it finds — and the table's own bytes can push the total across a
+    /// power-of-two boundary, which is the case that makes them non-obvious.
+    #[test]
+    fn writer_and_reader_agree_on_offset_width() {
+        for n in [1usize, 2, 3, 17, 255] {
+            for body in [
+                0usize, 1, 200, 253, 254, 255, 256, 0xfffd, 0xfffe, 0xffff, 0x1_0000,
+            ] {
+                let width = chosen_offset_size(body, n);
+                let total = body + n * width;
+                assert_eq!(
+                    offset_size(total),
+                    width,
+                    "body {body}, n {n}: writer chose {width}, reader recovers {}",
+                    offset_size(total)
+                );
+            }
+        }
+    }
+
+    // ---- read_var_array: the disjointness rule ----------------------------------------
+
+    /// **The `start > end` check is what keeps array elements disjoint.** An offset table whose
+    /// entries run backwards asks for element `[8..4]` — a reversed range, which slicing would
+    /// panic on. It is rejected instead.
+    ///
+    /// Disjointness — not this check — is what bounds the total work: `prev = end` each
+    /// iteration, so the element slices tile the body in order and their lengths sum to at most
+    /// the body's size, however many offsets the table holds.
+    #[test]
+    fn overlapping_array_elements_are_rejected() {
+        // A 12-byte body (three int32s) written by this module, plus a hand-built 3-entry
+        // table. The last entry is `last_end` (12), which is what marks the table's start; the
+        // first two run backwards, so element 1 would start at 8 and end at 4.
+        let mut blob = int32_array(&[1, 2, 3]).into_bytes();
+        assert_eq!(blob.len(), 12);
+        blob.extend_from_slice(&[8, 4, 12]);
+
+        assert!(matches!(
+            elem_lens(&blob, 4),
+            Err(Fp3Error::Malformed("array element out of range"))
+        ));
+    }
+
+    /// An element whose offset ends past the final element's end is out of range, even though it
+    /// is still inside the slice — the table's own bytes are not element data.
+    #[test]
+    fn array_element_ending_past_the_body_is_rejected() {
+        let mut blob = int32_array(&[1, 2, 3]).into_bytes();
+        blob.extend_from_slice(&[13, 12]);
+
+        assert!(matches!(
+            elem_lens(&blob, 4),
+            Err(Fp3Error::Malformed("array element out of range"))
+        ));
+    }
+
+    /// A table whose every entry points at the body's end is **accepted**, and costs one body's
+    /// worth of work: element 0 spans the body, and each later element is empty because `prev`
+    /// has already reached the end. It is pinned here because it is the shape that looks like a
+    /// blowup and is not one.
+    #[test]
+    fn array_elements_all_pointing_at_the_body_end_collapse_to_empty() {
+        let mut blob = int32_array(&[1, 2, 3]).into_bytes();
+        blob.extend_from_slice(&[12, 12, 12]);
+
+        assert_eq!(elem_lens(&blob, 4).unwrap(), vec![12, 0, 0]);
+    }
+
+    /// The final offset names the table's start; past the slice's end it is nonsense.
+    #[test]
+    fn array_framing_offset_past_the_end_is_rejected() {
+        assert!(matches!(
+            elem_lens(&[0xff, 0xff, 0xff, 0xff], 4),
+            Err(Fp3Error::Malformed("array framing offset past end"))
+        ));
+    }
+
+    /// The table is a whole number of offsets. A `last_end` leaving a remainder is malformed.
+    /// Reaching this needs a 2-byte offset width, so the slice must exceed 255 bytes.
+    #[test]
+    fn array_framing_table_misaligned_is_rejected() {
+        let mut blob = vec![0u8; 300];
+        // Offset width is 2 here; a `last_end` of 299 leaves a 1-byte table.
+        blob[298..300].copy_from_slice(&299u16.to_le_bytes());
+
+        assert!(matches!(
+            elem_lens(&blob, 4),
+            Err(Fp3Error::Malformed("array framing table misaligned"))
+        ));
+    }
+
+    /// Zero bytes is the empty array, and so is the degenerate encoding whose final offset reads
+    /// as zero. Neither is an error.
+    #[test]
+    fn empty_arrays_decode_to_no_elements() {
+        assert_eq!(elem_lens(&[], 4).unwrap(), Vec::<usize>::new());
+        assert_eq!(elem_lens(&[0], 4).unwrap(), Vec::<usize>::new());
+    }
+
+    // ---- walk_tuple ------------------------------------------------------------------
+
+    /// A tuple's framing table cannot be larger than the tuple itself.
+    #[test]
+    fn tuple_shorter_than_its_framing_table_is_rejected() {
+        // Four variable members: three carry offsets (the last never does). Two bytes cannot
+        // hold a three-offset table.
+        let specs = [Spec::var(1), Spec::var(1), Spec::var(1), Spec::var(1)];
+        assert!(matches!(
+            walk_tuple(&[0, 0], &specs),
+            Err(Fp3Error::Malformed("tuple shorter than its framing table"))
+        ));
+    }
+
+    /// A member offset outside the tuple's bytes is rejected rather than sliced.
+    #[test]
+    fn tuple_member_out_of_range_is_rejected() {
+        // Two members, one offset (for member 0) in the last byte, pointing past the end.
+        let specs = [Spec::var(1), Spec::var(1)];
+        assert!(matches!(
+            walk_tuple(&[0, 0, 0xff], &specs),
+            Err(Fp3Error::Malformed("tuple member out of range"))
+        ));
+    }
+
+    /// A fixed member reaching past the tuple's bytes is rejected, not read out of bounds.
+    #[test]
+    fn tuple_fixed_member_past_the_end_is_rejected() {
+        let specs = [Spec::fixed(4, 4)];
+        assert!(matches!(
+            walk_tuple(&[0, 0], &specs),
+            Err(Fp3Error::Malformed("tuple member out of range"))
+        ));
+    }
+
+    /// **Every prefix of a real libfprint blob either parses or errors — none panics.** The
+    /// top-level shape is the production [`TOP_SPECS`], so this walks the same arithmetic
+    /// `from_bytes` does, over every truncation point the wire can present.
+    #[test]
+    fn truncated_tuple_at_every_prefix_is_rejected_not_panicked() {
+        let body = &FIXTURE[crate::MAGIC.len()..];
+        for n in 0..body.len() {
+            // The property is total: no prefix may panic, and every member slice a successful
+            // walk yields must lie inside the prefix it came from.
+            if let Ok(members) = walk_tuple(&body[..n], &TOP_SPECS) {
+                for m in members {
+                    assert!(
+                        m.len() <= n,
+                        "member longer than the {n}-byte prefix it came from"
+                    );
+                }
+            }
+        }
+        // The untruncated body is the control: it must actually parse.
+        assert!(walk_tuple(body, &TOP_SPECS).is_ok());
+    }
+
+    // ---- scalar and string readers ---------------------------------------------------
+
+    #[test]
+    fn strings_must_be_nul_terminated_and_utf8() {
+        assert_eq!(read_string(b"ok\0").unwrap(), "ok");
+        assert!(matches!(
+            read_string(b"no-terminator"),
+            Err(Fp3Error::Malformed("string not nul-terminated"))
+        ));
+        assert!(matches!(
+            read_string(&[0xff, 0xfe, 0]),
+            Err(Fp3Error::Malformed("string not valid utf-8"))
+        ));
+        // The empty string is a lone terminator, not an error.
+        assert_eq!(read_string(b"\0").unwrap(), "");
+    }
+
+    /// `ms` distinguishes absent from empty: no bytes is `Nothing`; a bare presence byte is
+    /// `Just("")`.
+    #[test]
+    fn maybe_strings_separate_nothing_from_empty() {
+        assert_eq!(read_maybe_string(&[]).unwrap(), None);
+        assert_eq!(read_maybe_string(&[0, 0]).unwrap(), Some(String::new()));
+        assert_eq!(read_maybe_string(b"hi\0\0").unwrap(), Some("hi".into()));
+    }
+
+    #[test]
+    fn int32_arrays_must_be_a_whole_number_of_elements() {
+        assert_eq!(read_i32_array(&[]).unwrap(), Vec::<i32>::new());
+        assert_eq!(read_i32_array(&1i32.to_le_bytes()).unwrap(), vec![1]);
+        assert!(matches!(
+            read_i32_array(&[0, 0, 0]),
+            Err(Fp3Error::Malformed("int32 array size not a multiple of 4"))
+        ));
+    }
+
+    #[test]
+    fn int32_shorter_than_four_bytes_is_rejected() {
+        assert!(matches!(
+            read_i32(&[0, 0, 0]),
+            Err(Fp3Error::Malformed("int32 too short"))
+        ));
+        assert_eq!(read_i32(&(-1i32).to_le_bytes()).unwrap(), -1);
+    }
+
+    #[test]
+    fn empty_scalar_members_are_rejected() {
+        assert!(matches!(
+            read_byte(&[]),
+            Err(Fp3Error::Malformed("byte member empty"))
+        ));
+        assert!(matches!(
+            read_bool(&[]),
+            Err(Fp3Error::Malformed("byte member empty"))
+        ));
+        // Any nonzero byte is true — GVariant normal form says 0/1, the reader is liberal.
+        assert!(read_bool(&[2]).unwrap());
+    }
+
+    /// A `v` carries its signature after the last `0x00`. With no `0x00` at all there is no
+    /// signature to find.
+    #[test]
+    fn variant_without_a_separator_is_rejected() {
+        assert!(matches!(
+            split_variant(b"nope"),
+            Err(Fp3Error::Malformed("variant missing signature separator"))
+        ));
+        let (child, sig) = split_variant(b"hi\0\0s").unwrap();
+        assert_eq!((child, sig), (b"hi\0".as_slice(), b"s".as_slice()));
+    }
+
+    // ---- writer/reader round-trips ---------------------------------------------------
+
+    /// The writers emit what the readers expect, for the shapes with framing tables.
+    #[test]
+    fn hand_framed_values_read_back() {
+        assert_eq!(read_i32(&int32(-7).into_bytes()).unwrap(), -7);
+        assert_eq!(read_byte(&byte(9).into_bytes()).unwrap(), 9);
+        assert!(read_bool(&boolean(true).into_bytes()).unwrap());
+        assert_eq!(read_string(&string("x").into_bytes()).unwrap(), "x");
+        assert_eq!(
+            read_maybe_string(&maybe_string(Some("y")).into_bytes()).unwrap(),
+            Some("y".into())
+        );
+        assert_eq!(
+            read_maybe_string(&maybe_string(None).into_bytes()).unwrap(),
+            None
+        );
+        assert_eq!(
+            read_i32_array(&int32_array(&[1, -2, 3]).into_bytes()).unwrap(),
+            vec![1, -2, 3]
+        );
+
+        // An array of three variable-width elements of differing lengths, through the writer.
+        let elems = vec![
+            int32_array(&[1]),
+            int32_array(&[2, 3]),
+            int32_array(&[4, 5, 6]),
+        ];
+        let blob = array(elems, 4).into_bytes();
+        assert_eq!(elem_lens(&blob, 4).unwrap(), vec![4, 8, 12]);
+    }
+
+    /// An all-fixed tuple carries no framing table; a variable one is split by its offsets.
+    #[test]
+    fn tuples_round_trip_through_their_framing() {
+        let blob = tuple(vec![int32(1), byte(2)], 4).into_bytes();
+        let members = walk_tuple(&blob, &[Spec::fixed(4, 4), Spec::fixed(1, 1)]).unwrap();
+        assert_eq!(read_i32(members[0]).unwrap(), 1);
+        assert_eq!(read_byte(members[1]).unwrap(), 2);
+
+        let blob = tuple(vec![string("ab"), string("c")], 1).into_bytes();
+        let members = walk_tuple(&blob, &[Spec::var(1), Spec::var(1)]).unwrap();
+        assert_eq!(read_string(members[0]).unwrap(), "ab");
+        assert_eq!(read_string(members[1]).unwrap(), "c");
+    }
 }

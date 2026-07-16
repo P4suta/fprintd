@@ -30,6 +30,7 @@
 //! `fprint_core::Minutia` at the boundary.
 
 #![forbid(unsafe_code)]
+#![deny(missing_docs)]
 
 mod binarize;
 mod block;
@@ -54,7 +55,9 @@ mod xyt;
 /// (higher is better). Mirrors the shape of `fprint_core::Minutia` (the consumer converts).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Minutia {
+    /// Pixel column, origin bottom-left, increasing rightward.
     pub x: i32,
+    /// Pixel row, origin bottom-left, increasing upward.
     pub y: i32,
     /// Ridge orientation in degrees, `0..=359`.
     pub theta: i32,
@@ -66,10 +69,20 @@ pub struct Minutia {
 ///
 /// `data` is exactly `width * height` bytes (0 = black, 255 = white). `ppi` is the scan resolution
 /// in pixels-per-inch, carried because several MINDTCT thresholds are resolution-relative.
+///
+/// # Panics
+///
+/// `data.len() >= width * height` is an **unenforced precondition**, checked by nothing on
+/// construction. A shorter `data` panics when a consumer ([`detect_minutiae`], [`debug_maps`],
+/// [`debug_raw_minutiae`], [`debug_removed_minutiae`]) reaches the padding stage and indexes the
+/// missing row. A *longer* `data` does not panic: the trailing bytes are ignored.
 #[derive(Clone, Copy, Debug)]
 pub struct GrayImage<'a> {
+    /// The pixels, row-major, one byte each (0 = black, 255 = white).
     pub data: &'a [u8],
+    /// Image width in pixels.
     pub width: usize,
+    /// Image height in pixels.
     pub height: usize,
     /// Scan resolution in pixels-per-inch.
     pub ppi: u16,
@@ -178,7 +191,52 @@ fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
 /// The reliability that becomes each minutia's `quality` is derived from the **original** 8-bit image
 /// (`img.data`, unpadded) and the block maps at the scan resolution `ppmm = img.ppi / 25.4`, exactly
 /// as stock `combined_minutia_quality` consumes `idata`. Returns an empty list on the (size) error
-/// paths the pipeline can surface.
+/// paths the pipeline can surface — including a degenerate image (any zero dimension, or one too
+/// small to carry a single block).
+///
+/// # Panics
+///
+/// If `img.data.len() < img.width * img.height`. [`GrayImage`] states that as an unenforced
+/// precondition; this is where a short buffer surfaces.
+///
+/// # Examples
+///
+/// A procedural image: dark horizontal ridges on a light field, with a gap cut into every other
+/// ridge. The gap ends a ridge, and a ridge ending is a minutia — plain stripes have none, and would
+/// make the loop below assert nothing.
+///
+/// The example asserts the shape of the answer, not the count: that detection finds *something*, and
+/// that each minutia sits inside the image with a documented angle and quality. The exact count is a
+/// property of the pixels and belongs in the golden suite.
+///
+/// ```
+/// use fprint_mindtct::{detect_minutiae, GrayImage};
+///
+/// let (width, height) = (128, 128);
+/// let data: Vec<u8> = (0..width * height)
+///     .map(|i| {
+///         let (x, y) = (i % width, i / width);
+///         let on_ridge = (y % 8) < 4;
+///         let gap = (48..80).contains(&x) && (y / 8) % 2 == 0;
+///         if on_ridge && !gap { 32 } else { 224 }
+///     })
+///     .collect();
+///
+/// let minutiae = detect_minutiae(GrayImage {
+///     data: &data,
+///     width,
+///     height,
+///     ppi: 500,
+/// });
+///
+/// assert!(!minutiae.is_empty(), "the ridge gaps must yield minutiae");
+/// for m in &minutiae {
+///     assert!((0..width as i32).contains(&m.x));
+///     assert!((0..height as i32).contains(&m.y));
+///     assert!((0..360).contains(&m.theta));
+///     assert!((0..=100).contains(&m.quality));
+/// }
+/// ```
 #[must_use]
 pub fn detect_minutiae(img: GrayImage<'_>) -> Vec<Minutia> {
     use crate::params::LFSPARMS_V2;
@@ -331,6 +389,47 @@ pub fn debug_removed_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
     }
 
     to_raw(&st.minutiae)
+}
+
+/// Diagnostic (hidden): how many minutiae each numbered stage of `remove_false_minutia_V2` dropped
+/// for an input, indexed by the reference's own stage number minus one (slot `0` is stage 1, slot
+/// `9` is stage 10). Returns all zeros on the (size) error paths the pipeline can surface.
+///
+/// Runs the same front-end and `detect_minutiae_V2` as [`debug_removed_minutiae`], then the ten
+/// removal stages, measuring the list length across each. Exposed so a test can ask which stages the
+/// corpus actually exercises — a stage that never drops a minutia is untested by the `.rmin2` golden
+/// however green it reads.
+///
+/// Slot `0` is the sort, which permutes the list and so is always `0`. Slot `5` (stage 6,
+/// `remove_or_adjust_side_minutiae_V2`) both removes and *adjusts*; an adjust leaves the length
+/// alone, so the slot counts its remove path only.
+#[doc(hidden)]
+#[must_use]
+pub fn debug_removal_tally(img: GrayImage<'_>) -> [usize; 10] {
+    use crate::params::LFSPARMS_V2;
+    use crate::remove::remove_false_minutia_v2;
+
+    let Some(mut st) = run_detect(img) else {
+        return [0; 10];
+    };
+
+    let p = &LFSPARMS_V2;
+    let (iw, ih) = (img.width as i32, img.height as i32);
+    let (mw, mh) = (st.maps.map_w as i32, st.maps.map_h as i32);
+
+    remove_false_minutia_v2(
+        &mut st.minutiae,
+        &mut st.bdata,
+        iw,
+        ih,
+        &st.maps.direction_map,
+        &st.maps.low_flow_map,
+        &st.maps.high_curve_map,
+        mw,
+        mh,
+        p,
+    )
+    .unwrap_or([0; 10])
 }
 
 /// Diagnostic (hidden): the intermediate maps and binarized image for an input, used by verification

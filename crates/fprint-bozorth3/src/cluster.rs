@@ -15,6 +15,29 @@
 //!   which is provably identical for the sorted/dedup sets involved and avoids the UB.
 //! * The `colp[l-2]` head-of-run walk-back is guarded with `l >= 2` (the C reads `colp[-1]` when
 //!   `l == 1`; the guarded form stops at the array head, the only sane deterministic behaviour).
+//!
+//! ## `QQ_OVERFLOW_SCORE` is promised and unreached
+//!
+//! [`crate::match_score`] documents `4000` ([`QQ_OVERFLOW_SCORE`]) when the `qq[]` work queue
+//! overflows, and [`Bz::sift`] returns it. **No input reaches it, and no test asserts it — but it is
+//! not far out of reach, and nothing here proves it unreachable.**
+//!
+//! `qh` grows on two routes. One is a probe endpoint newly paired into the current path, and
+//! `xyt::prepare` caps a print at 150 minutiae, so that route stops at 151. The other is an edge
+//! first stamped into the path (`sift` case B), bounded only by stage 2's 19999-row table — and that
+//! route is the live one: a dense 150-minutia self-match drives `qh` to **3680** against a
+//! [`QQ_SIZE`] of 4000, the nearest approach over the generated corpus and the grid and lattice
+//! families. `qh` there tracks the score, which is `3679`.
+//!
+//! Two things follow, both worth knowing before touching this file:
+//!
+//! * The guard is reproduced and left unexercised. Faking a test for it needs a hand-built `colp`
+//!   that stage 2 cannot emit, and `#[ignore]` would hide it, so this note is the record. The
+//!   constant relation `QQ_OVERFLOW_SCORE == QQ_SIZE` is pinned in [`crate::consts`] — the part of
+//!   the promise that can be checked.
+//! * The sentinel shares its range with real scores. `4000` is 9% above the largest score seen, so a
+//!   caller cannot read `4000` as "overflow" rather than "a very strong match". That is the
+//!   reference's design, reproduced, not a defect introduced here.
 
 use crate::consts::{
     iangle180, round_half_away, sense, CTXS, MIN_COMPUTABLE_BOZORTH_MINUTIAE, MMSTR, MSTR,
@@ -826,4 +849,109 @@ fn sorted_sets_intersect(a: &[i32], b: &[i32]) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [`vector_angle`] is `atan2(num, den)` in whole degrees, folded to `(-180, 180]` — with two
+    /// details that the name does not carry, both pinned below: the `den == 0` degenerate answers
+    /// `-90` for `num == 0` as well as for `num < 0`, and `(0, negative)` reaches `180` only via the
+    /// `a <= -180` wrap.
+    #[test]
+    fn vector_angle_is_atan2_in_whole_degrees() {
+        for (num, den, want) in [
+            // den == 0: the two degenerate arms. `num > 0` is the only route to +90, so the
+            // origin — no direction at all — answers -90 rather than 0.
+            (1, 0, 90),
+            (1000, 0, 90),
+            (0, 0, -90),
+            (-1, 0, -90),
+            // den > 0: ROUND(atan) straight through, both signs of num.
+            (0, 10, 0),
+            (10, 10, 45),
+            (-10, 10, -45),
+            (10, 1, 84),
+            (-10, 1, -84),
+            // den < 0: ±180.5 folds the answer into the correct half-plane.
+            (10, -10, 135),
+            (-10, -10, -135),
+            (10, -1, 96),
+            (-10, -1, -96),
+            // The `a <= -180` wrap: -180.5 truncates to -180, which is out of the half-open range
+            // and is corrected to +180. Without the wrap this pair alone would be -180.
+            (0, -10, 180),
+        ] {
+            assert_eq!(vector_angle(num, den), want, "vector_angle({num}, {den})");
+        }
+    }
+
+    /// The whole range, against an independent `atan2` oracle: the reference's `atan`-plus-offset
+    /// ladder computes the same angle as `atan2` on every direction, the origin excepted.
+    ///
+    /// A total statement over the directions, so it is worth more than the table above — but the
+    /// table stays, because this oracle rounds the same way by construction and would not catch a
+    /// changed rounding rule.
+    #[test]
+    fn vector_angle_agrees_with_atan2_on_every_direction() {
+        for num in -60..=60 {
+            for den in -60..=60 {
+                if num == 0 && den == 0 {
+                    continue; // no direction; the table above pins the -90 answer.
+                }
+                let exact = f64::from(num).atan2(f64::from(den)).to_degrees();
+                let mut want = round_half_away(exact as f32);
+                if want <= -180 {
+                    want += 360;
+                }
+                assert_eq!(
+                    vector_angle(num, den),
+                    want,
+                    "vector_angle({num}, {den}): atan2 says {exact}"
+                );
+            }
+        }
+    }
+
+    /// The centroid at line 548 — `avn[k] / tot` — is an `i32` division, so it **truncates toward
+    /// zero**, not toward negative infinity.
+    ///
+    /// This is the one fact `tests/properties.rs` needs to be honest about translation invariance:
+    /// shifting a print by `d` shifts its centroid by exactly `d` only while the coordinate sum
+    /// keeps its sign. Where the sum crosses zero, truncation flips from `ceil` to `floor` and the
+    /// centroid moves by `d ± 1` — so that test scopes itself to non-negative coordinates and
+    /// non-negative shifts, and says why.
+    #[test]
+    fn centroid_division_truncates_toward_zero() {
+        assert_eq!(-7 / 2, -3, "toward zero; floor would be -4");
+        // The shift identity translation invariance rests on, and the sign change that breaks it.
+        assert_eq!(
+            (7 + 2 * 5) / 2,
+            7 / 2 + 5,
+            "a sum that stays non-negative shifts exactly"
+        );
+        assert_ne!(
+            (-7 + 2 * 5) / 2,
+            -7 / 2 + 5,
+            "a sum that crosses zero does not: truncation changes direction with the sign"
+        );
+    }
+
+    /// Two sets share an element, or they do not. The empty set shares nothing — including with
+    /// itself, which is what makes a cluster with no endpoints on one side mergeable.
+    #[test]
+    fn sorted_sets_intersect_finds_a_shared_endpoint() {
+        assert!(sorted_sets_intersect(&[1, 5, 9], &[5]));
+        assert!(sorted_sets_intersect(&[5], &[1, 5, 9]));
+        assert!(sorted_sets_intersect(&[1, 2, 3], &[3, 4, 5]), "at the tail");
+        assert!(sorted_sets_intersect(&[3, 4, 5], &[1, 2, 3]), "at the head");
+        assert!(
+            !sorted_sets_intersect(&[1, 3, 5], &[2, 4, 6]),
+            "interleaved but disjoint"
+        );
+        assert!(!sorted_sets_intersect(&[], &[]));
+        assert!(!sorted_sets_intersect(&[1, 2], &[]));
+        assert!(!sorted_sets_intersect(&[], &[1, 2]));
+    }
 }
