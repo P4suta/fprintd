@@ -16,7 +16,11 @@ use crate::{DeviceId, DriverId, Finger};
 /// Maps to one column across libfprint's `xyt_struct` parallel arrays: `x`, `y`, and
 /// `theta` (orientation, degrees). In the FP3 payload these are stored as three int32
 /// arrays per enrolled sample (GVariant `(aiaiai)`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+///
+/// The `fprint-mindtct` and `fprint-bozorth3` kernels stay dependency-free and define their own
+/// `Minutia` of the same shape; a backend maps between them at the boundary (via [`Self::from_xyt`] /
+/// [`Self::as_xyt`]). The derives match those kernels' so the three types line up.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Minutia {
     /// Column in the source image, in pixels.
     pub x: i32,

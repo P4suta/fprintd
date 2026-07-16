@@ -34,6 +34,10 @@
 //! and only meaningful when the daemon runs the blocking call on a thread it can later
 //! signal. `fprint-backend-native` is fully drop-cancellable.
 
+// The pure crates all set this; the shim is the one published crate that may not
+// `#![forbid(unsafe_code)]` (it is the FFI quarantine), but it holds the same documentation bar.
+#![deny(missing_docs)]
+
 mod backend;
 mod convert;
 mod device;

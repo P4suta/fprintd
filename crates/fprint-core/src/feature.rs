@@ -146,6 +146,11 @@ impl core::fmt::Debug for DeviceFeature {
 ///
 /// The `net.reactivated.Fprint` `scan-type` property string (`"swipe"`/`"press"`) is interop
 /// wire vocabulary and lives at the daemon edge, not here (`ARCHITECTURE.md` principle 3).
+///
+/// Deliberately exhaustive, unlike the other external-vocabulary mirrors in this module: the
+/// `scan-type` wire contract defines exactly these two values, the shim collapses any other
+/// `FpScanType` to `Swipe`, and the daemon maps the enum totally onto the wire string — so a
+/// `#[non_exhaustive]` here would only force a lossy fallback arm at that edge with nothing to carry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ScanType {
     /// Finger is swiped across a line sensor.
