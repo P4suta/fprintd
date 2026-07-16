@@ -14,10 +14,12 @@
 # Formats
 
 - [The FP3 print format](fp3-format.md)
+- [Re-capturing USB traffic](re-capture-formats.md)
 
 # Extending
 
 - [Adding a native driver](adding-a-driver.md)
+- [Bringing up a sensor with fpdev](bringing-up-a-sensor.md)
 
 # Provenance & notes
 

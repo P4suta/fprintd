@@ -8,7 +8,11 @@ with libfprint's driver estate is explicitly a non-goal (see
 to the ecosystem, contributed at your pace, not a milestone the project is racing
 toward.
 
-If you'd like to try, here is where to plug in.
+If you'd like to try, here is where to plug in. This page is the seam reference — the trait,
+the layers, the license rule, and the acceptance criteria. For the step-by-step bring-up that
+uses these — identify the device, scaffold a driver, decode its frames, and open a pull
+request — follow [Bringing up a sensor with fpdev](bringing-up-a-sensor.md); the `fpdev`
+workbench drives every phase offline.
 
 ## The capture seam
 
@@ -68,11 +72,30 @@ This is the one hard rule for driver contributions (see
 
 - `#![forbid(unsafe_code)]` holds, except in the transport leaf where the FFI/USB
   boundary genuinely needs it (quarantined, as `nusb` is today).
+- Every device value carries an `HW-verified:` marker recording whether hardware has
+  vouched for it (see below); the pending ones are the bring-up's remaining work.
 - Verified black-box: golden fixtures, mock-transport tests, or captured-frame
   round-trips — the way `sources/` and `usb/mock_tests.rs` are.
 - REUSE clean: every new file declares its license (inline SPDX for `.rs`, or the
   `REUSE.toml` bulk annotation), and `mise run reuse` passes.
 - Passes the workspace lints: `cargo clippy --workspace --all-targets -- -D warnings`
   and `cargo fmt --all --check`.
+
+## The HW-verified marker
+
+A driver's device constants — VID/PID, endpoints, frame geometry, init/deinit
+sequences — are interoperability facts that only a physical sensor can confirm. Each
+one carries a marker in its doc-comment recording that state, on a single axis with
+two positions:
+
+- `// HW-verified: required` — **pending**. A placeholder or an unconfirmed fact that
+  no hardware has vouched for. This is what the scaffold emits.
+- `// HW-verified: confirmed <evidence>` — **resolved**. Checked against hardware,
+  with `<evidence>` recording how (a capture, a descriptor dump, a datasheet
+  reference).
+
+`cargo xtask hw-checklist [driver]` lists the pending markers, so a bring-up can see
+what is left to confirm. A bare `HW-verified: required` stays pending until someone
+confirms the value and writes the evidence in; nothing else changes its meaning.
 
 Open a draft PR early — we're happy to help shape the seam with you.
