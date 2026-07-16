@@ -93,3 +93,7 @@ run = "cargo xtask fuzz"
 [tasks.publish-check]
 description = "Check the published crates against the registry's rules: licence, deps, contents"
 run = "cargo xtask publish-check"
+
+[tasks.deny]
+description = "Check the dependency graph: advisories, licences, wildcard pins, sources"
+run = "cargo deny check"

@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# Supply-chain rules, checked by `cargo deny check` (mise run deny, and a CI job).
+#
+# This adds no dependency: cargo-deny is a CLI that reads Cargo.lock. What it buys, in order:
+#
+#  1. The licence boundary. ARCHITECTURE.md §Provenance spends real effort on staying clear of
+#     libfprint's LGPL terms, and nothing stopped a *new* copyleft crate entering the graph. The
+#     allow-list below makes that boundary one file a machine re-reads, instead of an argument
+#     distributed through prose.
+#  2. The `=` pins. `[bans] wildcards = "deny"` enforces by machine a discipline already practised
+#     by hand.
+#  3. Advisories. The pure crates have no dependencies to audit, so the whole value here is
+#     fprintd's zbus/tokio graph and the shim's glib/gio — which is the authentication path.
+
+[graph]
+# Every optional dependency and every target, so the Linux-only shim and daemon are in scope from
+# any host. cargo-deny resolves from `cargo metadata`, so this needs neither Linux nor Docker.
+all-features = true
+
+[advisories]
+version = 2
+# `warn`, not `deny`. `libfprint-rs` and `libfprint-sys` are pinned to an exact version because a
+# patch release turns a documented workaround into a double-free (docs/known-issues.md). A yank we
+# cannot act on must be visible rather than red: a build that fails for something no commit can fix
+# is a check on its way to being switched off.
+yanked = "warn"
+# Each entry, when one is needed, carries a `reason` pointing at docs/known-issues.md. An advisory
+# against a pinned version is exactly the moment a human decides, and this is where that decision
+# lives so the tool re-reads it every run.
+ignore = []
+
+[licenses]
+version = 2
+# Resolved from the actual graph rather than guessed. Every entry is reachable today:
+#   Apache-2.0 WITH LLVM-exception — target-lexicon offers nothing else
+#   BSD-3-Clause                   — bindgen (the shim's FFI generator)
+#   ISC                            — libloading
+#   Unicode-3.0                    — unicode-ident, as `(MIT OR Apache-2.0) AND Unicode-3.0`
+#   BSD-2-Clause, Unlicense        — mach2, memchr, aho-corasick, each beside MIT
+#
+# There is no `[[licenses.exceptions]]`, and that is the finding rather than an omission: the LGPL
+# boundary ARCHITECTURE.md argues is about the C libfprint `.so` we dynamically link. The Rust
+# binding crates are not it — `libfprint-rs` and `libfprint-sys` are both MIT. The one crate in the
+# graph that offers LGPL at all (`r-efi`) offers MIT beside it, so nothing here takes copyleft terms.
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "MIT",
+  "Unicode-3.0",
+  "Unlicense",
+]
+
+[bans]
+# `*` is what this rejects, not `=`. The exact pins are the strictest requirement expressible and
+# no check here objects to them.
+wildcards = "deny"
+# A version-less path dependency *is* a `*` requirement, and this workspace has several on purpose:
+# omitting the version is exactly what makes `cargo publish` strip a dev-dependency from a
+# published tarball, which is how `fprint-testkit` and `fprint-backend-native` stay out of the
+# crates that ship (`cargo xtask publish-check` proves it of the packaged manifests). Without this,
+# the rule would fire on the design it is supposed to protect — and a check that fires on correct
+# code gets switched off. Registry wildcards, which are the actual risk, are still refused.
+allow-wildcard-paths = true
+# `warn`: the glib/gio/zbus graph carries duplicates this project does not control. Denying them
+# would be a treadmill, and a treadmill is how a security check gets switched off.
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

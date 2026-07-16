@@ -23,6 +23,8 @@
 #  * `publish`— the published crates against the registry's own rules. `reuse lint` accepts a
 #               custom LicenseRef-* identifier and crates.io does not, so a green REUSE run is no
 #               evidence a crate can leave the workspace. See xtask/src/publish.rs.
+#  * `deny`   — supply chain: advisories, the licence boundary, wildcard pins, source registries.
+#               Reads Cargo.lock via `cargo metadata`, so it needs neither Linux nor Docker.
 #  * `reuse`  — SPDX/REUSE license compliance.
 
 name: CI
@@ -131,6 +133,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check the published crates package, strip and ship what they claim
         run: cargo xtask publish-check
+
+  deny:
+    name: supply chain (advisories, licences, bans, sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
 
   reuse:
     name: reuse lint
