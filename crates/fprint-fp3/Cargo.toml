@@ -31,6 +31,10 @@ fprint-bozorth3 = { workspace = true }
 # `cargo publish` strips it: `fprint-testkit` is `publish = false`, and `cargo xtask publish-check`
 # proves it is absent from this crate's packaged manifest.
 fprint-testkit = { workspace = true }
+# A mature, independent GVariant implementation, used only by `tests/zvariant_oracle.rs` to
+# re-decode the frozen golden fixtures and vouch that the hand-rolled codec reads the same
+# structure. Dev-only: the shipped codec stays hand-rolled and this never enters the tarball.
+zvariant = { version = "5", features = ["gvariant"] }
 
 [lints]
 workspace = true

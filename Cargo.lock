@@ -423,6 +423,7 @@ dependencies = [
  "fprint-core",
  "fprint-testkit",
  "thiserror",
+ "zvariant",
 ]
 
 [[package]]
