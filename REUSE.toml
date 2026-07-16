@@ -44,6 +44,15 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
+# Licence texts mirrored into each published crate (by `cargo xtask sync-licenses`) so an extracted
+# tarball is self-describing. In an extracted crate they sit at its root `LICENSES/` and `reuse`
+# recognises them directly; here, nested under a crate, they are ordinary files and declared instead.
+[[annotations]]
+path = ["crates/*/LICENSES/*.txt"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Real-libfprint FP3 blobs, frozen as interop fixtures (a wire-format fact — a byte layout — not
 # copyrightable expression; see ARCHITECTURE.md §Provenance & licensing). The NBIS one is minutiae
 # from a synthetic image, not from a finger.

@@ -216,8 +216,10 @@ Consequences:
 
 ### Per-crate license map
 
-License texts live **only** in `LICENSES/` (REUSE-canonical; no root duplication), and
-`reuse lint` gates every file. The crate-level split:
+Canonical licence texts live in `LICENSES/` (REUSE-canonical), mechanically mirrored into
+each published crate (via `cargo xtask sync-licenses`) so every tarball is self-describing;
+`publish-check` verifies each shipped copy is byte-identical to its source. `reuse lint`
+gates every file. The crate-level split:
 
 | crate(s) | SPDX license | note |
 |---|---|---|

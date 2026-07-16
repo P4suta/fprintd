@@ -27,6 +27,7 @@ mod oracle;
 mod publish;
 mod references;
 mod sloc;
+mod sync_licenses;
 mod unit;
 
 use std::path::{Path, PathBuf};
@@ -47,6 +48,7 @@ fn main() -> ExitCode {
         Some("lint") => lint::check(&root),
         Some("ci-annotate") => ci::annotate(&root),
         Some("publish-check") => publish::check(&root),
+        Some("sync-licenses") => sync_licenses::run(&root),
         Some("unit-verify") => unit::verify(&root),
         Some("sloc") => sloc::measure(&root),
         Some("clone-ref") => references::clone_upstream(&root),
@@ -123,6 +125,7 @@ fn usage() -> String {
         "  lint               repository rules a compiler does not enforce",
         "  ci-annotate        run clippy and emit GitHub PR annotations for each finding",
         "  publish-check      check the published crates against the registry's rules",
+        "  sync-licenses      mirror LICENSES/ into each published crate (self-describing tarballs)",
         "  unit-verify        check the systemd unit parses, and that Alias= takes the seat",
         "  sloc               M0: measure upstream libfprint by subsystem",
         "  clone-ref          clone the upstream C we read (libfprint, fprintd, the binding)",

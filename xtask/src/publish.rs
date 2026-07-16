@@ -47,6 +47,7 @@ pub fn check(root: &Path) -> Result<(), String> {
     release_parity(root, &never_published)?;
     dry_run(root)?;
     stripped_deps_are_absent(root, &never_published)?;
+    ships_license_texts(root)?;
 
     for (krate, witness) in SHIPS_FIXTURES {
         let listing = package_list(root, krate)?;
@@ -199,6 +200,51 @@ fn stripped_deps_are_absent(root: &Path, never: &[String]) -> Result<(), String>
     Ok(())
 }
 
+/// Every published crate's tarball must carry the licence texts its REUSE.toml relies on, and each
+/// shipped copy must be byte-identical to the canonical `LICENSES/` source.
+///
+/// The tarball ships a crate's `LICENSES/` mirror verbatim, so a shipped file's bytes are the
+/// mirror's bytes on disk; the byte check compares that mirror against the workspace-root source.
+/// [`sync_licenses`](crate::sync_licenses) writes the mirrors; this fails the build if one is
+/// missing from the package or has drifted.
+fn ships_license_texts(root: &Path) -> Result<(), String> {
+    let canonical = root.join("LICENSES");
+    for (krate, ids) in crate::sync_licenses::MIRRORS {
+        let listing = package_list(root, krate)?;
+        if let Some(id) = missing_license_text(&listing, ids) {
+            return Err(format!(
+                "{krate}'s package does not contain LICENSES/{id}.txt, so the extracted tarball \
+                 cannot satisfy `reuse lint` on its own. Run `cargo xtask sync-licenses`."
+            ));
+        }
+        for id in *ids {
+            let name = format!("{id}.txt");
+            let source = canonical.join(&name);
+            let mirror = root.join("crates").join(krate).join("LICENSES").join(&name);
+            let want =
+                std::fs::read(&source).map_err(|e| format!("read {}: {e}", source.display()))?;
+            let got =
+                std::fs::read(&mirror).map_err(|e| format!("read {}: {e}", mirror.display()))?;
+            if want != got {
+                return Err(format!(
+                    "{krate}'s LICENSES/{name} differs from the canonical LICENSES/{name}. Run \
+                     `cargo xtask sync-licenses`."
+                ));
+            }
+        }
+    }
+    println!("xtask: every published crate ships its licence texts, byte-identical to LICENSES/");
+    Ok(())
+}
+
+/// The first SPDX id in `ids` whose `LICENSES/<id>.txt` the tarball `listing` omits, if any.
+fn missing_license_text<'a>(listing: &str, ids: &'a [&str]) -> Option<&'a str> {
+    ids.iter().copied().find(|id| {
+        let want = format!("LICENSES/{id}.txt");
+        !listing.lines().any(|f| f.trim() == want)
+    })
+}
+
 /// The files `krate`'s tarball would contain, one per line, relative to the crate root.
 fn package_list(root: &Path, krate: &str) -> Result<String, String> {
     let out = Command::new("cargo")
@@ -279,6 +325,38 @@ version = \"0.1.0\"
                 "table `{table}` was not read as a dependency table"
             );
         }
+    }
+
+    /// A `cargo package --list` listing carrying both dual-licence texts.
+    const WITH_LICENSES: &str = "\
+Cargo.toml
+LICENSES/Apache-2.0.txt
+LICENSES/MIT.txt
+src/lib.rs
+";
+
+    #[test]
+    fn a_listing_with_every_licence_text_is_complete() {
+        assert_eq!(
+            missing_license_text(WITH_LICENSES, &["MIT", "Apache-2.0"]),
+            None
+        );
+    }
+
+    #[test]
+    fn a_missing_licence_text_is_named() {
+        assert_eq!(
+            missing_license_text(WITH_LICENSES, &["MIT", "Apache-2.0", "LicenseRef-NBIS-PD"]),
+            Some("LicenseRef-NBIS-PD")
+        );
+    }
+
+    #[test]
+    fn a_licence_named_only_as_a_path_substring_does_not_count() {
+        // A file whose path merely contains the text name must not satisfy the check: the listing
+        // entry has to be exactly `LICENSES/<id>.txt`.
+        let listing = "src/MIT.txt.rs\ndocs/LICENSES/MIT.txt.bak\n";
+        assert_eq!(missing_license_text(listing, &["MIT"]), Some("MIT"));
     }
 
     #[test]
