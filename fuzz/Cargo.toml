@@ -40,6 +40,9 @@ fprint-fp3 = { path = "../crates/fprint-fp3" }
 fprint-bozorth3 = { path = "../crates/fprint-bozorth3" }
 fprint-mindtct = { path = "../crates/fprint-mindtct" }
 fprint-testkit = { path = "../crates/fprint-testkit" }
+# The `fpdev import` capture parser, the widest attacker-controlled surface: it reads arbitrary
+# pcapng/pcap/usbmon bytes off disk. Fuzzed through its `parse_bytes` library entrypoint.
+fprint-driverkit = { path = "../crates/fprint-driverkit" }
 
 # Fuzzing a debug build finds an overflow panic per run and little else. `debug-assertions` stays
 # on deliberately: the arithmetic panics are the bugs these targets hunt.
@@ -72,6 +75,13 @@ bench = false
 [[bin]]
 name = "mindtct_detect"
 path = "fuzz_targets/mindtct_detect.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "capture_import"
+path = "fuzz_targets/capture_import.rs"
 test = false
 doc = false
 bench = false

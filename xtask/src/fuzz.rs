@@ -33,7 +33,7 @@ struct Target {
     seeds: Option<&'static str>,
 }
 
-/// The four targets, matching `fuzz/fuzz_targets/`.
+/// The five targets, matching `fuzz/fuzz_targets/`.
 const TARGETS: &[Target] = &[
     Target {
         name: "fp3_from_bytes",
@@ -50,6 +50,12 @@ const TARGETS: &[Target] = &[
     Target {
         name: "mindtct_detect",
         seeds: None,
+    },
+    Target {
+        name: "capture_import",
+        // Valid pcapng/pcap/usbmon captures. The target reads its input as capture bytes, so a
+        // fixture is an encoding of that input: seeding lands mutations inside real USB framing.
+        seeds: Some("crates/fprint-driverkit/tests/fixtures"),
     },
 ];
 
