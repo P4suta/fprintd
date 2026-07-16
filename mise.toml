@@ -4,9 +4,12 @@
 # what THIS project needs so the dev environment is reproducible.
 
 [tools]
-rust = "stable"  # matches the global `rust = "stable"` symlink
-tokei = "latest" # SLOC measurement for the M0 ground-truth estimate
-uv = "latest"    # runs the REUSE license linter via uvx (see `mise run reuse`)
+rust = "stable"          # matches the global `rust = "stable"` symlink
+tokei = "latest"         # SLOC measurement for the M0 ground-truth estimate
+uv = "latest"            # runs the REUSE license linter via uvx (see `mise run reuse`)
+cargo-nextest = "latest" # the test runner for `mise run test` and CI
+bacon = "latest"         # the background check/test loop for `mise run watch`
+committed = "latest"     # Conventional-Commits linter for the commit-msg hook (see lefthook.yml)
 
 [env]
 # Where upstream C/Rust references are cloned for reading + SLOC measurement.
@@ -28,6 +31,18 @@ run = "lefthook install"
 [tasks.lint]
 description = "Repository rules a compiler does not enforce (no shell, no narration)"
 run = "cargo xtask lint"
+
+[tasks.test]
+description = "Run the workspace tests with nextest (doctests run separately: `cargo test --doc`)"
+run = "cargo nextest run --workspace --all-features"
+
+[tasks.watch]
+description = "Background check/clippy/test loop on save (bacon)"
+run = "bacon"
+
+[tasks.ci-annotate]
+description = "Run clippy and emit a GitHub PR annotation for each finding"
+run = "cargo xtask ci-annotate"
 
 [tasks.reuse]
 description = "Check REUSE/SPDX license compliance"

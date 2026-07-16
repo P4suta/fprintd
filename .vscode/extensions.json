@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml",
+    "vadimcn.vscode-lldb",
+    "usernamehw.errorlens",
+    "tekumara.typos-vscode",
+    "EditorConfig.EditorConfig",
+    "ms-azuretools.vscode-docker",
+    "redhat.vscode-yaml",
+    "hverlin.mise-vscode"
+  ]
+}

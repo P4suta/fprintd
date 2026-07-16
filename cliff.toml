@@ -1,0 +1,51 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# git-cliff config. release-plz calls it to render each crate's CHANGELOG from Conventional
+# Commits. The generated CHANGELOG.md is the one file allowed to narrate history (see the
+# no_narration exception in xtask/src/lint.rs).
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented here.
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first | upper_first }}\
+{% endfor %}
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+# Drop commits that do not parse as Conventional Commits: the changelog carries changes described
+# in the shared vocabulary and nothing else.
+filter_unconventional = true
+split_commits = false
+# Group by commit type. Order here is the order sections appear under each version.
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^refactor", group = "Refactor" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^build", group = "Build System" },
+  { message = "^ci", group = "Continuous Integration" },
+  { message = "^chore", skip = true },
+  { message = "^style", skip = true },
+]
+filter_commits = false
+tag_pattern = "v[0-9].*"
+topo_order = false
+sort_commits = "oldest"

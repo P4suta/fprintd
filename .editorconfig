@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# Rust: rustfmt's four-space blocks.
+[*.rs]
+indent_size = 4
+
+# Manifests, workflows, config and prose: taplo's two-space tables.
+[*.{toml,yml,yaml,json,jsonc,md}]
+indent_size = 2

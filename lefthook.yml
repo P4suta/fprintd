@@ -12,6 +12,14 @@
 
 assert_lefthook_installed: true
 
+# The commit message is the changelog's raw material: release-plz derives the version bump and
+# git-cliff writes CHANGELOG.md from Conventional Commits, so a malformed subject degrades both.
+# `commit-msg` is distinct from the signing `post-commit`/`pre-push`, so naming it here is safe.
+commit-msg:
+  commands:
+    conventional:
+      run: committed --commit-file {1}
+
 pre-commit:
   parallel: true
   commands:

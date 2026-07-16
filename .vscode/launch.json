@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug fprintd dbus_integration",
+      "cargo": {
+        "args": ["test", "--no-run", "--test", "dbus_integration", "-p", "fprintd", "--all-features"],
+        "filter": {
+          "name": "dbus_integration",
+          "kind": "test"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

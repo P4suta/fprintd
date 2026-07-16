@@ -1,0 +1,13 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[profile.default]
+# A retried flake would hide golden or libm drift. Every test here is
+# deterministic; a nondeterministic one is a bug to fix, not to retry away.
+retries = 0
+
+[profile.ci]
+final-status-level = "flaky"
+
+[profile.ci.junit]
+path = "junit.xml"

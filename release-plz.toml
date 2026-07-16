@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# release-plz drives the workspace release: it reads Conventional Commits, derives the version
+# bump, writes each crate's CHANGELOG from cliff.toml, opens the Release PR, and on merge publishes
+# in dependency order (core -> fp3/bozorth3/mindtct -> backend-libfprint), then tags and cuts the
+# GitHub release. Run by .github/workflows/release.yml.
+
+[workspace]
+# The workspace pins one version for the whole tree (version.workspace = true). Leave it that way:
+# do not let release-plz split crates onto independent version lines.
+dependencies_update = false
+changelog_config = "cliff.toml"
+git_release_enable = true
+pr_labels = ["release"]
+
+# The publish = false members. release-plz must not version-bump, changelog, tag, or publish them;
+# listing each keeps the release set equal to the workspace's publishable crates (checked by
+# `cargo xtask publish-check`'s release_parity).
+[[package]]
+name = "fprintd"
+release = false
+
+[[package]]
+name = "fprint-cli"
+release = false
+
+[[package]]
+name = "fprint-backend-native"
+release = false
+
+[[package]]
+name = "fprint-integration"
+release = false
+
+[[package]]
+name = "fprint-testkit"
+release = false
+
+[[package]]
+name = "xtask"
+release = false

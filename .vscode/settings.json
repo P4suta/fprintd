@@ -1,0 +1,17 @@
+{
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.cargo.allTargets": true,
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.imports.granularity.group": "module",
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/reference/**": true
+  }
+}

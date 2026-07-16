@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "lint"],
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "test"],
+      "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "docker-test",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "docker-test"],
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "docker-daemon-verify",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "docker-daemon-verify"],
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "deny",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "deny"],
+      "problemMatcher": []
+    },
+    {
+      "label": "reuse",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "reuse"],
+      "problemMatcher": []
+    },
+    {
+      "label": "publish-check",
+      "type": "shell",
+      "command": "mise",
+      "args": ["run", "publish-check"],
+      "problemMatcher": []
+    }
+  ]
+}

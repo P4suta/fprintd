@@ -41,9 +41,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ github.event.merge_group.head_ref }}
   cancel-in-progress: true
 
 env:
@@ -64,6 +65,9 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       - name: Rustfmt
         run: cargo fmt --all --check
       # `--all-features` here is about the platform axis, not the feature axis: Linux already
@@ -72,8 +76,24 @@ jobs:
       # platform would be the first to find it broken.
       - name: Clippy (workspace, all targets, all features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # One clippy run over again on Windows only, turned into inline PR annotations. Windows because
+      # the workspace builds there without libfprint (the shim is a stub), and once so the diff is
+      # not annotated twice. The gate is the step above; this is the message on the line.
+      - name: Annotate clippy findings on the PR
+        if: matrix.os == 'windows-latest'
+        run: cargo xtask ci-annotate
+      # nextest for the unit/integration tests (junit for the summary below); doctests run separately
+      # because nextest does not carry them.
       - name: Test (workspace, all features)
-        run: cargo test --workspace --all-features
+        run: cargo nextest run --profile ci --workspace --all-features
+      - name: Doctests
+        run: cargo test --doc --workspace --all-features
+      - name: Test summary
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: target/nextest/ci/junit.xml
+          annotate_only: true
       # Strict rustdoc for the cross-platform library surface (the public face). The two Linux-only
       # crates document in the `linux` job, where their cfg-gated modules and deps compile.
       - name: Rustdoc (library crates, warnings are errors)
@@ -156,6 +176,10 @@ jobs:
   msrv:
     name: msrv (1.82, published pure crates)
     runs-on: ubuntu-latest
+    env:
+      # rust-toolchain.toml pins stable for a bare `cargo`, which would run this on stable and check
+      # nothing. RUSTUP_TOOLCHAIN outranks the file, so the 1.82 floor is the one under test.
+      RUSTUP_TOOLCHAIN: "1.82"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.82
@@ -214,3 +238,28 @@ jobs:
         # Reports, never gates. The survivors land as annotations on the diff.
         continue-on-error: true
         run: cargo xtask mutants origin/${{ github.base_ref }}
+
+  coverage:
+    name: coverage (pure crates, advisory)
+    # Reports, never gates — like mutants. Coverage says which lines run, not which are defended, so
+    # a gate on it would fire on correct code. The pure crates only: on Linux the shim links the C
+    # libfprint, which this job does not carry.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-llvm-cov
+      - name: Coverage over the published pure crates
+        run: >
+          cargo llvm-cov nextest --all-features --lcov --output-path lcov.info
+          -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: lcov.info

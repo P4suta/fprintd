@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# Docs site: build the mdBook and the workspace rustdoc, publish both to GitHub Pages.
+# The book lands at the site root; the API reference at /api. The book's SUMMARY links
+# ARCHITECTURE.md, which lives at the repo root, so it is staged into docs/ (the book src)
+# before the build — the one file the book borrows from outside its own directory.
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages needs a token to mint the deployment and write the artifact.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer commit waits rather than cancels a publish mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build the book and the api reference
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+      - uses: actions/configure-pages@v5
+      # `cargo doc --workspace` documents the two C-linking crates as well (fprintd,
+      # fprint-backend-libfprint), so the distro libfprint headers and libclang must be present
+      # for the libfprint-sys bindgen spine to compile.
+      - name: Refresh the package index
+        run: sudo apt-get update
+      - name: Install libfprint headers and libclang for the shim's bindgen
+        run: sudo apt-get install -y libfprint-2-dev libclang-dev pkg-config
+      # ARCHITECTURE.md is the "Concepts / Architecture & provenance" chapter but lives at the
+      # repo root; stage it into the book source so mdBook renders it under the output tree.
+      - name: Stage ARCHITECTURE.md into the book source
+        run: cp ARCHITECTURE.md docs/ARCHITECTURE.md
+      - name: Build the book
+        run: mdbook build docs
+      - name: Build the workspace API reference
+        run: cargo doc --workspace --no-deps
+      - name: Assemble the site root
+        run: cp -r docs/book _site
+      - name: Place the API reference at /api
+        run: cp -r target/doc _site/api
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: deploy to github pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -29,6 +29,21 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
+# JSON carries no comment syntax, so these editor/tooling configs cannot hold an inline SPDX
+# header and are declared here instead.
+[[annotations]]
+path = [
+  ".vscode/settings.json",
+  ".vscode/extensions.json",
+  ".vscode/tasks.json",
+  ".vscode/launch.json",
+  ".devcontainer/devcontainer.json",
+  ".github/renovate.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Real-libfprint FP3 blobs, frozen as interop fixtures (a wire-format fact — a byte layout — not
 # copyrightable expression; see ARCHITECTURE.md §Provenance & licensing). The NBIS one is minutiae
 # from a synthetic image, not from a finger.

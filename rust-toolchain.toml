@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The inner-loop toolchain. CI jobs that pin a different channel (msrv, beta)
+# override this with RUSTUP_TOOLCHAIN, which takes precedence over this file.
+
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]

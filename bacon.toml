@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+default_job = "clippy"
+
+[jobs.check]
+command = ["cargo", "check", "--workspace", "--all-targets", "--all-features"]
+need_stdout = false
+
+[jobs.clippy]
+command = [
+  "cargo",
+  "clippy",
+  "--workspace",
+  "--all-targets",
+  "--all-features",
+  "--",
+  "-D",
+  "warnings",
+]
+need_stdout = false
+
+[jobs.nextest]
+command = ["cargo", "nextest", "run", "--workspace", "--all-features"]
+need_stdout = true
+
+[jobs.doc]
+command = ["cargo", "doc", "--workspace", "--no-deps", "--all-features"]
+need_stdout = false

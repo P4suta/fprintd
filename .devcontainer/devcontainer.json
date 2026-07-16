@@ -1,0 +1,38 @@
+{
+  "name": "fprintd (pure-Rust) dev",
+  "dockerComposeFile": [
+    "../docker/docker-compose.yml",
+    "../docker/docker-compose.devcontainer.yml"
+  ],
+  "service": "dev",
+  "workspaceFolder": "/work",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers-extra/features/mise:1": {}
+  },
+  "postCreateCommand": "mise install && mise run hooks",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "vadimcn.vscode-lldb",
+        "usernamehw.errorlens",
+        "tekumara.typos-vscode",
+        "EditorConfig.EditorConfig",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "hverlin.mise-vscode"
+      ],
+      "settings": {
+        "rust-analyzer.cargo.target": "x86_64-unknown-linux-gnu",
+        "rust-analyzer.cargo.features": "all",
+        "rust-analyzer.cargo.allTargets": true,
+        "rust-analyzer.check.command": "clippy",
+        "rust-analyzer.imports.granularity.group": "module",
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}

@@ -44,6 +44,10 @@ jobs:
         # The two libms most likely to disagree: the MSVC CRT and glibc.
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # rust-toolchain.toml pins stable for a bare `cargo`, which would run this canary on stable
+      # and quietly defeat it. RUSTUP_TOOLCHAIN outranks the file, so the beta toolchain is used.
+      RUSTUP_TOOLCHAIN: beta
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@beta
