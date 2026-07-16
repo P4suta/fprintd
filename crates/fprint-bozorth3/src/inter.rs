@@ -51,8 +51,10 @@ pub(crate) fn bz_match(probe: &[CompRow], gallery: &[CompRow]) -> Vec<ColpRow> {
             let mut incompatible = false;
             for i in 1..3usize {
                 let d = ss[i] - ff[i];
-                let d2 = d * d;
-                if d2 > TXS && d2 < CTXS {
+                // Squared in i64 so an unfolded relative angle cannot overflow the multiply; the
+                // band bounds are the same integers, widened.
+                let d2 = i64::from(d) * i64::from(d);
+                if d2 > i64::from(TXS) && d2 < i64::from(CTXS) {
                     incompatible = true;
                     break;
                 }

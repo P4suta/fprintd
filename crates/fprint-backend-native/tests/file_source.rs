@@ -24,14 +24,14 @@ const THRESHOLD: u32 = 40;
 const STAGES: u32 = 3;
 
 fn info() -> DeviceInfo {
-    DeviceInfo {
-        id: DeviceId("file_image".to_string()),
-        driver: DriverId("file_image".to_string()),
-        name: "File Image Sensor".to_string(),
-        scan_type: ScanType::Press,
-        features: DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
-        enroll_stages: STAGES,
-    }
+    DeviceInfo::new(
+        DeviceId::new("file_image"),
+        DriverId::new("file_image"),
+        "File Image Sensor",
+        ScanType::Press,
+        DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
+        STAGES,
+    )
 }
 
 /// Capture one frame out of a [`SyntheticFrameSource`] to obtain committed reference bytes — the

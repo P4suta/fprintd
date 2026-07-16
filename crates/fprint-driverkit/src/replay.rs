@@ -146,7 +146,8 @@ fn replay_session(session: &Session) -> ReplayReport {
 /// the matcher's xyt triple, so it is read straight from the kernel here). The self-match scores the
 /// frame's own minutiae against themselves — a set that carries matchable structure scores high.
 fn measure(index: usize, frame: &Frame) -> FrameReport {
-    let minutiae = fprint_mindtct::detect_minutiae(frame.as_gray());
+    let minutiae =
+        fprint_mindtct::detect_minutiae(frame.as_gray().expect("frame holds width * height bytes"));
     let count = minutiae.len();
     let mean_quality = if count == 0 {
         0.0

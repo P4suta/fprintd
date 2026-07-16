@@ -31,7 +31,7 @@ use fprint_mindtct::Minutia;
 /// overlay tint and the reliability summary both need it.
 #[must_use]
 pub fn detect(frame: &Frame) -> Vec<Minutia> {
-    fprint_mindtct::detect_minutiae(frame.as_gray())
+    fprint_mindtct::detect_minutiae(frame.as_gray().expect("frame holds width * height bytes"))
 }
 
 #[cfg(test)]

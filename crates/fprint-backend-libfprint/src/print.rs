@@ -32,11 +32,11 @@ pub fn fp_to_core(fp: &FpPrint) -> Result<Print> {
 
     let driver = fp.driver();
     if !driver.is_empty() {
-        print.driver = Some(DriverId(driver));
+        print.driver = Some(DriverId::new(driver));
     }
     let device_id = fp.device_id();
     if !device_id.is_empty() {
-        print.device_id = Some(DeviceId(device_id));
+        print.device_id = Some(DeviceId::new(device_id));
     }
     print.device_stored = fp.device_stored();
 

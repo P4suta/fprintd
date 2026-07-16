@@ -41,14 +41,17 @@ pub(crate) fn comp(p: &Prepared) -> Vec<CompRow> {
 
             let dx = p.x[j] - p.x[k];
             let dy = p.y[j] - p.y[k];
-            let distance = dx * dx + dy * dy;
-            if distance > DM_SQUARED {
+            // Squared in i64 so an arbitrarily large separation cannot overflow the multiply; the
+            // guard below rejects anything past DM_SQUARED, so a kept edge fits i32 losslessly.
+            let distance = i64::from(dx) * i64::from(dx) + i64::from(dy) * i64::from(dy);
+            if distance > i64::from(DM_SQUARED) {
                 // The list is x-sorted, so once dx exceeds DM every later j is farther still.
                 if dx > DM {
                     break;
                 }
                 continue;
             }
+            let distance = distance as i32;
 
             let theta_kj = if dx == 0 {
                 90
@@ -244,28 +247,20 @@ mod tests {
         );
     }
 
-    /// The multiply at the top of the pair loop runs before the distance guard, and the `dx > DM`
-    /// break sits *inside* that guard — so nothing bounds `dx` before `dx * dx`. This is the
-    /// largest separation that survives it.
+    /// The squared distance is computed before the length guard, and the `dx > DM` break sits
+    /// *inside* that guard — so nothing bounds `dx` before it is squared. The i64 multiply carries
+    /// any separation, including the point where an i32 `dx * dx` would overflow (`46340² =
+    /// 2_147_395_600 <= i32::MAX`) and one pixel past it, without panic or wrap: each is a far pair
+    /// the guard drops.
     #[test]
-    fn comp_handles_the_largest_dx_that_does_not_overflow() {
-        const MAX_SAFE_DX: i32 = 46_340; // 46340^2 = 2_147_395_600 <= i32::MAX
-        let rows = comp(&prepared(&[0, MAX_SAFE_DX], &[0, 0], &[0, 0]));
-        assert!(rows.is_empty(), "far apart, so the edge is dropped");
-    }
-
-    /// One pixel further apart than [`comp_handles_the_largest_dx_that_does_not_overflow`] and the
-    /// multiply overflows. Recorded, not endorsed: `match_score` promises no such panic and
-    /// documents none.
-    ///
-    /// Gated on `debug_assertions` because that is what decides the behaviour — with overflow
-    /// checks off the multiply wraps instead, and a wrapped negative `distance` passes the
-    /// `distance > DM_SQUARED` guard and is taken for a *short* edge.
-    #[test]
-    #[cfg(debug_assertions)]
-    #[should_panic(expected = "attempt to multiply with overflow")]
-    fn comp_overflows_one_pixel_past_that() {
-        let _ = comp(&prepared(&[0, 46_341], &[0, 0], &[0, 0]));
+    fn comp_handles_a_separation_that_would_overflow_an_i32_square() {
+        for dx in [46_340, 46_341, i32::MAX] {
+            let rows = comp(&prepared(&[0, dx], &[0, 0], &[0, 0]));
+            assert!(
+                rows.is_empty(),
+                "dx = {dx} is far apart, so the edge is dropped"
+            );
+        }
     }
 
     #[test]

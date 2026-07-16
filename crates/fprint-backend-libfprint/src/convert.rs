@@ -11,7 +11,8 @@
 //! strings), not copyrightable expression, so documenting and matching them is clean.
 
 use fprint_core::{
-    DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, RetryReason, ScanType,
+    DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, FingerStatus, RetryReason,
+    ScanType, Temperature,
 };
 use fprint_fp3::Fp3Error;
 use glib::error::ErrorDomain;
@@ -207,11 +208,48 @@ fn device_name(dev: &FpDevice) -> String {
     }
 }
 
+/// Read the device's sensor temperature (`FpTemperature`) as a core [`Temperature`], or `None`
+/// for an unrecognised value.
+// UPSTREAM(libfprint-rs 0.3.1): FpDevice exposes no temperature getter, so read the raw sys getter — remove when wrapped; see docs/known-issues.md
+fn temperature(dev: &FpDevice) -> Option<Temperature> {
+    use glib::translate::ToGlibPtr;
+    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_temperature` is a pure getter that
+    // reads the object's thermal state and returns an `FpTemperature`, borrowing nothing.
+    let raw = unsafe { libfprint_sys::fp_device_get_temperature(dev.to_glib_none().0) };
+    match raw {
+        libfprint_sys::FpTemperature_FP_TEMPERATURE_COLD => Some(Temperature::Cold),
+        libfprint_sys::FpTemperature_FP_TEMPERATURE_WARM => Some(Temperature::Warm),
+        libfprint_sys::FpTemperature_FP_TEMPERATURE_HOT => Some(Temperature::Hot),
+        _ => None,
+    }
+}
+
+/// Read the device's live finger-presence status (`FpFingerStatusFlags`) as a core
+/// [`FingerStatus`] bitmask.
+///
+/// The raw getter is read directly rather than through the binding's `FpDevice::finger_status`,
+/// which folds the bitmask into a three-value enum and panics on any combination of flags.
+// UPSTREAM(libfprint-rs 0.3.1): FpDevice::finger_status panics on combined FpFingerStatusFlags, so read the raw sys getter — remove when fixed; see docs/known-issues.md
+pub fn finger_status(dev: &FpDevice) -> FingerStatus {
+    use glib::translate::ToGlibPtr;
+    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_finger_status` is a pure getter that
+    // reads the object's finger-status flags and returns the bitmask, borrowing nothing.
+    let bits = unsafe { libfprint_sys::fp_device_get_finger_status(dev.to_glib_none().0) };
+    let mut status = FingerStatus::NONE;
+    if bits & libfprint_sys::FpFingerStatusFlags_FP_FINGER_STATUS_NEEDED != 0 {
+        status |= FingerStatus::NEEDED;
+    }
+    if bits & libfprint_sys::FpFingerStatusFlags_FP_FINGER_STATUS_PRESENT != 0 {
+        status |= FingerStatus::PRESENT;
+    }
+    status
+}
+
 /// Build the static [`DeviceInfo`] from a device's getters.
 ///
 /// The virtual (and some real) devices report an empty `device_id`; we fall back to the
 /// driver id so the identifier is still stable and non-empty for [`crate::LibfprintBackend`]'s
-/// open-by-id lookup.
+/// open-by-id lookup. The sensor temperature is attached when the device reports a known value.
 pub fn device_info(dev: &FpDevice) -> DeviceInfo {
     let driver = dev.driver();
     let device_id = dev.device_id();
@@ -220,12 +258,16 @@ pub fn device_info(dev: &FpDevice) -> DeviceInfo {
     } else {
         device_id
     };
-    DeviceInfo {
-        id: DeviceId(id),
-        driver: DriverId(driver),
-        name: device_name(dev),
-        scan_type: scan_type(dev),
-        features: features(dev),
-        enroll_stages: dev.nr_enroll_stage().max(0) as u32,
+    let info = DeviceInfo::new(
+        DeviceId::new(id),
+        DriverId::new(driver),
+        device_name(dev),
+        scan_type(dev),
+        features(dev),
+        dev.nr_enroll_stage().max(0) as u32,
+    );
+    match temperature(dev) {
+        Some(t) => info.with_temperature(t),
+        None => info,
     }
 }

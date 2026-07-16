@@ -255,12 +255,10 @@ fn rank_candidates(bytes: &[u8], transpose: bool) -> Vec<Candidate> {
         } else {
             bytes.to_vec()
         };
-        let minutiae = fprint_mindtct::detect_minutiae(GrayImage {
-            data: &plane,
-            width,
-            height,
-            ppi: DEFAULT_PPI,
-        });
+        // `width` divides `n` and `plane` holds all `n` bytes, so the image dimensions fit exactly.
+        let image = GrayImage::new(&plane, width, height, DEFAULT_PPI)
+            .expect("plane holds width * height bytes");
+        let minutiae = fprint_mindtct::detect_minutiae(image);
         let count = minutiae.len();
         let quality_sum = minutiae.iter().map(|m| f64::from(m.quality)).sum::<f64>();
         let mean_quality = if count == 0 {

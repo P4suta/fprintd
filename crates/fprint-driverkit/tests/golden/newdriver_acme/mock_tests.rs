@@ -33,14 +33,14 @@ const THRESHOLD: u32 = 40;
 const STAGES: u32 = 3;
 
 fn info() -> DeviceInfo {
-    DeviceInfo {
-        id: DeviceId("usb_acme".to_string()),
-        driver: DriverId("acme".to_string()),
-        name: "Acme (scripted transport)".to_string(),
-        scan_type: ScanType::Press,
-        features: DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
-        enroll_stages: STAGES,
-    }
+    DeviceInfo::new(
+        DeviceId::new("usb_acme"),
+        DriverId::new("acme"),
+        "Acme (scripted transport)",
+        ScanType::Press,
+        DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
+        STAGES,
+    )
 }
 
 /// One deterministic reference frame, lifted out of the synthetic source's `capture`.

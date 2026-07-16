@@ -53,9 +53,9 @@ impl Backend for LibfprintBackend {
         for dev in self.ctx.devices() {
             let device_id = dev.device_id();
             let hit = if device_id.is_empty() {
-                dev.driver() == id.0
+                dev.driver() == id.as_str()
             } else {
-                device_id == id.0
+                device_id == id.as_str()
             };
             if hit {
                 return Ok(LibfprintDevice::from_device(dev));

@@ -24,19 +24,17 @@ its `xyt` output bit-for-bit — and deliberately not derived from libfprint's p
 ```text
 use fprint_mindtct::{detect_minutiae, GrayImage};
 
-let minutiae = detect_minutiae(GrayImage {
-    data: &pixels,      // row-major, one byte per pixel (0 = black, 255 = white)
-    width: 128,
-    height: 128,
-    ppi: 500,           // scan resolution; several thresholds are resolution-relative
-});
+// row-major, one byte per pixel (0 = black, 255 = white); ppi is the scan resolution
+let img = GrayImage::new(&pixels, 128, 128, 500)?;
+let minutiae = detect_minutiae(img);
 
 for m in &minutiae {
     // m.x, m.y (origin bottom-left), m.theta in 0..=359, m.quality in 0..=100
 }
 ```
 
-`data.len() >= width * height` is an unenforced precondition; a short buffer panics.
+`GrayImage::new` rejects a buffer shorter than `width * height` with `ImageError::TooSmall`; a longer
+buffer is accepted and its tail ignored.
 
 ## Links
 

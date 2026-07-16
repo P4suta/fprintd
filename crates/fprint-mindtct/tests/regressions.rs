@@ -117,25 +117,15 @@ fn wrapped(offset: isize) -> String {
 /// A flat block is low contrast, so this reaches the histogram and never the DFT sums.
 fn detect_flat(width: usize, height: usize) -> usize {
     let data = vec![0x80u8; width * height];
-    detect_minutiae(GrayImage {
-        data: &data,
-        width,
-        height,
-        ppi: 500,
-    })
-    .len()
+    let img = GrayImage::new(&data, width, height, 500).expect("buffer holds the image");
+    detect_minutiae(img).len()
 }
 
 /// A noise image of exactly `width * height` bytes, from the seed a failure can be replayed with.
 fn detect_noise(width: usize, height: usize, seed: u64) -> usize {
     let data = gen::gray_image(&mut Lcg::new(seed), width, height);
-    detect_minutiae(GrayImage {
-        data: &data,
-        width,
-        height,
-        ppi: 500,
-    })
-    .len()
+    let img = GrayImage::new(&data, width, height, 500).expect("buffer holds the image");
+    detect_minutiae(img).len()
 }
 
 /// The shape the fuzzer reported first, reduced to its geometry: flat, so the pixels are not part

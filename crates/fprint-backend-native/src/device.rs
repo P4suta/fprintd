@@ -144,13 +144,12 @@ impl VirtualDevice {
 
     /// Wrap a freshly synthesized scan template in a `Print` tagged for this device.
     fn scan_print(&self, template: Template) -> Print {
-        Print {
-            template,
-            driver: Some(self.info.driver.clone()),
-            device_id: Some(self.info.id.clone()),
-            device_stored: self.is_moc(),
-            ..Print::default()
-        }
+        Print::builder()
+            .template(template)
+            .driver(Some(self.info.driver.clone()))
+            .device_id(Some(self.info.id.clone()))
+            .device_stored(self.is_moc())
+            .build()
     }
 
     /// The template presented as the live scan: the scenario's real capture if one was set, else
@@ -236,38 +235,25 @@ impl Device for VirtualDevice {
                 CaptureOutcome::Retry(reason) => {
                     // A retry: the stage does not advance; the reason rides along so the
                     // daemon can pick the matching `enroll-*` status string.
-                    on_progress(EnrollProgress {
-                        completed_stages: completed,
-                        total_stages: total,
-                        retry: Some(reason),
-                    });
+                    on_progress(EnrollProgress::new(completed, total).with_retry(reason));
                 }
                 CaptureOutcome::Advance => {
                     completed += 1;
-                    on_progress(EnrollProgress {
-                        completed_stages: completed,
-                        total_stages: total,
-                        retry: None,
-                    });
+                    on_progress(EnrollProgress::new(completed, total));
                 }
             }
         }
 
-        let finished = Print {
-            template: want,
-            finger: template.finger,
-            driver: Some(self.info.driver.clone()),
-            device_id: Some(self.info.id.clone()),
-            device_stored: is_moc,
-            // Stamp a fixed, deterministic date so enrolled prints are reproducible and the
-            // FP3 date round-trip (Gregorian <-> Julian day) is exercised end-to-end.
-            enroll_date: Some(EnrollDate {
-                year: 2026,
-                month: 1,
-                day: 1,
-            }),
-            ..Print::default()
-        };
+        // Stamp a fixed, deterministic date so enrolled prints are reproducible and the
+        // FP3 date round-trip (Gregorian <-> Julian day) is exercised end-to-end.
+        let finished = Print::builder()
+            .template(want)
+            .finger(template.finger)
+            .driver(Some(self.info.driver.clone()))
+            .device_id(Some(self.info.id.clone()))
+            .device_stored(is_moc)
+            .enroll_date(Some(EnrollDate::new(2026, 1, 1)))
+            .build();
 
         // Commit to on-device storage only now, on the final poll — so a cancelled
         // (dropped) enroll leaves storage untouched.
@@ -292,7 +278,7 @@ impl Device for VirtualDevice {
             None
         };
 
-        Ok(VerifyOutcome { matched, scanned })
+        Ok(VerifyOutcome::new(matched, scanned))
     }
 
     async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
@@ -317,10 +303,7 @@ impl Device for VirtualDevice {
             None
         };
 
-        Ok(IdentifyOutcome {
-            match_index,
-            scanned,
-        })
+        Ok(IdentifyOutcome::new(match_index, scanned))
     }
 
     async fn list_prints(&mut self) -> Result<Vec<Print>> {

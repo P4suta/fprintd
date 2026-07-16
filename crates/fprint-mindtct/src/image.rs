@@ -97,10 +97,16 @@ pub(crate) fn pad_uchar_image(
 /// dimensions, same bytes) so the two paths stay bit-identical to the reference.
 pub(crate) fn pad_gray_image(img: &GrayImage<'_>, maxpad: usize) -> (Vec<u8>, usize, usize) {
     if maxpad > 0 {
-        pad_uchar_image(img.data, img.width, img.height, maxpad, PAD_VALUE as u8)
+        pad_uchar_image(
+            img.data(),
+            img.width(),
+            img.height(),
+            maxpad,
+            PAD_VALUE as u8,
+        )
     } else {
         // If padding is unnecessary, copy the input image unchanged.
-        (img.data.to_vec(), img.width, img.height)
+        (img.data().to_vec(), img.width(), img.height())
     }
 }
 
@@ -198,12 +204,7 @@ mod tests {
     #[test]
     fn pad_gray_image_pads_with_pad_value() {
         let data = [1u8, 2, 3, 4];
-        let img = GrayImage {
-            data: &data,
-            width: 2,
-            height: 2,
-            ppi: 500,
-        };
+        let img = GrayImage::new(&data, 2, 2, 500).unwrap();
         let (pdata, pw, ph) = pad_gray_image(&img, 1);
         assert_eq!((pw, ph), (4, 4));
         // Center holds the image; border is PAD_VALUE (128).
@@ -215,12 +216,7 @@ mod tests {
     #[test]
     fn pad_gray_image_zero_maxpad_copies_unchanged() {
         let data = [11u8, 22, 33, 44, 55, 66];
-        let img = GrayImage {
-            data: &data,
-            width: 3,
-            height: 2,
-            ppi: 500,
-        };
+        let img = GrayImage::new(&data, 3, 2, 500).unwrap();
         let (pdata, pw, ph) = pad_gray_image(&img, 0);
         assert_eq!((pw, ph), (3, 2));
         assert_eq!(pdata, data);

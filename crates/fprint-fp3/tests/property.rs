@@ -50,14 +50,13 @@ const DATE_BAND: (i32, i32) = (-5_879_000, 5_879_000);
 
 /// The codec's documented collapse, in full: the exact `Print` a round-trip yields.
 fn normalize(p: &Print) -> Print {
-    Print {
-        // The wire's `y` byte cannot say "absent"; `0` is `Unknown` on the way back.
-        finger: Some(p.finger.unwrap_or(Finger::Unknown)),
-        // The empty string is how `s` says "unset"; it cannot also mean an empty id.
-        driver: p.driver.clone().filter(|d| !d.0.is_empty()),
-        device_id: p.device_id.clone().filter(|d| !d.0.is_empty()),
-        ..p.clone()
-    }
+    let mut n = p.clone();
+    // The wire's `y` byte cannot say "absent"; `0` is `Unknown` on the way back.
+    n.finger = Some(p.finger.unwrap_or(Finger::Unknown));
+    // The empty string is how `s` says "unset"; it cannot also mean an empty id.
+    n.driver = p.driver.clone().filter(|d| !d.as_str().is_empty());
+    n.device_id = p.device_id.clone().filter(|d| !d.as_str().is_empty());
+    n
 }
 
 /// Strings chosen to exercise what the framing must survive: the empty string, an embedded NUL
@@ -88,7 +87,7 @@ fn gen_date(src: &mut impl ByteSource) -> EnrollDate {
     let year = src.in_range(DATE_BAND.0, DATE_BAND.1);
     let month = src.in_range(1, 12) as u8;
     let day = src.in_range(1, i32::from(days_in_month(year, month))) as u8;
-    EnrollDate { year, month, day }
+    EnrollDate::new(year, month, day)
 }
 
 /// Days in `month` of `year`, proleptic Gregorian.
@@ -135,16 +134,16 @@ fn gen_print(src: &mut impl ByteSource) -> Print {
         src.fill(&mut bytes);
         Template::Raw(bytes)
     };
-    Print {
-        template,
-        finger: gen_finger(src),
-        username: gen_opt_string(src),
-        description: gen_opt_string(src),
-        driver: gen_opt_string(src).map(DriverId),
-        device_id: gen_opt_string(src).map(DeviceId),
-        device_stored: src.ratio(1, 2),
-        enroll_date: src.ratio(3, 4).then(|| gen_date(src)),
-    }
+    Print::builder()
+        .template(template)
+        .finger(gen_finger(src))
+        .username(gen_opt_string(src))
+        .description(gen_opt_string(src))
+        .driver(gen_opt_string(src).map(DriverId::new))
+        .device_id(gen_opt_string(src).map(DeviceId::new))
+        .device_stored(src.ratio(1, 2))
+        .enroll_date(src.ratio(3, 4).then(|| gen_date(src)))
+        .build()
 }
 
 /// **The law**: decoding an encoded print yields the print, up to the codec's documented
@@ -175,46 +174,37 @@ fn roundtrip_reproduces_the_normalized_print() {
 /// this proves each of its clauses is *necessary*.
 #[test]
 fn each_documented_collapse_happens() {
-    let base = Print {
-        template: Template::Nbis(vec![]),
-        finger: Some(Finger::LeftIndex),
-        ..Default::default()
-    };
+    let base = Print::builder()
+        .template(Template::Nbis(vec![]))
+        .finger(Some(Finger::LeftIndex))
+        .build();
     let decode = |p: &Print| from_bytes(&to_bytes(p).unwrap()).unwrap();
 
     // `finger: None` has no wire form of its own; it shares byte 0 with `Unknown`.
-    let absent_finger = Print {
-        finger: None,
-        ..base.clone()
-    };
+    let mut absent_finger = base.clone();
+    absent_finger.finger = None;
     assert_eq!(decode(&absent_finger).finger, Some(Finger::Unknown));
 
     // An empty driver/device id is how `s` spells "unset".
-    let empty_ids = Print {
-        driver: Some(DriverId(String::new())),
-        device_id: Some(DeviceId(String::new())),
-        ..base.clone()
-    };
+    let mut empty_ids = base.clone();
+    empty_ids.driver = Some(DriverId::new(""));
+    empty_ids.device_id = Some(DeviceId::new(""));
     let back = decode(&empty_ids);
     assert_eq!(back.driver, None);
     assert_eq!(back.device_id, None);
 
     // The contrast that shows the ids' collapse is about emptiness, not about `Some`.
-    let real_ids = Print {
-        driver: Some(DriverId("goodix".into())),
-        device_id: Some(DeviceId("0000".into())),
-        ..base.clone()
-    };
+    let mut real_ids = base.clone();
+    real_ids.driver = Some(DriverId::new("goodix"));
+    real_ids.device_id = Some(DeviceId::new("0000"));
     let back = decode(&real_ids);
-    assert_eq!(back.driver, Some(DriverId("goodix".into())));
-    assert_eq!(back.device_id, Some(DeviceId("0000".into())));
+    assert_eq!(back.driver, Some(DriverId::new("goodix")));
+    assert_eq!(back.device_id, Some(DeviceId::new("0000")));
 
     // And the contrast that shows `ms` does *not* collapse: `Some("")` stays distinct from `None`.
-    let empty_text = Print {
-        username: Some(String::new()),
-        description: None,
-        ..base
-    };
+    let mut empty_text = base;
+    empty_text.username = Some(String::new());
+    empty_text.description = None;
     let back = decode(&empty_text);
     assert_eq!(back.username, Some(String::new()));
     assert_eq!(back.description, None);
@@ -247,12 +237,11 @@ fn valid_dates_in_the_representable_band_roundtrip() {
     let mut lcg = Lcg::new(0xDA7E_5EED);
     for i in 0..ITERATIONS {
         let date = gen_date(&mut lcg);
-        let print = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::Unknown),
-            enroll_date: Some(date),
-            ..Default::default()
-        };
+        let print = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::Unknown))
+            .enroll_date(Some(date))
+            .build();
         let back = from_bytes(&to_bytes(&print).unwrap_or_else(|e| {
             panic!(
                 "seed {} iter {i}: {date:?} must be encodable: {e}",
@@ -268,16 +257,11 @@ fn valid_dates_in_the_representable_band_roundtrip() {
 #[test]
 fn dates_outside_the_band_are_rejected() {
     for year in [i32::MIN, i32::MIN + 1, -6_000_000, 6_000_000, i32::MAX] {
-        let print = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::Unknown),
-            enroll_date: Some(EnrollDate {
-                year,
-                month: 1,
-                day: 1,
-            }),
-            ..Default::default()
-        };
+        let print = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::Unknown))
+            .enroll_date(Some(EnrollDate::new(year, 1, 1)))
+            .build();
         assert!(
             matches!(to_bytes(&print), Err(Fp3Error::DateOutOfRange(_))),
             "year {year} has no Julian day and must be refused"

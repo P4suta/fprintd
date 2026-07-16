@@ -152,12 +152,7 @@ fn rotate90(data: &[u8], w: usize, h: usize) -> (Vec<u8>, usize, usize) {
 }
 
 fn image(data: &[u8], w: usize, h: usize) -> GrayImage<'_> {
-    GrayImage {
-        data,
-        width: w,
-        height: h,
-        ppi: PPI,
-    }
+    GrayImage::new(data, w, h, PPI).expect("valid dims")
 }
 
 /// A healthy, minutiae-rich reference finger (BOZORTH3 scores 0 below ~10 minutiae, so the frame is

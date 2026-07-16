@@ -50,6 +50,7 @@ impl From<(i32, i32, i32)> for Minutia {
 /// Enrollment date (libfprint serializes this as a Julian-day int32; `None` ⇒ the
 /// `G_MININT32` "unset" sentinel).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub struct EnrollDate {
     /// Gregorian year.
     pub year: i32,
@@ -57,6 +58,14 @@ pub struct EnrollDate {
     pub month: u8,
     /// Day of month, `1..=31`.
     pub day: u8,
+}
+
+impl EnrollDate {
+    /// An enrollment date from its Gregorian `year`, `month`, and `day`.
+    #[must_use]
+    pub fn new(year: i32, month: u8, day: u8) -> Self {
+        EnrollDate { year, month, day }
+    }
 }
 
 /// The biometric payload of a print, matching libfprint's `FpiPrintType`.
@@ -94,6 +103,7 @@ impl Template {
 /// A fingerprint print: biometric [`Template`] plus the metadata libfprint serializes
 /// alongside it.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[non_exhaustive]
 pub struct Print {
     /// The biometric payload. [`Template::Undefined`] until an enrollment fills it in.
     pub template: Template,
@@ -124,6 +134,12 @@ impl Print {
         }
     }
 
+    /// A [`PrintBuilder`] with every field unset, the canonical way to construct a `Print`.
+    #[must_use]
+    pub fn builder() -> PrintBuilder {
+        PrintBuilder::default()
+    }
+
     /// Whether this print's template is compatible with a device advertising `driver`.
     ///
     /// Corresponds to libfprint's `fp_print_compatible`, which additionally checks
@@ -133,6 +149,95 @@ impl Print {
         match &self.driver {
             Some(d) => d == driver,
             None => true, // not yet bound
+        }
+    }
+}
+
+/// Builder for [`Print`], one setter per field, terminated by [`build`](PrintBuilder::build).
+///
+/// `Print::default()` with field writes stays available; this is the fluent construction path
+/// and the one that survives new fields on `Print`.
+#[derive(Clone, PartialEq, Eq, Debug, Default)]
+pub struct PrintBuilder {
+    template: Template,
+    finger: Option<Finger>,
+    username: Option<String>,
+    description: Option<String>,
+    driver: Option<DriverId>,
+    device_id: Option<DeviceId>,
+    device_stored: bool,
+    enroll_date: Option<EnrollDate>,
+}
+
+impl PrintBuilder {
+    /// Set the biometric payload.
+    #[must_use]
+    pub fn template(mut self, template: Template) -> Self {
+        self.template = template;
+        self
+    }
+
+    /// Set which finger this is.
+    #[must_use]
+    pub fn finger(mut self, finger: Option<Finger>) -> Self {
+        self.finger = finger;
+        self
+    }
+
+    /// Set the owning user.
+    #[must_use]
+    pub fn username(mut self, username: Option<String>) -> Self {
+        self.username = username;
+        self
+    }
+
+    /// Set the free-form label.
+    #[must_use]
+    pub fn description(mut self, description: Option<String>) -> Self {
+        self.description = description;
+        self
+    }
+
+    /// Set the driver this template is bound to.
+    #[must_use]
+    pub fn driver(mut self, driver: Option<DriverId>) -> Self {
+        self.driver = driver;
+        self
+    }
+
+    /// Set the specific reader this template came from.
+    #[must_use]
+    pub fn device_id(mut self, device_id: Option<DeviceId>) -> Self {
+        self.device_id = device_id;
+        self
+    }
+
+    /// Set whether the real template lives on the sensor.
+    #[must_use]
+    pub fn device_stored(mut self, device_stored: bool) -> Self {
+        self.device_stored = device_stored;
+        self
+    }
+
+    /// Set the enrollment date.
+    #[must_use]
+    pub fn enroll_date(mut self, enroll_date: Option<EnrollDate>) -> Self {
+        self.enroll_date = enroll_date;
+        self
+    }
+
+    /// Finish building the [`Print`].
+    #[must_use]
+    pub fn build(self) -> Print {
+        Print {
+            template: self.template,
+            finger: self.finger,
+            username: self.username,
+            description: self.description,
+            driver: self.driver,
+            device_id: self.device_id,
+            device_stored: self.device_stored,
+            enroll_date: self.enroll_date,
         }
     }
 }
@@ -171,7 +276,7 @@ mod tests {
         let print = Print::new_for_enroll(Finger::LeftIndex);
         assert_eq!(print.driver, None);
         for driver in ["goodixmoc", "synaptics", ""] {
-            assert!(print.is_compatible_with_driver(&DriverId(driver.to_string())));
+            assert!(print.is_compatible_with_driver(&DriverId::new(driver)));
         }
     }
 
@@ -179,13 +284,13 @@ mod tests {
     #[test]
     fn a_bound_print_is_compatible_only_with_its_own_driver() {
         let print = Print {
-            driver: Some(DriverId("goodixmoc".to_string())),
+            driver: Some(DriverId::new("goodixmoc")),
             ..Print::new_for_enroll(Finger::LeftIndex)
         };
-        assert!(print.is_compatible_with_driver(&DriverId("goodixmoc".to_string())));
+        assert!(print.is_compatible_with_driver(&DriverId::new("goodixmoc")));
         for other in ["synaptics", "GOODIXMOC", "goodixmoc2", ""] {
             assert!(
-                !print.is_compatible_with_driver(&DriverId(other.to_string())),
+                !print.is_compatible_with_driver(&DriverId::new(other)),
                 "{other:?} must not match goodixmoc"
             );
         }

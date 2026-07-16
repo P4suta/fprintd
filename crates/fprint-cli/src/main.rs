@@ -240,10 +240,8 @@ fn cmd_enroll(a: &EnrollArgs) -> Result<(), Box<dyn Error>> {
     block_on(dev.open())?;
     let enrolled = block_on(dev.enroll(Print::new_for_enroll(a.finger), |_p| {}))?;
 
-    let print = Print {
-        username: Some(a.username.clone()),
-        ..enrolled
-    };
+    let mut print = enrolled;
+    print.username = Some(a.username.clone());
     let bytes = fprint_fp3::to_bytes(&print)?;
     std::fs::write(&a.output, &bytes)?;
 
@@ -386,12 +384,7 @@ fn cmd_match(a: &MatchArgs) -> Result<(), Box<dyn Error>> {
 // --- shared helpers -------------------------------------------------------------------------
 
 fn image(data: &[u8], w: usize, h: usize, ppi: u16) -> GrayImage<'_> {
-    GrayImage {
-        data,
-        width: w,
-        height: h,
-        ppi,
-    }
+    GrayImage::new(data, w, h, ppi).expect("valid dims")
 }
 
 fn verdict(matched: bool) -> &'static str {

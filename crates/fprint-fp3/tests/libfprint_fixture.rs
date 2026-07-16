@@ -29,7 +29,7 @@ fn decodes_and_reencodes_real_libfprint_fp3_byte_for_byte() {
         "fixture must carry the FP3 magic"
     );
     assert_eq!(
-        print.driver.as_ref().map(|d| d.0.as_str()),
+        print.driver.as_ref().map(|d| d.as_str()),
         Some("virtual_device")
     );
     assert!(
@@ -61,7 +61,7 @@ fn decodes_and_reencodes_real_libfprint_nbis_fp3_byte_for_byte() {
         "fixture must carry the FP3 magic"
     );
     assert_eq!(
-        print.driver.as_ref().map(|d| d.0.as_str()),
+        print.driver.as_ref().map(|d| d.as_str()),
         Some("virtual_image")
     );
     let Template::Nbis(captures) = &print.template else {

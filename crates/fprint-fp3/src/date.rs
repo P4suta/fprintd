@@ -91,7 +91,7 @@ pub(crate) fn from_julian(julian: i32) -> Option<EnrollDate> {
         return None;
     }
     let (year, month, day) = civil_from_days(i64::from(julian) - EPOCH_OFFSET);
-    Some(EnrollDate { year, month, day })
+    Some(EnrollDate::new(year, month, day))
 }
 
 #[cfg(test)]
@@ -101,64 +101,20 @@ mod tests {
     #[test]
     fn anchors_match_glib() {
         // GLib's g_date: 0001-01-01 is Julian day 1; the Unix epoch is 719163.
-        assert_eq!(
-            to_julian(EnrollDate {
-                year: 1,
-                month: 1,
-                day: 1
-            })
-            .unwrap(),
-            1
-        );
-        assert_eq!(
-            to_julian(EnrollDate {
-                year: 1970,
-                month: 1,
-                day: 1
-            })
-            .unwrap(),
-            719_163
-        );
+        assert_eq!(to_julian(EnrollDate::new(1, 1, 1)).unwrap(), 1);
+        assert_eq!(to_julian(EnrollDate::new(1970, 1, 1)).unwrap(), 719_163);
         // One modern date, cross-checked against a known g_date value.
-        assert_eq!(
-            to_julian(EnrollDate {
-                year: 2026,
-                month: 7,
-                day: 15
-            })
-            .unwrap(),
-            739_812
-        );
+        assert_eq!(to_julian(EnrollDate::new(2026, 7, 15)).unwrap(), 739_812);
     }
 
     #[test]
     fn date_conversion_roundtrips() {
         let dates = [
-            EnrollDate {
-                year: 1,
-                month: 1,
-                day: 1,
-            },
-            EnrollDate {
-                year: 1970,
-                month: 1,
-                day: 1,
-            },
-            EnrollDate {
-                year: 2000,
-                month: 2,
-                day: 29,
-            }, // leap day
-            EnrollDate {
-                year: 2026,
-                month: 7,
-                day: 15,
-            },
-            EnrollDate {
-                year: 2999,
-                month: 12,
-                day: 31,
-            },
+            EnrollDate::new(1, 1, 1),
+            EnrollDate::new(1970, 1, 1),
+            EnrollDate::new(2000, 2, 29), // leap day
+            EnrollDate::new(2026, 7, 15),
+            EnrollDate::new(2999, 12, 31),
         ];
         for d in dates {
             assert_eq!(from_julian(to_julian(d).unwrap()), Some(d));
@@ -175,22 +131,19 @@ mod tests {
     /// epoch-relative day count is `-2148202810`, which does **not** fit `i32` even though the
     /// Julian day itself is exactly `i32::MIN + 1`, which does.
     const EDGE_JULIAN: i32 = i32::MIN + 1;
-    const EDGE_DATE: EnrollDate = EnrollDate {
-        year: -5_879_610,
-        month: 6,
-        day: 23,
-    };
+    fn edge_date() -> EnrollDate {
+        EnrollDate::new(-5_879_610, 6, 23)
+    }
 
     /// **A date is encodable whenever its Julian day fits `i32`, not whenever its intermediate
     /// day count does.** The two differ by [`EPOCH_OFFSET`], so narrowing the day count first
     /// wraps this date's `-2148202810` to `2146764486` and overflows the shift.
     #[test]
     fn julian_at_the_i32_edge_is_not_truncated() {
-        assert_eq!(from_julian(EDGE_JULIAN), Some(EDGE_DATE));
-        assert_eq!(to_julian(EDGE_DATE).unwrap(), EDGE_JULIAN);
-        assert!(
-            days_from_civil(EDGE_DATE.year, EDGE_DATE.month, EDGE_DATE.day) < i64::from(i32::MIN)
-        );
+        let edge = edge_date();
+        assert_eq!(from_julian(EDGE_JULIAN), Some(edge));
+        assert_eq!(to_julian(edge).unwrap(), EDGE_JULIAN);
+        assert!(days_from_civil(edge.year, edge.month, edge.day) < i64::from(i32::MIN));
     }
 
     /// The domain model's `i32` year outranges the wire's `i32` day count by ~365x, so the ends
@@ -199,11 +152,7 @@ mod tests {
     #[test]
     fn dates_outside_the_julian_i32_range_are_rejected() {
         for year in [i32::MIN, i32::MAX, -5_879_611, 5_879_612] {
-            let date = EnrollDate {
-                year,
-                month: 1,
-                day: 1,
-            };
+            let date = EnrollDate::new(year, 1, 1);
             assert!(
                 matches!(to_julian(date), Err(Fp3Error::DateOutOfRange(d)) if d == date),
                 "year {year} must be rejected, not wrapped"
@@ -216,11 +165,7 @@ mod tests {
     #[test]
     fn the_date_colliding_with_the_unset_sentinel_is_rejected() {
         // One day before the edge date is exactly `G_MININT32`.
-        let collides = EnrollDate {
-            year: -5_879_610,
-            month: 6,
-            day: 22,
-        };
+        let collides = EnrollDate::new(-5_879_610, 6, 22);
         assert_eq!(
             days_from_civil(collides.year, collides.month, collides.day) + EPOCH_OFFSET,
             i64::from(G_MININT32)
@@ -236,9 +181,9 @@ mod tests {
     /// **The bound is exact, not approximate** — the docs quote these dates.
     #[test]
     fn the_representable_range_ends_exactly_here() {
-        let date = |year, month, day| EnrollDate { year, month, day };
+        let date = |year, month, day| EnrollDate::new(year, month, day);
 
-        assert_eq!(to_julian(EDGE_DATE).unwrap(), i32::MIN + 1);
+        assert_eq!(to_julian(edge_date()).unwrap(), i32::MIN + 1);
         assert_eq!(to_julian(date(5_879_611, 7, 11)).unwrap(), i32::MAX);
 
         // One day below is the sentinel; one day above overflows `i32`.
@@ -259,7 +204,7 @@ mod tests {
         for year in [i32::MIN, -1, 0, 1970, i32::MAX] {
             for month in [0u8, 1, 12, 13, u8::MAX] {
                 for day in [0u8, 1, 31, 32, u8::MAX] {
-                    let _ = to_julian(EnrollDate { year, month, day });
+                    let _ = to_julian(EnrollDate::new(year, month, day));
                 }
             }
         }

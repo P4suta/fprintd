@@ -176,7 +176,7 @@ impl VirtualDeviceBuilder {
     pub(crate) fn effective_id(&self) -> DeviceId {
         self.id
             .clone()
-            .unwrap_or_else(|| DeviceId(self.driver.clone()))
+            .unwrap_or_else(|| DeviceId::new(self.driver.clone()))
     }
 
     /// Mint a fresh, closed [`VirtualDevice`] from this description.
@@ -193,14 +193,14 @@ impl VirtualDeviceBuilder {
             Some(probed) => (probed, Some(real)),
             None => (real, None),
         };
-        let info = DeviceInfo {
-            id: self.effective_id(),
-            driver: DriverId(self.driver.clone()),
-            name: self.name.clone(),
-            scan_type: advertised.scan_type,
-            features: advertised.features,
-            enroll_stages: advertised.enroll_stages,
-        };
+        let info = DeviceInfo::new(
+            self.effective_id(),
+            DriverId::new(self.driver.clone()),
+            self.name.clone(),
+            advertised.scan_type,
+            advertised.features,
+            advertised.enroll_stages,
+        );
         VirtualDevice::from_parts(
             info,
             settles_to,

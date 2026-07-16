@@ -18,12 +18,12 @@
 //! The 8-neighbor scan order, the clockwise/counter-clockwise rotation, and the corner-exposure rule
 //! are reproduced verbatim from the reference so a traced contour is identical pixel-for-pixel.
 
-// `too_many_arguments`: every public routine here is a verbatim transcription of a stock `contour.c`
-// function whose interface is fixed by the reference — the binary image (`bdata`, `iw`, `ih`) plus
-// two or three coordinate pairs (a feature point, its edge pixel, and sometimes a loop/search
-// target). Bundling those into an ad-hoc struct would obscure the one-to-one correspondence with the
-// C; the reference-side arity is the justification, so the lint is suppressed for the whole file.
-#![allow(clippy::too_many_arguments)]
+// `too_many_arguments`: the routines carrying a per-function `#[allow]` below are verbatim
+// transcriptions of a stock `contour.c` function whose interface is fixed by the reference — the
+// binary image (`bdata`, `iw`, `ih`) plus two or three coordinate pairs (a feature point, its edge
+// pixel, and sometimes a loop/search target). Bundling those into an ad-hoc struct would obscure the
+// one-to-one correspondence with the C; the reference-side arity is the justification, applied at
+// each function that needs it rather than to the whole file.
 
 use crate::consts::TRUNC_SCALE;
 use crate::num::{sround, trunc_dbl_precision};
@@ -284,6 +284,7 @@ fn next_scan_nbr(nbr_i: i32, scan: ScanDir) -> i32 {
 /// Returns `Some((next_x_loc, next_y_loc, next_x_edge, next_y_edge))` on success (stock `TRUE`), or
 /// `None` (stock `FALSE`) when a neighbor falls outside the image or no valid pair exists among the
 /// eight neighbors (an isolated pixel).
+#[allow(clippy::too_many_arguments)]
 fn next_contour_pixel(
     cur_x_loc: i32,
     cur_y_loc: i32,
@@ -376,6 +377,7 @@ fn next_contour_pixel(
 /// the loop-trigger point `(x_loop, y_loop)`, it stops and reports a [`TraceResult::Loop`] — passing
 /// that point independently lets successive half-traces from a common start detect a loop spanning
 /// both. `bdata` is the binary image (`0 == white/valley`, `1 == black/ridge`), `iw`×`ih` pixels.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn trace_contour(
     max_len: i32,
     x_loop: i32,
@@ -442,6 +444,7 @@ pub(crate) fn trace_contour(
 /// `scan` direction, returning `true` (stock `FOUND`) the moment the traced contour point equals
 /// `(x_search, y_search)`, or `false` (stock `NOT_FOUND`) if the point is not met within
 /// `search_len` steps or the trace terminates early.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn search_contour(
     x_search: i32,
     y_search: i32,
@@ -498,6 +501,7 @@ pub(crate) fn search_contour(
 /// concatenated — first half reversed (far end first), then the feature point, then the second half
 /// forward — into a contour of `2 * half_contour + 1` points ([`CenteredContour::Ok`]). Any loop,
 /// impossible trace, or short half yields the corresponding non-`Ok` variant with no contour.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn get_centered_contour(
     half_contour: i32,
     x_loc: i32,
@@ -581,6 +585,7 @@ pub(crate) fn get_centered_contour(
 /// [`HighCurvatureContour::Loop`]; if the second half loops the two halves are still concatenated and
 /// returned as a loop. A full non-loop trace yields [`HighCurvatureContour::Ok`]; a trace that cannot
 /// reach full length yields [`HighCurvatureContour::Empty`] (no contour).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn get_high_curvature_contour(
     half_contour: i32,
     x_loc: i32,

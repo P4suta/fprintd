@@ -22,14 +22,17 @@
 //! `#[test]` so a divergence localizes to the offending stage; failure messages name the image, the
 //! `(bx, by)` block, and the `got`/`want` pair, capped so a wholesale divergence stays readable.
 
+#[cfg(feature = "unstable-diagnostics")]
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+#[cfg(feature = "unstable-diagnostics")]
 use std::sync::LazyLock;
 
+#[cfg(feature = "unstable-diagnostics")]
 use fprint_mindtct::{
-    debug_maps, debug_raw_minutiae, debug_removed_minutiae, detect_minutiae, DebugMaps, GrayImage,
-    Minutia, RawMinutia,
+    debug_maps, debug_raw_minutiae, debug_removed_minutiae, DebugMaps, RawMinutia,
 };
+use fprint_mindtct::{detect_minutiae, GrayImage, Minutia};
 
 fn fixtures_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
@@ -69,6 +72,12 @@ fn load_manifest(path: &Path) -> Manifest {
 
 /// A block-integer map parsed from a stock `dump_map()` file: the flat row-major values plus the
 /// geometry recovered from the dump (`w` = cells on the first row, `h` = number of rows).
+///
+/// The stage oracles from here through `removed_minutiae_match_stock` read a diagnostic entry point
+/// (`debug_maps`, `debug_raw_minutiae`, `debug_removed_minutiae`), so each carries the
+/// `unstable-diagnostics` cfg. The end-to-end `.xyt` gate (`minutiae_match_stock`) uses only
+/// `detect_minutiae` and stays outside the feature.
+#[cfg(feature = "unstable-diagnostics")]
 struct GoldenMap {
     vals: Vec<i32>,
     w: usize,
@@ -77,6 +86,7 @@ struct GoldenMap {
 
 /// Parse a stock `dump_map()` dump ("%2d " per cell, one map row per text line) into a flat
 /// row-major `Vec<i32>` with its geometry. Every non-empty line must hold the same cell count.
+#[cfg(feature = "unstable-diagnostics")]
 fn load_dump_map(path: &Path) -> GoldenMap {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
     let mut vals = Vec::new();
@@ -108,6 +118,7 @@ fn load_dump_map(path: &Path) -> GoldenMap {
 
 /// Load a corpus image and run the pure-Rust front-end, returning the port's maps alongside the
 /// image geometry.
+#[cfg(feature = "unstable-diagnostics")]
 fn run_port(name: &str) -> DebugMaps {
     let dir = fixtures_dir();
     let man = load_manifest(&dir.join(format!("{name}.manifest")));
@@ -121,12 +132,8 @@ fn run_port(name: &str) -> DebugMaps {
         man.width,
         man.height
     );
-    let img = GrayImage {
-        data: &data,
-        width: man.width,
-        height: man.height,
-        ppi: man.ppi,
-    };
+    let img =
+        GrayImage::new(&data, man.width, man.height, man.ppi).expect("buffer holds the image");
     debug_maps(img)
 }
 
@@ -142,6 +149,7 @@ fn run_port(name: &str) -> DebugMaps {
 /// reports the poison instead of the panic. That costs a message on one crash and keeps the
 /// localization these tests are built for: a divergence is an assertion failure, and those still
 /// land one per stage.
+#[cfg(feature = "unstable-diagnostics")]
 static PORTS: LazyLock<BTreeMap<String, DebugMaps>> = LazyLock::new(|| {
     corpus_names()
         .into_iter()
@@ -153,6 +161,7 @@ static PORTS: LazyLock<BTreeMap<String, DebugMaps>> = LazyLock::new(|| {
 });
 
 /// One corpus image's maps, from [`PORTS`].
+#[cfg(feature = "unstable-diagnostics")]
 fn port(name: &str) -> &'static DebugMaps {
     PORTS
         .get(name)
@@ -161,6 +170,7 @@ fn port(name: &str) -> &'static DebugMaps {
 
 /// Compare one flat block map against its golden dump, exact. Returns a list of human-readable
 /// mismatch descriptions (`(bx,by): got G want W`), capped at `MAX_REPORT` entries plus a count.
+#[cfg(feature = "unstable-diagnostics")]
 fn diff_map(got: &[i32], gold: &GoldenMap) -> Vec<String> {
     const MAX_REPORT: usize = 12;
     let mut out = Vec::new();
@@ -196,6 +206,7 @@ fn diff_map(got: &[i32], gold: &GoldenMap) -> Vec<String> {
 }
 
 /// Selector for the four block maps, so one comparison body drives all four stage tests.
+#[cfg(feature = "unstable-diagnostics")]
 enum Which {
     Direction,
     LowContrast,
@@ -203,6 +214,7 @@ enum Which {
     HighCurve,
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 impl Which {
     fn ext(&self) -> &'static str {
         match self {
@@ -223,6 +235,7 @@ impl Which {
 }
 
 /// Drive one map stage across the whole corpus, asserting an exact block-for-block match.
+#[cfg(feature = "unstable-diagnostics")]
 fn assert_map_matches_stock(which: Which) {
     let dir = fixtures_dir();
     let mut failures: Vec<String> = Vec::new();
@@ -266,6 +279,7 @@ fn assert_map_matches_stock(which: Which) {
     );
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn map_dimensions_match_stock() {
     let dir = fixtures_dir();
@@ -314,11 +328,13 @@ fn map_dimensions_match_stock() {
 /// The binarized-image dimensions recorded by the oracle in a `<name>.brwdim` sidecar:
 /// "bw bh map_w map_h". `bw`/`bh` are the (unpadded) binary-image size; the map dims are carried
 /// so a headerless `.brw` is fully interpretable.
+#[cfg(feature = "unstable-diagnostics")]
 struct BrwDim {
     bw: usize,
     bh: usize,
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 fn load_brwdim(path: &Path) -> BrwDim {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
     let mut it = text.split_whitespace();
@@ -331,6 +347,7 @@ fn load_brwdim(path: &Path) -> BrwDim {
 /// bytes, at the *original* image size (`bw == iw`, `bh == ih`), matching `<name>.brwdim` and the
 /// headerless `<name>.brw` byte length. This is the dimension/origin contract of the binarization
 /// stage — the dir-bin grid pad stripped, no residual padding — and holds for the whole corpus.
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn binarized_dims_match_stock() {
     let dir = fixtures_dir();
@@ -381,6 +398,7 @@ fn binarized_dims_match_stock() {
 /// localized around the affected ridges. On these low-/no-minutia images removal is a no-op, so the
 /// binarization output equals `.brw` **byte-for-byte** — a clean bit-exactness oracle for this stage.
 /// (Full-corpus `.brw` equality must wait until the removal stage is ported.)
+#[cfg(feature = "unstable-diagnostics")]
 const BRW_EXACT_IMAGES: &[&str] = &[
     "uniform_128x128",
     "gradient_128x128",
@@ -391,6 +409,7 @@ const BRW_EXACT_IMAGES: &[&str] = &[
 /// On the removal-untouched images, the port's binarization output (`binarize_V2` →
 /// `binarize_image_V2` / `dirbinarize` + three `fill_holes` passes) equals the stock `.brw`
 /// byte-for-byte — an exact cross-implementation check of the directional-binarization stage.
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn binarized_image_matches_stock_where_removal_is_noop() {
     let dir = fixtures_dir();
@@ -447,6 +466,7 @@ fn binarized_image_matches_stock_where_removal_is_noop() {
 /// contamination. So the port's `DebugMaps.binarized` must equal `.brwpre` byte-for-byte on **every**
 /// image in the corpus. This is the full binarization-stage bit-exactness check (the removal-noop
 /// variant above is the strict subset that also happens to survive in `.brw`).
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn binarized_matches_stock() {
     let dir = fixtures_dir();
@@ -509,21 +529,25 @@ fn binarized_matches_stock() {
     );
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn direction_map_matches_stock() {
     assert_map_matches_stock(Which::Direction);
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn low_contrast_map_matches_stock() {
     assert_map_matches_stock(Which::LowContrast);
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn low_flow_map_matches_stock() {
     assert_map_matches_stock(Which::LowFlow);
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn high_curve_map_matches_stock() {
     assert_map_matches_stock(Which::HighCurve);
@@ -531,6 +555,7 @@ fn high_curve_map_matches_stock() {
 
 /// Parse a stock `.rmin` dump: a header count line, then one `"x y direction type appearing"` row per
 /// raw minutia (list order preserved). Returns the rows as [`RawMinutia`], asserting the count header.
+#[cfg(feature = "unstable-diagnostics")]
 fn load_rmin(path: &Path) -> Vec<RawMinutia> {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("read {path:?}: {e}"));
     let mut lines = text.lines().filter(|l| !l.trim().is_empty());
@@ -570,6 +595,7 @@ fn load_rmin(path: &Path) -> Vec<RawMinutia> {
 /// The port's `debug_raw_minutiae` reproduces the stock `detect_minutiae_V2` output exactly — same
 /// count, same fields, same list order — for every image in the corpus, verified against the frozen
 /// `.rmin` oracle (captured before `remove_false_minutia_V2`).
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn raw_minutiae_match_stock() {
     const MAX_REPORT: usize = 12;
@@ -580,12 +606,8 @@ fn raw_minutiae_match_stock() {
         let man = load_manifest(&dir.join(format!("{name}.manifest")));
         let data = std::fs::read(dir.join(format!("{name}.raw")))
             .unwrap_or_else(|e| panic!("read {name}.raw: {e}"));
-        let img = GrayImage {
-            data: &data,
-            width: man.width,
-            height: man.height,
-            ppi: man.ppi,
-        };
+        let img =
+            GrayImage::new(&data, man.width, man.height, man.ppi).expect("buffer holds the image");
         let got = debug_raw_minutiae(img);
         let want = load_rmin(&dir.join(format!("{name}.rmin")));
 
@@ -626,6 +648,7 @@ fn raw_minutiae_match_stock() {
 /// The port's `debug_removed_minutiae` reproduces the stock `remove_false_minutia_V2` output exactly
 /// — same count, same fields, same list order — for every image in the corpus, verified against the
 /// frozen `.rmin2` oracle (captured after the ten false-minutia removal stages).
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn removed_minutiae_match_stock() {
     const MAX_REPORT: usize = 12;
@@ -636,12 +659,8 @@ fn removed_minutiae_match_stock() {
         let man = load_manifest(&dir.join(format!("{name}.manifest")));
         let data = std::fs::read(dir.join(format!("{name}.raw")))
             .unwrap_or_else(|e| panic!("read {name}.raw: {e}"));
-        let img = GrayImage {
-            data: &data,
-            width: man.width,
-            height: man.height,
-            ppi: man.ppi,
-        };
+        let img =
+            GrayImage::new(&data, man.width, man.height, man.ppi).expect("buffer holds the image");
         let got = debug_removed_minutiae(img);
         let want = load_rmin(&dir.join(format!("{name}.rmin2")));
 
@@ -724,12 +743,8 @@ fn minutiae_match_stock() {
         let man = load_manifest(&dir.join(format!("{name}.manifest")));
         let data = std::fs::read(dir.join(format!("{name}.raw")))
             .unwrap_or_else(|e| panic!("read {name}.raw: {e}"));
-        let img = GrayImage {
-            data: &data,
-            width: man.width,
-            height: man.height,
-            ppi: man.ppi,
-        };
+        let img =
+            GrayImage::new(&data, man.width, man.height, man.ppi).expect("buffer holds the image");
         let got = detect_minutiae(img);
         let want = load_xyt(&dir.join(format!("{name}.xyt")));
 

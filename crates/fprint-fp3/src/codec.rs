@@ -77,8 +77,8 @@ pub fn to_bytes(print: &Print) -> Result<Vec<u8>> {
     let tuple = gvariant::tuple(
         vec![
             gvariant::int32(kind),
-            gvariant::string(print.driver.as_ref().map_or("", |d| d.0.as_str())),
-            gvariant::string(print.device_id.as_ref().map_or("", |d| d.0.as_str())),
+            gvariant::string(print.driver.as_ref().map_or("", DriverId::as_str)),
+            gvariant::string(print.device_id.as_ref().map_or("", DeviceId::as_str)),
             gvariant::boolean(print.device_stored),
             gvariant::byte(print.finger.map_or(0, Finger::as_u8)),
             gvariant::maybe_string(print.username.as_deref()),
@@ -142,18 +142,20 @@ pub fn from_bytes(bytes: &[u8]) -> Result<Print> {
 
     let finger = Finger::from_u8(finger_byte).ok_or(Fp3Error::BadFinger(finger_byte))?;
 
-    Ok(Print {
-        template,
-        finger: Some(finger),
-        username,
-        description,
-        driver: non_empty(driver).map(DriverId),
-        device_id: non_empty(device_id).map(DeviceId),
-        device_stored,
-        enroll_date: (enroll_date != date::G_MININT32)
-            .then(|| date::from_julian(enroll_date))
-            .flatten(),
-    })
+    Ok(Print::builder()
+        .template(template)
+        .finger(Some(finger))
+        .username(username)
+        .description(description)
+        .driver(non_empty(driver).map(DriverId::new))
+        .device_id(non_empty(device_id).map(DeviceId::new))
+        .device_stored(device_stored)
+        .enroll_date(
+            (enroll_date != date::G_MININT32)
+                .then(|| date::from_julian(enroll_date))
+                .flatten(),
+        )
+        .build())
 }
 
 /// An empty string means "unset" for the driver/device-id slots (GVariant `s` has no
@@ -212,8 +214,8 @@ mod tests {
     /// A representative NBIS print with every metadata field set and several samples of
     /// differing (non-zero) minutia counts, so a round-trip exercises the whole tuple.
     fn nbis_print() -> Print {
-        Print {
-            template: Template::Nbis(vec![
+        Print::builder()
+            .template(Template::Nbis(vec![
                 vec![minutia(1, 2, 3), minutia(4, 5, 6)],
                 vec![minutia(7, 8, 9)],
                 vec![
@@ -221,19 +223,14 @@ mod tests {
                     minutia(13, 14, 15),
                     minutia(-1, -2, -3),
                 ],
-            ]),
-            finger: Some(Finger::RightIndex),
-            username: Some("alice".into()),
-            description: Some("work laptop".into()),
-            driver: Some(DriverId("goodix".into())),
-            device_id: Some(DeviceId("0000".into())),
-            device_stored: false,
-            enroll_date: Some(EnrollDate {
-                year: 2026,
-                month: 7,
-                day: 15,
-            }),
-        }
+            ]))
+            .finger(Some(Finger::RightIndex))
+            .username(Some("alice".into()))
+            .description(Some("work laptop".into()))
+            .driver(Some(DriverId::new("goodix")))
+            .device_id(Some(DeviceId::new("0000")))
+            .enroll_date(Some(EnrollDate::new(2026, 7, 15)))
+            .build()
     }
 
     // ---- golden byte-strings ----------------------------------------------------------
@@ -323,52 +320,46 @@ mod tests {
     fn encoder_reproduces_goldens_byte_for_byte() {
         assert_eq!(to_bytes(&nbis_print()).unwrap(), GOLDEN_NBIS_FULL);
 
-        let zero = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::LeftThumb),
-            ..Default::default()
-        };
+        let zero = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::LeftThumb))
+            .build();
         assert_eq!(to_bytes(&zero).unwrap(), GOLDEN_NBIS_ZERO_SAMPLES);
 
-        let raw_string = Print {
-            template: Template::Raw(RAW_INNER_STRING.to_vec()),
-            finger: Some(Finger::LeftMiddle),
-            driver: Some(DriverId("elan".into())),
-            device_stored: true,
-            ..Default::default()
-        };
+        let raw_string = Print::builder()
+            .template(Template::Raw(RAW_INNER_STRING.to_vec()))
+            .finger(Some(Finger::LeftMiddle))
+            .driver(Some(DriverId::new("elan")))
+            .device_stored(true)
+            .build();
         assert_eq!(to_bytes(&raw_string).unwrap(), GOLDEN_RAW_STRING);
 
-        let raw_su = Print {
-            template: Template::Raw(RAW_INNER_SU.to_vec()),
-            finger: Some(Finger::LeftMiddle),
-            driver: Some(DriverId("elan".into())),
-            device_stored: true,
-            ..Default::default()
-        };
+        let raw_su = Print::builder()
+            .template(Template::Raw(RAW_INNER_SU.to_vec()))
+            .finger(Some(Finger::LeftMiddle))
+            .driver(Some(DriverId::new("elan")))
+            .device_stored(true)
+            .build();
         assert_eq!(to_bytes(&raw_su).unwrap(), GOLDEN_RAW_SU);
 
-        let both = Print {
-            template: Template::Nbis(vec![vec![minutia(1, 1, 1)]]),
-            finger: Some(Finger::RightThumb),
-            username: Some("bob".into()),
-            description: Some("desc".into()),
-            ..Default::default()
-        };
+        let both = Print::builder()
+            .template(Template::Nbis(vec![vec![minutia(1, 1, 1)]]))
+            .finger(Some(Finger::RightThumb))
+            .username(Some("bob".into()))
+            .description(Some("desc".into()))
+            .build();
         assert_eq!(to_bytes(&both).unwrap(), GOLDEN_MAYBE_BOTH);
 
-        let none = Print {
-            template: Template::Nbis(vec![vec![minutia(1, 1, 1)]]),
-            finger: Some(Finger::RightThumb),
-            ..Default::default()
-        };
+        let none = Print::builder()
+            .template(Template::Nbis(vec![vec![minutia(1, 1, 1)]]))
+            .finger(Some(Finger::RightThumb))
+            .build();
         assert_eq!(to_bytes(&none).unwrap(), GOLDEN_MAYBE_NONE);
 
-        let unknown = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::Unknown),
-            ..Default::default()
-        };
+        let unknown = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::Unknown))
+            .build();
         assert_eq!(to_bytes(&unknown).unwrap(), GOLDEN_FINGER_UNKNOWN);
     }
 
@@ -404,11 +395,10 @@ mod tests {
 
     #[test]
     fn undefined_not_serializable() {
-        let print = Print {
-            template: Template::Undefined,
-            finger: Some(Finger::Unknown),
-            ..Default::default()
-        };
+        let print = Print::builder()
+            .template(Template::Undefined)
+            .finger(Some(Finger::Unknown))
+            .build();
         assert!(matches!(to_bytes(&print), Err(Fp3Error::UndefinedTemplate)));
     }
 
@@ -433,11 +423,10 @@ mod tests {
 
     #[test]
     fn nbis_roundtrip_zero_samples() {
-        let print = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::LeftThumb),
-            ..Default::default()
-        };
+        let print = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::LeftThumb))
+            .build();
         assert_eq!(from_bytes(&to_bytes(&print).unwrap()).unwrap(), print);
     }
 
@@ -447,22 +436,20 @@ mod tests {
     // round-trips exactly, both alone and mixed with real samples.
     #[test]
     fn nbis_zero_minutia_sample_roundtrips() {
-        let lone = Print {
-            template: Template::Nbis(vec![vec![]]),
-            finger: Some(Finger::LeftIndex),
-            ..Default::default()
-        };
+        let lone = Print::builder()
+            .template(Template::Nbis(vec![vec![]]))
+            .finger(Some(Finger::LeftIndex))
+            .build();
         assert_eq!(from_bytes(&to_bytes(&lone).unwrap()).unwrap(), lone);
 
-        let mixed = Print {
-            template: Template::Nbis(vec![
+        let mixed = Print::builder()
+            .template(Template::Nbis(vec![
                 vec![minutia(1, 2, 3)],
                 vec![],
                 vec![minutia(4, 5, 6), minutia(7, 8, 9)],
-            ]),
-            finger: Some(Finger::LeftMiddle),
-            ..Default::default()
-        };
+            ]))
+            .finger(Some(Finger::LeftMiddle))
+            .build();
         assert_eq!(from_bytes(&to_bytes(&mixed).unwrap()).unwrap(), mixed);
     }
 
@@ -490,13 +477,12 @@ mod tests {
     #[test]
     fn raw_roundtrip() {
         for inner in [RAW_INNER_STRING, RAW_INNER_SU, RAW_INNER_U64] {
-            let print = Print {
-                template: Template::Raw(inner.to_vec()),
-                finger: Some(Finger::LeftMiddle),
-                driver: Some(DriverId("elan".into())),
-                device_stored: true,
-                ..Default::default()
-            };
+            let print = Print::builder()
+                .template(Template::Raw(inner.to_vec()))
+                .finger(Some(Finger::LeftMiddle))
+                .driver(Some(DriverId::new("elan")))
+                .device_stored(true)
+                .build();
             // Print -> bytes -> Print
             let bytes = to_bytes(&print).unwrap();
             assert_eq!(from_bytes(&bytes).unwrap(), print);
@@ -515,13 +501,12 @@ mod tests {
             (None, Some("desc".to_string())),
             (Some("bob".to_string()), Some("desc".to_string())),
         ] {
-            let print = Print {
-                template: Template::Nbis(vec![vec![minutia(1, 1, 1)]]),
-                finger: Some(Finger::RightThumb),
-                username: u,
-                description: d,
-                ..Default::default()
-            };
+            let print = Print::builder()
+                .template(Template::Nbis(vec![vec![minutia(1, 1, 1)]]))
+                .finger(Some(Finger::RightThumb))
+                .username(u)
+                .description(d)
+                .build();
             assert_eq!(from_bytes(&to_bytes(&print).unwrap()).unwrap(), print);
         }
     }
@@ -530,11 +515,10 @@ mod tests {
 
     #[test]
     fn finger_zero_is_unknown() {
-        let print = Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(Finger::Unknown),
-            ..Default::default()
-        };
+        let print = Print::builder()
+            .template(Template::Nbis(vec![]))
+            .finger(Some(Finger::Unknown))
+            .build();
         let decoded = from_bytes(&to_bytes(&print).unwrap()).unwrap();
         assert_eq!(decoded.finger, Some(Finger::Unknown));
     }
@@ -543,10 +527,11 @@ mod tests {
     fn out_of_range_finger_byte_is_rejected() {
         // Locate the finger byte by diffing two encodings that differ only in it, then poke
         // an out-of-range value.
-        let mk = |f| Print {
-            template: Template::Nbis(vec![]),
-            finger: Some(f),
-            ..Default::default()
+        let mk = |f| {
+            Print::builder()
+                .template(Template::Nbis(vec![]))
+                .finger(Some(f))
+                .build()
         };
         let mut a = to_bytes(&mk(Finger::LeftThumb)).unwrap();
         let b = to_bytes(&mk(Finger::LeftIndex)).unwrap();
@@ -563,16 +548,11 @@ mod tests {
     #[test]
     fn enroll_date_outside_the_julian_range_is_rejected() {
         for year in [i32::MIN, i32::MAX] {
-            let print = Print {
-                template: Template::Nbis(vec![]),
-                finger: Some(Finger::Unknown),
-                enroll_date: Some(EnrollDate {
-                    year,
-                    month: 1,
-                    day: 1,
-                }),
-                ..Default::default()
-            };
+            let print = Print::builder()
+                .template(Template::Nbis(vec![]))
+                .finger(Some(Finger::Unknown))
+                .enroll_date(Some(EnrollDate::new(year, 1, 1)))
+                .build();
             assert!(matches!(to_bytes(&print), Err(Fp3Error::DateOutOfRange(_))));
         }
     }
@@ -584,14 +564,8 @@ mod tests {
         let mut bytes = to_bytes(&nbis_print()).unwrap();
         // The `enroll_date` i32 is tuple member 7; find it by diffing against a print whose
         // date differs only in that field.
-        let other = Print {
-            enroll_date: Some(EnrollDate {
-                year: 2026,
-                month: 7,
-                day: 16,
-            }),
-            ..nbis_print()
-        };
+        let mut other = nbis_print();
+        other.enroll_date = Some(EnrollDate::new(2026, 7, 16));
         let idx = bytes
             .iter()
             .zip(&to_bytes(&other).unwrap())
@@ -618,23 +592,20 @@ mod tests {
     fn roundtrip_is_identity() {
         let prints = [
             nbis_print(),
-            Print {
-                template: Template::Nbis(vec![vec![minutia(5, 5, 5)], vec![minutia(9, 9, 9)]]),
-                finger: Some(Finger::RightLittle),
-                device_stored: true,
-                enroll_date: Some(EnrollDate {
-                    year: 1,
-                    month: 1,
-                    day: 1,
-                }),
-                ..Default::default()
-            },
-            Print {
-                template: Template::Raw(RAW_INNER_U64.to_vec()),
-                finger: Some(Finger::LeftRing),
-                device_stored: true,
-                ..Default::default()
-            },
+            Print::builder()
+                .template(Template::Nbis(vec![
+                    vec![minutia(5, 5, 5)],
+                    vec![minutia(9, 9, 9)],
+                ]))
+                .finger(Some(Finger::RightLittle))
+                .device_stored(true)
+                .enroll_date(Some(EnrollDate::new(1, 1, 1)))
+                .build(),
+            Print::builder()
+                .template(Template::Raw(RAW_INNER_U64.to_vec()))
+                .finger(Some(Finger::LeftRing))
+                .device_stored(true)
+                .build(),
         ];
         for print in prints {
             assert_eq!(from_bytes(&to_bytes(&print).unwrap()).unwrap(), print);

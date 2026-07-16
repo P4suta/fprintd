@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Degenerate geometry at the public entry point: **[`detect_minutiae`] answers every ill-shaped
-//! image either with an empty list or with a documented panic, and this file pins which.**
+//! Degenerate geometry at the public entry point: **a consistent but ill-shaped image gives
+//! [`detect_minutiae`] an empty list, and an inconsistent one cannot reach it — [`GrayImage::new`]
+//! rejects the short buffer first. This file pins both.**
 //!
 //! The golden suite drives 13 well-formed fingerprints. Everything here is the input a caller sends
 //! by accident: a zero dimension, a single pixel, a one-pixel-wide strip, a flat field, a buffer
@@ -12,16 +13,14 @@
 //!
 //! ## The two answers, and why the split is not arbitrary
 //!
-//! A *degenerate but consistent* image (`data.len() == width * height`) returns an empty list. No
-//! block map survives an image smaller than a block, so the pipeline reaches its size error path and
-//! says "no minutiae" — the truthful answer.
+//! A *degenerate but consistent* image (`data.len() >= width * height`) builds and returns an empty
+//! list. No block map survives an image smaller than a block, so the pipeline reaches its size error
+//! path and says "no minutiae" — the truthful answer.
 //!
-//! An *inconsistent* one (`data.len() < width * height`) **panics** in `src/image.rs`'s padding
-//! scanline copy. [`GrayImage`] states `data.len() >= width * height` as an unenforced precondition
-//! and nothing checks it on construction, so the panic is the enforcement. These tests are
-//! `#[should_panic]` because that is what the code does, not because it is the design anyone would
-//! pick: they record the behaviour so that changing it is a deliberate act with a failing test
-//! attached. An over-long buffer is the asymmetric case — it is ignored, not rejected.
+//! An *inconsistent* one (`data.len() < width * height`) never becomes a [`GrayImage`]:
+//! [`GrayImage::new`] returns [`ImageError::TooSmall`], so a short buffer is rejected at the boundary
+//! rather than surfacing as an index panic deep in the padding copy. An over-long buffer is the
+//! asymmetric case — it is accepted, its tail ignored.
 //!
 //! ## Honest limits
 //!
@@ -30,33 +29,20 @@
 //! wall-clock on a big input measures the machine, and a benchmark that fails on a loaded CI box
 //! teaches nothing.
 
-use fprint_mindtct::{detect_minutiae, GrayImage};
+use fprint_mindtct::{detect_minutiae, GrayImage, ImageError};
 use fprint_testkit::{gen, Lcg};
 
 /// Run the detector over `width`×`height` of `fill`, sized exactly.
 fn detect_flat(fill: u8, width: usize, height: usize) -> usize {
     let data = vec![fill; width * height];
-    detect_minutiae(GrayImage {
-        data: &data,
-        width,
-        height,
-        ppi: 500,
-    })
-    .len()
+    let img = GrayImage::new(&data, width, height, 500).expect("buffer holds the image");
+    detect_minutiae(img).len()
 }
 
 #[test]
 fn zero_sized_image_yields_no_minutiae() {
-    assert_eq!(
-        detect_minutiae(GrayImage {
-            data: &[],
-            width: 0,
-            height: 0,
-            ppi: 500,
-        })
-        .len(),
-        0
-    );
+    let img = GrayImage::new(&[], 0, 0, 500).expect("an empty buffer holds a 0x0 image");
+    assert_eq!(detect_minutiae(img).len(), 0);
 }
 
 #[test]
@@ -96,12 +82,8 @@ fn overlong_data_ignores_the_trailing_bytes() {
 
     const SIZE: usize = 96;
     let body = gray_image(&mut Lcg::new(3), SIZE, SIZE);
-    let want = detect_minutiae(GrayImage {
-        data: &body,
-        width: SIZE,
-        height: SIZE,
-        ppi: 500,
-    });
+    let want =
+        detect_minutiae(GrayImage::new(&body, SIZE, SIZE, 500).expect("buffer holds the image"));
     assert!(
         !want.is_empty(),
         "the body must produce minutiae or the comparison below has no teeth"
@@ -109,40 +91,39 @@ fn overlong_data_ignores_the_trailing_bytes() {
 
     let mut padded = body.clone();
     padded.extend(std::iter::repeat_n(0xff, SIZE * SIZE));
-    let got = detect_minutiae(GrayImage {
-        data: &padded,
-        width: SIZE,
-        height: SIZE,
-        ppi: 500,
-    });
+    let got = detect_minutiae(
+        GrayImage::new(&padded, SIZE, SIZE, 500).expect("over-long buffer is accepted"),
+    );
     assert_eq!(got, want, "the trailing bytes changed the result");
 }
 
-/// `data` shorter than `width * height` panics in the padding scanline copy (`src/image.rs`). The
-/// unenforced precondition on [`GrayImage`] is enforced here, by index.
+/// `data` shorter than `width * height` is rejected by [`GrayImage::new`] before the detector runs:
+/// the precondition is enforced at the boundary, not by an index panic in the padding copy.
 #[test]
-#[should_panic(expected = "out of range for slice of length 10")]
-fn short_data_panics_in_the_padding_copy() {
+fn short_data_is_rejected_by_construction() {
     let data = vec![0u8; 10];
-    let _ = detect_minutiae(GrayImage {
-        data: &data,
-        width: 64,
-        height: 64,
-        ppi: 500,
-    });
+    assert_eq!(
+        GrayImage::new(&data, 64, 64, 500).unwrap_err(),
+        ImageError::TooSmall {
+            width: 64,
+            height: 64,
+            got: 10,
+        }
+    );
 }
 
-/// The limiting case of a short buffer: empty `data` with non-zero dimensions. It panics for the
-/// same reason — the dimensions, not the buffer, drive the copy.
+/// The limiting case of a short buffer: empty `data` with non-zero dimensions. Rejected for the same
+/// reason — the dimensions, not the buffer, decide the required length.
 #[test]
-#[should_panic(expected = "out of range for slice of length 0")]
-fn empty_data_with_nonzero_dimensions_panics() {
-    let _ = detect_minutiae(GrayImage {
-        data: &[],
-        width: 8,
-        height: 8,
-        ppi: 500,
-    });
+fn empty_data_with_nonzero_dimensions_is_rejected() {
+    assert_eq!(
+        GrayImage::new(&[], 8, 8, 500).unwrap_err(),
+        ImageError::TooSmall {
+            width: 8,
+            height: 8,
+            got: 0,
+        }
+    );
 }
 
 /// A well-formed image of pure noise terminates.
@@ -162,11 +143,7 @@ fn noise_terminates() {
     let mut lcg = Lcg::new(3);
     for (width, height) in [(64, 64), (124, 124), (128, 128)] {
         let data = gen::gray_image(&mut lcg, width, height);
-        let _ = detect_minutiae(GrayImage {
-            data: &data,
-            width,
-            height,
-            ppi: 500,
-        });
+        let img = GrayImage::new(&data, width, height, 500).expect("buffer holds the image");
+        let _ = detect_minutiae(img);
     }
 }

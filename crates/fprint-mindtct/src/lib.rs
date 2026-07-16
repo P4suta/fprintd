@@ -6,8 +6,8 @@
 //!
 //! A pure-Rust, dependency-free reimplementation of **MINDTCT** — NIST NBIS's minutiae detector.
 //! Given an 8-bit grayscale fingerprint image it produces a list of [`Minutia`] (`x`, `y`, `theta`,
-//! `quality`) reproducing the stock NBIS tool's `xyt` output, plus (via [`debug_maps`]) the
-//! intermediate block maps and binarized image used to reach them.
+//! `quality`) reproducing the stock NBIS tool's `xyt` output. The `unstable-diagnostics` feature
+//! additionally exposes the intermediate block maps and binarized image used to reach them.
 //!
 //! ## Provenance
 //!
@@ -77,51 +77,143 @@ impl Minutia {
 
 /// An 8-bit grayscale fingerprint image, row-major, one byte per pixel.
 ///
-/// `data` is exactly `width * height` bytes (0 = black, 255 = white). `ppi` is the scan resolution
-/// in pixels-per-inch, carried because several MINDTCT thresholds are resolution-relative.
+/// `data` holds at least `width * height` bytes (0 = black, 255 = white). `ppi` is the scan
+/// resolution in pixels-per-inch, carried because several MINDTCT thresholds are resolution-relative.
 ///
-/// # Panics
-///
-/// `data.len() >= width * height` is an **unenforced precondition**, checked by nothing on
-/// construction. A shorter `data` panics when a consumer ([`detect_minutiae`], [`debug_maps`],
-/// [`debug_raw_minutiae`], [`debug_removed_minutiae`]) reaches the padding stage and indexes the
-/// missing row. A *longer* `data` does not panic: the trailing bytes are ignored.
+/// Build one with [`GrayImage::new`], which rejects a buffer shorter than `width * height`; the
+/// fields are private, so a value cannot exist around a short buffer. A *longer* `data` is accepted
+/// and its trailing bytes are ignored.
 #[derive(Clone, Copy, Debug)]
 pub struct GrayImage<'a> {
     /// The pixels, row-major, one byte each (0 = black, 255 = white).
-    pub data: &'a [u8],
+    data: &'a [u8],
     /// Image width in pixels.
-    pub width: usize,
+    width: usize,
     /// Image height in pixels.
-    pub height: usize,
+    height: usize,
     /// Scan resolution in pixels-per-inch.
-    pub ppi: u16,
+    ppi: u16,
 }
 
-/// The intermediate block maps and binarized image produced along the way to the minutiae.
-///
-/// Exposed through [`debug_maps`] for cross-implementation verification against the stock C tool's
-/// map dumps. All four block maps are `map_w * map_h` in row-major block order; `binarized` is a
-/// full-resolution `width * height` image (0 = ridge, 255 = valley — the pre-`gray2bin` form).
-#[derive(Clone, Debug, Default)]
-pub struct DebugMaps {
-    /// Per-block ridge flow direction: `-1` (invalid) or a valid direction index.
-    pub direction_map: Vec<i32>,
-    /// Per-block low-contrast flag (`TRUE`/`FALSE` as `1`/`0`).
-    pub low_contrast_map: Vec<i32>,
-    /// Per-block low-ridge-flow flag (`TRUE`/`FALSE` as `1`/`0`).
-    pub low_flow_map: Vec<i32>,
-    /// Per-block high-curvature flag (`TRUE`/`FALSE` as `1`/`0`).
-    pub high_curve_map: Vec<i32>,
-    /// Width of the block maps, in blocks.
-    pub map_w: usize,
-    /// Height of the block maps, in blocks.
-    pub map_h: usize,
-    /// Binarized image, full resolution, `0` = ridge and `255` = valley — the output of the
-    /// directional-binarization stage (`binarize_V2`), i.e. **before** the detection/false-minutia
-    /// removal stages edit the binary image in place. (The stock tool's `.brw` dump is captured
-    /// after removal, so the two agree only where removal is a no-op.)
-    pub binarized: Vec<u8>,
+impl<'a> GrayImage<'a> {
+    /// Wrap a row-major 8-bit grayscale buffer, checking it can hold the stated image.
+    ///
+    /// `data` must be at least `width * height` bytes; a longer buffer is accepted and its trailing
+    /// bytes are ignored. `ppi` is the scan resolution in pixels-per-inch.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ImageError::TooSmall`] when `data.len() < width * height`.
+    pub fn new(
+        data: &'a [u8],
+        width: usize,
+        height: usize,
+        ppi: u16,
+    ) -> Result<GrayImage<'a>, ImageError> {
+        if data.len() < width.saturating_mul(height) {
+            return Err(ImageError::TooSmall {
+                width,
+                height,
+                got: data.len(),
+            });
+        }
+        Ok(GrayImage {
+            data,
+            width,
+            height,
+            ppi,
+        })
+    }
+
+    /// Image width in pixels.
+    #[must_use]
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Image height in pixels.
+    #[must_use]
+    pub fn height(&self) -> usize {
+        self.height
+    }
+
+    /// Scan resolution in pixels-per-inch.
+    #[must_use]
+    pub fn ppi(&self) -> u16 {
+        self.ppi
+    }
+
+    /// The pixel buffer, row-major, one byte per pixel.
+    #[must_use]
+    pub fn data(&self) -> &[u8] {
+        self.data
+    }
+}
+
+/// The error [`GrayImage::new`] returns when a buffer cannot hold the stated image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ImageError {
+    /// The pixel buffer is shorter than `width * height`.
+    TooSmall {
+        /// Stated image width in pixels.
+        width: usize,
+        /// Stated image height in pixels.
+        height: usize,
+        /// Length of the buffer supplied.
+        got: usize,
+    },
+}
+
+impl core::fmt::Display for ImageError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            ImageError::TooSmall { width, height, got } => write!(
+                f,
+                "grayscale buffer holds {got} bytes, need {} for a {width}x{height} image",
+                width.saturating_mul(height)
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ImageError {}
+
+// `DebugMaps` is the front-end's map container, used by the core pipeline on every run. Its public
+// diagnostic identity is gated: `unstable-diagnostics` exports it, otherwise it stays crate-internal.
+// The single definition lives in `diag` so the two visibilities share one struct.
+#[cfg(feature = "unstable-diagnostics")]
+pub use diag::DebugMaps;
+#[cfg(not(feature = "unstable-diagnostics"))]
+pub(crate) use diag::DebugMaps;
+
+mod diag {
+    /// The intermediate block maps and binarized image produced along the way to the minutiae.
+    ///
+    /// Exposed through [`debug_maps`](crate::debug_maps) for cross-implementation verification against
+    /// the stock C tool's map dumps. All four block maps are `map_w * map_h` in row-major block order;
+    /// `binarized` is a full-resolution `width * height` image (0 = ridge, 255 = valley — the
+    /// pre-`gray2bin` form).
+    #[derive(Clone, Debug, Default)]
+    pub struct DebugMaps {
+        /// Per-block ridge flow direction: `-1` (invalid) or a valid direction index.
+        pub direction_map: Vec<i32>,
+        /// Per-block low-contrast flag (`TRUE`/`FALSE` as `1`/`0`).
+        pub low_contrast_map: Vec<i32>,
+        /// Per-block low-ridge-flow flag (`TRUE`/`FALSE` as `1`/`0`).
+        pub low_flow_map: Vec<i32>,
+        /// Per-block high-curvature flag (`TRUE`/`FALSE` as `1`/`0`).
+        pub high_curve_map: Vec<i32>,
+        /// Width of the block maps, in blocks.
+        pub map_w: usize,
+        /// Height of the block maps, in blocks.
+        pub map_h: usize,
+        /// Binarized image, full resolution, `0` = ridge and `255` = valley — the output of the
+        /// directional-binarization stage (`binarize_V2`), i.e. **before** the detection/false-minutia
+        /// removal stages edit the binary image in place. (The stock tool's `.brw` dump is captured
+        /// after removal, so the two agree only where removal is a no-op.)
+        pub binarized: Vec<u8>,
+    }
 }
 
 /// The shared detection front-end carried between the pipeline stages: the block maps and their
@@ -136,9 +228,9 @@ struct DetectState {
 }
 
 /// Run the stock `lfs_detect_minutiae_V2` front-end through `detect_minutiae_V2` — the shared prefix
-/// of [`detect_minutiae`], [`debug_raw_minutiae`], and [`debug_removed_minutiae`].
+/// of [`detect_minutiae`] and the diagnostic entry points.
 ///
-/// Reuses [`debug_maps`] for the pad → 6-bit scale → block maps → directional binarization stages,
+/// Reuses [`build_maps`] for the pad → 6-bit scale → block maps → directional binarization stages,
 /// converts the binary image to the detector's `0 == valley` / `1 == ridge` convention
 /// (stock `gray2bin(1, 1, 0)`, `detect.c` L614), then runs `detect_minutiae_V2` over the unpadded
 /// image and block maps. Returns [`None`] on the (size) error paths the pipeline can surface — an
@@ -148,7 +240,7 @@ fn run_detect(img: GrayImage<'_>) -> Option<DetectState> {
     use crate::params::LFSPARMS_V2;
 
     // Verified front-end: block maps + the pre-gray2bin binary image.
-    let maps = debug_maps(img);
+    let maps = build_maps(img);
     if maps.binarized.is_empty() {
         return None;
     }
@@ -159,8 +251,8 @@ fn run_detect(img: GrayImage<'_>) -> Option<DetectState> {
     let p = &LFSPARMS_V2;
     let minutiae = detect_minutiae_v2(
         &mut bdata,
-        img.width as i32,
-        img.height as i32,
+        img.width() as i32,
+        img.height() as i32,
         &maps.direction_map,
         &maps.low_flow_map,
         &maps.high_curve_map,
@@ -178,6 +270,7 @@ fn run_detect(img: GrayImage<'_>) -> Option<DetectState> {
 }
 
 /// Project a detector minutiae list onto the diagnostic [`RawMinutia`] rows, list order preserved.
+#[cfg(feature = "unstable-diagnostics")]
 fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
     minutiae
         .iter()
@@ -199,15 +292,16 @@ fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
 /// degrees on `0..=359`, `quality` on `0..=100`). See `docs/mindtct-algorithm.md`.
 ///
 /// The reliability that becomes each minutia's `quality` is derived from the **original** 8-bit image
-/// (`img.data`, unpadded) and the block maps at the scan resolution `ppmm = img.ppi / 25.4`, exactly
-/// as stock `combined_minutia_quality` consumes `idata`. Returns an empty list on the (size) error
-/// paths the pipeline can surface — including a degenerate image (any zero dimension, or one too
-/// small to carry a single block).
+/// (the unpadded pixels) and the block maps at the scan resolution `ppmm = ppi / 25.4`, exactly as
+/// stock `combined_minutia_quality` consumes `idata`. Returns an empty list on the (size) error paths
+/// the pipeline can surface — including a degenerate image (any zero dimension, or one too small to
+/// carry a single block).
 ///
 /// # Panics
 ///
-/// If `img.data.len() < img.width * img.height`. [`GrayImage`] states that as an unenforced
-/// precondition; this is where a short buffer surfaces.
+/// The buffer length is not a panic source — [`GrayImage::new`] guarantees it. An image with either
+/// dimension under 25 pixels can panic in the block-map window clamp; a realistic fingerprint is far
+/// outside that band.
 ///
 /// # Examples
 ///
@@ -232,12 +326,8 @@ fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
 ///     })
 ///     .collect();
 ///
-/// let minutiae = detect_minutiae(GrayImage {
-///     data: &data,
-///     width,
-///     height,
-///     ppi: 500,
-/// });
+/// let img = GrayImage::new(&data, width, height, 500).expect("buffer holds the image");
+/// let minutiae = detect_minutiae(img);
 ///
 /// assert!(!minutiae.is_empty(), "the ridge gaps must yield minutiae");
 /// for m in &minutiae {
@@ -261,7 +351,7 @@ pub fn detect_minutiae(img: GrayImage<'_>) -> Vec<Minutia> {
     };
 
     let p = &LFSPARMS_V2;
-    let (iw, ih) = (img.width as i32, img.height as i32);
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
     let (mw, mh) = (st.maps.map_w as i32, st.maps.map_h as i32);
 
     // False-minutia removal (detect.c L639): edits the minutiae list and the binary image in place.
@@ -298,14 +388,14 @@ pub fn detect_minutiae(img: GrayImage<'_>) -> Vec<Minutia> {
         mw,
         mh,
     );
-    let ppmm = f64::from(img.ppi) / 25.4;
+    let ppmm = f64::from(img.ppi()) / 25.4;
     if combined_minutia_quality(
         &mut st.minutiae,
         &quality_map,
         mw,
         mh,
         p.blocksize,
-        img.data,
+        img.data(),
         iw,
         ih,
         ppmm,
@@ -326,6 +416,7 @@ pub fn detect_minutiae(img: GrayImage<'_>) -> Vec<Minutia> {
 /// direction on `0..2*num_directions` (`0..=31`); `kind` is the stock `type` (`0 == BIFURCATION`,
 /// `1 == RIDGE_ENDING`); `appearing` is `1` (appearing) or `0` (disappearing). Mirrors the oracle's
 /// `.rmin` line `"x y direction type appearing"`.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RawMinutia {
@@ -347,6 +438,7 @@ pub struct RawMinutia {
 /// convention (stock `gray2bin(1, 1, 0)`, `detect.c` L614) and runs `detect_minutiae_V2` over the
 /// unpadded image and block maps. Returns each detected point as a [`RawMinutia`]; returns an empty
 /// list on the (size) error paths the pipeline can surface.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[must_use]
 pub fn debug_raw_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
@@ -365,6 +457,7 @@ pub fn debug_raw_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
 /// and the **block** maps (not pixelized), before the ridge-count stage. Returns each surviving point
 /// as a [`RawMinutia`] in the same `(x, y, direction, type, appearing)` contract as `.rmin`; returns
 /// an empty list on the (size) error paths the pipeline can surface.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[must_use]
 pub fn debug_removed_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
@@ -377,7 +470,7 @@ pub fn debug_removed_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
     };
 
     let p = &LFSPARMS_V2;
-    let (iw, ih) = (img.width as i32, img.height as i32);
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
     let (mw, mh) = (st.maps.map_w as i32, st.maps.map_h as i32);
 
     // The ten false-minutia removal stages, over the same in-place-edited binary and block maps.
@@ -413,6 +506,7 @@ pub fn debug_removed_minutiae(img: GrayImage<'_>) -> Vec<RawMinutia> {
 /// Slot `0` is the sort, which permutes the list and so is always `0`. Slot `5` (stage 6,
 /// `remove_or_adjust_side_minutiae_V2`) both removes and *adjusts*; an adjust leaves the length
 /// alone, so the slot counts its remove path only.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[must_use]
 pub fn debug_removal_tally(img: GrayImage<'_>) -> [usize; 10] {
@@ -424,7 +518,7 @@ pub fn debug_removal_tally(img: GrayImage<'_>) -> [usize; 10] {
     };
 
     let p = &LFSPARMS_V2;
-    let (iw, ih) = (img.width as i32, img.height as i32);
+    let (iw, ih) = (img.width() as i32, img.height() as i32);
     let (mw, mh) = (st.maps.map_w as i32, st.maps.map_h as i32);
 
     remove_false_minutia_v2(
@@ -445,15 +539,23 @@ pub fn debug_removal_tally(img: GrayImage<'_>) -> [usize; 10] {
 /// Diagnostic (hidden): the intermediate maps and binarized image for an input, used by verification
 /// tooling to localize any divergence from the stock C reference before the minutiae stage.
 ///
-/// Reproduces the `lfs_detect_minutiae_V2` front-end up to and including the binarization stage
-/// (`detect.c` L455–L582): build the V2 lookup tables, pad the image by the max padding, scale it
-/// to 6 bits, run the block-map pipeline (`gen_image_maps`), then directionally binarize the padded
-/// image against the direction map (`binarize_V2`). Fills the four block maps, their dimensions, and
-/// the full-resolution `binarized` image (`0` = ridge / `255` = valley, the pre-`gray2bin` form).
-/// Returns empty maps on the (size) error paths `gen_image_maps` can surface.
+/// A thin wrapper over [`build_maps`], exposed only under `unstable-diagnostics`. Returns empty maps
+/// on the (size) error paths `gen_image_maps` can surface.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[must_use]
 pub fn debug_maps(img: GrayImage<'_>) -> DebugMaps {
+    build_maps(img)
+}
+
+/// The `lfs_detect_minutiae_V2` front-end up to and including the binarization stage
+/// (`detect.c` L455–L582): build the V2 lookup tables, pad the image by the max padding, scale it to
+/// 6 bits, run the block-map pipeline (`gen_image_maps`), then directionally binarize the padded image
+/// against the direction map (`binarize_V2`). Fills the four block maps, their dimensions, and the
+/// full-resolution `binarized` image (`0` = ridge / `255` = valley, the pre-`gray2bin` form). Returns
+/// empty maps on the (size) error paths `gen_image_maps` can surface. Shared by [`run_detect`] and, as
+/// the public [`debug_maps`], by the diagnostic surface.
+fn build_maps(img: GrayImage<'_>) -> DebugMaps {
     use crate::binarize::binarize_v2;
     use crate::consts::DFT_COEFS;
     use crate::image::{bits_8to6, pad_gray_image};
@@ -475,7 +577,7 @@ pub fn debug_maps(img: GrayImage<'_>) -> DebugMaps {
     let dir2rad = init_dir2rad(p.num_directions);
     let dftwaves = init_dftwaves(&DFT_COEFS, p.num_dft_waves, p.windowsize);
     let dftgrids = init_rotgrids(
-        img.width as i32,
+        img.width() as i32,
         Some(maxpad),
         p.start_dir_angle,
         p.num_directions,
@@ -496,7 +598,7 @@ pub fn debug_maps(img: GrayImage<'_>) -> DebugMaps {
             // `maxpad` so the one padded image serves both the DFT and dir-bin passes. Then
             // `binarize_V2` produces the (unpadded) black-ridge/white-valley image.
             let dirbingrids = init_rotgrids(
-                img.width as i32,
+                img.width() as i32,
                 Some(maxpad),
                 p.start_dir_angle,
                 p.num_directions,

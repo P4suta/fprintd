@@ -74,13 +74,13 @@ fn read(dir: &Path, name: &str) -> String {
 fn reference_replay_reproduces_the_frozen_facts() {
     let frame = assemble();
     let hash = frame_hash(&frame.data);
-    let minutiae = extract_minutiae(frame.as_gray());
+    let minutiae = extract_minutiae(frame.as_gray().expect("valid dims"));
     let count = minutiae.len();
     let mut xyt = String::new();
     for m in &minutiae {
         xyt.push_str(&format!("{} {} {}\n", m.x, m.y, m.theta));
     }
-    let template = template_from_images(&[frame.as_gray()]);
+    let template = template_from_images(&[frame.as_gray().expect("valid dims")]);
     let score = nbis_match_score(&template, &template);
 
     let dir = fixtures();

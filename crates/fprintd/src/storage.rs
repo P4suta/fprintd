@@ -152,8 +152,8 @@ impl Store {
         Ok(self
             .root
             .join(component(user)?)
-            .join(component(&driver.0)?)
-            .join(component(&device_id.0)?))
+            .join(component(driver.as_str())?)
+            .join(component(device_id.as_str())?))
     }
 
     /// `<root>/<user>/<driver>/<device_id>/<hex-finger>`.
@@ -317,8 +317,8 @@ mod tests {
 
     fn ids() -> (DriverId, DeviceId) {
         (
-            DriverId("virtual_image".into()),
-            DeviceId("virtual_image".into()),
+            DriverId::new("virtual_image"),
+            DeviceId::new("virtual_image"),
         )
     }
 
@@ -393,10 +393,10 @@ mod tests {
         let root = store.root.clone();
 
         assert_refuses_hostile("driver", &root, |d| {
-            store.dir(USER, &DriverId(d.to_string()), &device_id)
+            store.dir(USER, &DriverId::new(d), &device_id)
         });
         assert_refuses_hostile("device id", &root, |d| {
-            store.dir(USER, &driver, &DeviceId(d.to_string()))
+            store.dir(USER, &driver, &DeviceId::new(d))
         });
     }
 
@@ -464,7 +464,7 @@ mod tests {
     fn a_print_from_another_driver_does_not_load() {
         let store = store("cross-driver");
         let (driver, device_id) = ids();
-        let other = DriverId("upektc_img".into());
+        let other = DriverId::new("upektc_img");
         store.save(&print_of("virtual")).expect("save");
 
         let src = store
@@ -496,8 +496,8 @@ mod tests {
         store.save(&print_of("first")).expect("save");
 
         let user_dir = store.root.join(USER);
-        let driver_dir = user_dir.join(&driver.0);
-        let device_dir = driver_dir.join(&device_id.0);
+        let driver_dir = user_dir.join(driver.as_str());
+        let device_dir = driver_dir.join(device_id.as_str());
         for level in [&user_dir, &driver_dir, &device_dir] {
             let mode = fs::metadata(level).expect("stat").permissions().mode() & 0o777;
             assert_eq!(

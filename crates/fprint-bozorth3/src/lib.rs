@@ -92,9 +92,10 @@ pub struct Minutia {
     /// both outside that range.
     ///
     /// **Give this canonical input.** A full turn is not the identity here — `theta` and
-    /// `theta - 360` are one direction and two different scores — and a `theta` beyond about
-    /// ±46340 panics or wraps, per [`match_score`]'s *Panics*. Neither is rejected; both are the
-    /// reference's arithmetic, reproduced.
+    /// `theta - 360` are one direction and two different scores. A `theta` far outside the canonical
+    /// range still scores (the relative-angle square is computed in i64), but the reference's
+    /// single conditional subtract leaves it unfolded, so it is a different input, not the same
+    /// angle. Non-canonical input is not rejected; it is the reference's arithmetic, reproduced.
     pub theta: i32,
 }
 
@@ -132,17 +133,13 @@ impl From<(i32, i32, i32)> for Minutia {
 ///
 /// # Panics
 ///
-/// This is a faithful port, and it reproduces the reference's unguarded arithmetic. In a build with
-/// overflow checks on (`debug_assertions`), `i32` overflow panics; with them off it wraps, which is
-/// quieter and worse — a wrapped-negative squared distance reads as a *short* edge. Neither is
-/// reachable from a real reader, and both are reachable from a caller that does not bound its input:
-///
-/// * Two minutiae more than **46340 pixels** apart on either axis: the squared distance is computed
-///   before the length guard that would reject them, so `dx * dx` overflows.
-/// * A `theta` beyond about **±46340**: the relative angle is computed from an unfolded value (see
-///   [`Minutia::theta`]), so its square overflows in the same way.
-///
-/// Both are recorded in `tests/totality.rs`.
+/// It does not panic on any input. The two squarings that carry unbounded deltas — the squared
+/// distance in stage 1 and the squared relative angle in stage 2 — are computed in i64, so an
+/// extreme coordinate span (two minutiae more than **46340 pixels** apart on an axis) or an
+/// unfolded `theta` (beyond about **±46340**, see [`Minutia::theta`]) yields a well-defined score
+/// instead of an `i32` overflow. Valid-reader inputs stay well inside that range and score exactly
+/// as the reference does; the widening changes nothing there. Totality on these extremes is
+/// recorded in `tests/totality.rs`.
 ///
 /// ```
 /// use fprint_bozorth3::{match_score, Minutia};

@@ -47,19 +47,82 @@
 //! ```
 
 use crate::error::RetryReason;
-use crate::{DeviceFeature, Print, Result, ScanType};
+use crate::{DeviceFeature, FingerStatus, Print, Result, ScanType, Temperature};
 
 /// Stable identifier for a physical reader (opaque; assigned by the backend).
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct DeviceId(pub String);
+pub struct DeviceId(String);
+
+impl DeviceId {
+    /// Wrap a backend-assigned identifier.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The identifier as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl core::fmt::Display for DeviceId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<&str> for DeviceId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+impl From<String> for DeviceId {
+    fn from(id: String) -> Self {
+        Self::new(id)
+    }
+}
 
 /// Identifier of the driver a template is bound to (e.g. `"goodixmoc"`). Templates are
 /// driver-specific, so this is its own type rather than a bare `String`.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct DriverId(pub String);
+pub struct DriverId(String);
+
+impl DriverId {
+    /// Wrap a driver identifier.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// The identifier as a string slice.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl core::fmt::Display for DriverId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<&str> for DriverId {
+    fn from(id: &str) -> Self {
+        Self::new(id)
+    }
+}
+
+impl From<String> for DriverId {
+    fn from(id: String) -> Self {
+        Self::new(id)
+    }
+}
 
 /// Static description of a device, known once it is discovered.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub struct DeviceInfo {
     /// Backend-assigned identity of this reader.
     pub id: DeviceId,
@@ -73,10 +136,43 @@ pub struct DeviceInfo {
     pub features: DeviceFeature,
     /// Number of finger presentations a full enrollment needs.
     pub enroll_stages: u32,
+    /// Sensor thermal state, when the device reports it; `None` when it is not reported.
+    pub temperature: Option<Temperature>,
+}
+
+impl DeviceInfo {
+    /// Describe a device with no reported thermal state (`temperature` is `None`).
+    #[must_use]
+    pub fn new(
+        id: DeviceId,
+        driver: DriverId,
+        name: impl Into<String>,
+        scan_type: ScanType,
+        features: DeviceFeature,
+        enroll_stages: u32,
+    ) -> Self {
+        DeviceInfo {
+            id,
+            driver,
+            name: name.into(),
+            scan_type,
+            features,
+            enroll_stages,
+            temperature: None,
+        }
+    }
+
+    /// Set the reported thermal state.
+    #[must_use]
+    pub fn with_temperature(mut self, t: Temperature) -> Self {
+        self.temperature = Some(t);
+        self
+    }
 }
 
 /// Progress report delivered during [`Device::enroll`], once per capture attempt.
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub struct EnrollProgress {
     /// Stages completed so far (`0..=total_stages`).
     pub completed_stages: u32,
@@ -85,10 +181,41 @@ pub struct EnrollProgress {
     /// `Some` when this capture failed and the user should present the finger again;
     /// the stage count did not advance.
     pub retry: Option<RetryReason>,
+    /// Live finger-presence status accompanying this report ([`FingerStatus::NONE`] when the
+    /// backend reports none).
+    pub finger_status: FingerStatus,
+}
+
+impl EnrollProgress {
+    /// A report of `completed_stages` of `total_stages`, with no retry and no finger status.
+    #[must_use]
+    pub fn new(completed_stages: u32, total_stages: u32) -> Self {
+        EnrollProgress {
+            completed_stages,
+            total_stages,
+            retry: None,
+            finger_status: FingerStatus::NONE,
+        }
+    }
+
+    /// Mark this report as a retry with reason `r`.
+    #[must_use]
+    pub fn with_retry(mut self, r: RetryReason) -> Self {
+        self.retry = Some(r);
+        self
+    }
+
+    /// Attach the live finger-presence status.
+    #[must_use]
+    pub fn with_finger_status(mut self, s: FingerStatus) -> Self {
+        self.finger_status = s;
+        self
+    }
 }
 
 /// Result of a 1:1 [`Device::verify`].
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub struct VerifyOutcome {
     /// Whether the scan matched the enrolled print.
     pub matched: bool,
@@ -97,13 +224,34 @@ pub struct VerifyOutcome {
     pub scanned: Option<Print>,
 }
 
+impl VerifyOutcome {
+    /// A verify result: `matched` and the optional freshly `scanned` print.
+    #[must_use]
+    pub fn new(matched: bool, scanned: Option<Print>) -> Self {
+        VerifyOutcome { matched, scanned }
+    }
+}
+
 /// Result of a 1:N [`Device::identify`].
 #[derive(Clone, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub struct IdentifyOutcome {
     /// Index into the gallery passed to `identify`, or `None` for no match.
     pub match_index: Option<usize>,
     /// The freshly scanned print, on the same terms as [`VerifyOutcome::scanned`].
     pub scanned: Option<Print>,
+}
+
+impl IdentifyOutcome {
+    /// An identify result: the gallery `match_index` (or `None`) and the optional freshly
+    /// `scanned` print.
+    #[must_use]
+    pub fn new(match_index: Option<usize>, scanned: Option<Print>) -> Self {
+        IdentifyOutcome {
+            match_index,
+            scanned,
+        }
+    }
 }
 
 /// A physical fingerprint reader.
@@ -227,14 +375,14 @@ mod tests {
     }
 
     fn device_with(features: DeviceFeature) -> InfoOnly {
-        InfoOnly(DeviceInfo {
-            id: DeviceId("test-0".to_string()),
-            driver: DriverId("test".to_string()),
-            name: "Test Reader".to_string(),
-            scan_type: ScanType::Press,
+        InfoOnly(DeviceInfo::new(
+            DeviceId::new("test-0"),
+            DriverId::new("test"),
+            "Test Reader",
+            ScanType::Press,
             features,
-            enroll_stages: 1,
-        })
+            1,
+        ))
     }
 
     /// **`has_feature` is `info().features.contains`, for every representable set and every defined

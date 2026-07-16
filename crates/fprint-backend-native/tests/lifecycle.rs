@@ -56,7 +56,7 @@ fn shape_settles_on_open() {
 
     // Identity does not move.
     assert_eq!(dev.info().name, "UPEK TouchStrip");
-    assert_eq!(dev.info().driver.0, "virtual_image");
+    assert_eq!(dev.info().driver.as_str(), "virtual_image");
 
     // Closing does not un-settle the shape.
     block_on(dev.close()).unwrap();

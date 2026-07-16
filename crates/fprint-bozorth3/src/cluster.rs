@@ -590,8 +590,10 @@ impl Bz {
             let cj = self.avv[tpu][2] - self.avv[iiu][2];
             let ck = self.avv[tpu][3] - self.avv[iiu][3];
             let cji = self.avv[tpu][4] - self.avv[iiu][4];
-            let tt = (cl * cl + cj * cj) as f32;
-            let ai = (cji * cji + ck * ck) as f32;
+            // Squared in i64 so far-apart centroids cannot overflow the multiply; the sum feeds an
+            // f32, and for in-range coordinates the widened value is the same integer.
+            let tt = (i64::from(cl) * i64::from(cl) + i64::from(cj) * i64::from(cj)) as f32;
+            let ai = (i64::from(cji) * i64::from(cji) + i64::from(ck) * i64::from(ck)) as f32;
             let fi2 = (2.0_f32 * TK) * (tt + ai);
             let dz = tt - ai;
             if dz * dz > fi2 * fi2 {

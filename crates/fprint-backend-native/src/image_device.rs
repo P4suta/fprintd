@@ -80,20 +80,19 @@ impl<S: FrameSource> ImageDevice<S> {
     /// Wrap a freshly detected scan template in a `Print` tagged for this device. A host sensor keeps
     /// nothing on-chip, so `device_stored` is always false.
     fn scan_print(&self, template: Template) -> Print {
-        Print {
-            template,
-            driver: Some(self.info.driver.clone()),
-            device_id: Some(self.info.id.clone()),
-            device_stored: false,
-            ..Print::default()
-        }
+        Print::builder()
+            .template(template)
+            .driver(Some(self.info.driver.clone()))
+            .device_id(Some(self.info.id.clone()))
+            .device_stored(false)
+            .build()
     }
 
     /// Capture one frame and detect it into a single-sample [`Template::Nbis`]; a weak capture
     /// surfaces as [`Error::RetryScan`].
     async fn one_scan(&mut self) -> Result<Template> {
         match self.source.capture().await? {
-            Capture::Frame(f) => Ok(crate::detector::template_from_images(&[f.as_gray()])),
+            Capture::Frame(f) => Ok(crate::detector::template_from_images(&[f.as_gray()?])),
             Capture::Retry(r) => Err(Error::RetryScan(r)),
         }
     }
@@ -136,42 +135,30 @@ impl<S: FrameSource> Device for ImageDevice<S> {
             match self.source.capture().await? {
                 Capture::Retry(reason) => {
                     // A weak capture: the stage does not advance; the reason rides along.
-                    on_progress(EnrollProgress {
-                        completed_stages: completed,
-                        total_stages: total,
-                        retry: Some(reason),
-                    });
+                    on_progress(EnrollProgress::new(completed, total).with_retry(reason));
                 }
                 Capture::Frame(frame) => {
                     frames.push(frame);
                     completed += 1;
-                    on_progress(EnrollProgress {
-                        completed_stages: completed,
-                        total_stages: total,
-                        retry: None,
-                    });
+                    on_progress(EnrollProgress::new(completed, total));
                 }
             }
         }
 
         // Detect once per captured frame — one enrolled minutiae sample per capture.
-        let grays: Vec<fprint_mindtct::GrayImage<'_>> = frames.iter().map(Frame::as_gray).collect();
+        let grays: Vec<fprint_mindtct::GrayImage<'_>> =
+            frames.iter().map(Frame::as_gray).collect::<Result<_>>()?;
         let detected = crate::detector::template_from_images(&grays);
 
-        Ok(Print {
-            template: detected,
-            finger: template.finger,
-            driver: Some(self.info.driver.clone()),
-            device_id: Some(self.info.id.clone()),
-            device_stored: false,
-            // Fixed, deterministic date so enrolled prints are reproducible (as VirtualDevice does).
-            enroll_date: Some(EnrollDate {
-                year: 2026,
-                month: 1,
-                day: 1,
-            }),
-            ..Print::default()
-        })
+        // Fixed, deterministic date so enrolled prints are reproducible (as VirtualDevice does).
+        Ok(Print::builder()
+            .template(detected)
+            .finger(template.finger)
+            .driver(Some(self.info.driver.clone()))
+            .device_id(Some(self.info.id.clone()))
+            .device_stored(false)
+            .enroll_date(Some(EnrollDate::new(2026, 1, 1)))
+            .build())
     }
 
     async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
@@ -181,10 +168,7 @@ impl<S: FrameSource> Device for ImageDevice<S> {
         let scanned = self.one_scan().await?;
         let matched =
             crate::matcher::nbis_match_score(&enrolled.template, &scanned) >= self.threshold;
-        Ok(VerifyOutcome {
-            matched,
-            scanned: Some(self.scan_print(scanned)),
-        })
+        Ok(VerifyOutcome::new(matched, Some(self.scan_print(scanned))))
     }
 
     async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
@@ -194,10 +178,10 @@ impl<S: FrameSource> Device for ImageDevice<S> {
         let scanned = self.one_scan().await?;
         let galv: Vec<Template> = gallery.iter().map(|p| p.template.clone()).collect();
         let match_index = crate::matcher::nbis_identify(&scanned, &galv, self.threshold);
-        Ok(IdentifyOutcome {
+        Ok(IdentifyOutcome::new(
             match_index,
-            scanned: Some(self.scan_print(scanned)),
-        })
+            Some(self.scan_print(scanned)),
+        ))
     }
 
     async fn list_prints(&mut self) -> Result<Vec<Print>> {

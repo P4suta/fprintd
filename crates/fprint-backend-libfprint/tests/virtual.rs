@@ -77,7 +77,7 @@ fn enroll_then_verify_over_virtual_socket() {
     let mut dev = block_on(backend.enumerate())
         .expect("enumerate")
         .into_iter()
-        .find(|d| d.info().driver.0 == "virtual_device")
+        .find(|d| d.info().driver.as_str() == "virtual_device")
         .expect("the virtual_device should be present");
 
     block_on(dev.open()).expect("open");

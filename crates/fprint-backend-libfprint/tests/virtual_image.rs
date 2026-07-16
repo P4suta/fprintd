@@ -94,7 +94,7 @@ fn enrolled_nbis_print_is_byte_identical_to_libfprint() {
     let mut dev = block_on(backend.enumerate())
         .expect("enumerate")
         .into_iter()
-        .find(|d| d.info().driver.0 == "virtual_image")
+        .find(|d| d.info().driver.as_str() == "virtual_image")
         .expect("the virtual_image device should be present");
 
     block_on(dev.open()).expect("open");

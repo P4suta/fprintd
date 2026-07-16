@@ -12,7 +12,7 @@ sites carry an `// UPSTREAM(...)` / `// TRACKED(...)` marker pointing back here.
 ## libfprint-rs 0.3.1 FFI-binding workarounds (shim only)
 
 The `fprint-backend-libfprint` shim links the C libfprint through the crates.io `libfprint-rs`
-0.3.1 binding. Four workarounds exist because that binding version under-delivers. All are
+0.3.1 binding. Five workarounds exist because that binding version under-delivers. All are
 isolated to the shim, `// SAFETY:`-documented, and **pinned to `=0.3.1` / `=0.2.0`** (see
 below) so a patch release cannot silently change the behavior they depend on.
 
@@ -22,6 +22,7 @@ below) so a patch release cannot silently change the behavior they depend on.
 | **M2-B** | `crates/fprint-backend-libfprint/src/storage.rs` (whole module) | 0.3.1's `list_prints`/`delete_print`/`clear_storage` wrappers are `unimplemented!()`. We call the C `fp_device_*_sync` entry points directly through `libfprint-sys` and translate GLib ownership at the boundary. | Binding implements the wrappers → replace the raw module with binding calls. |
 | **M2-C** | `crates/fprint-backend-libfprint/src/convert.rs` (non-x86 `features`) | The binding gates its safe `features()` iterator to `x86`/`x86_64`; other arches need a raw `fp_device_get_features` FFI call. | Binding drops the arch gate. (Also: exercise aarch64 in CI so the fallback doesn't rot.) |
 | **M2-D** | `crates/fprint-backend-libfprint/src/convert.rs` (error domains) | The binding never wrapped `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so we introduce local zero-cost `ErrorDomain` markers and `as`-cast the enums (discriminants are interop facts). | Binding exports typed error domains → drop the local markers. |
+| **M2-E** | `crates/fprint-backend-libfprint/src/convert.rs` (`temperature`, `finger_status`) | The binding exposes no `FpDevice` temperature getter at all, and its `FpDevice::finger_status()` folds the `FpFingerStatusFlags` bitmask into a three-value enum that `panic!`s on any combination of flags. We read both via the raw `fp_device_get_temperature` / `fp_device_get_finger_status` FFI and map the raw values ourselves (temperature → `DeviceInfo::temperature`, finger status → `EnrollProgress::finger_status`). | Binding adds a temperature getter and a non-panicking finger-status accessor → drop both helpers, use the binding. |
 
 **Longer-term option:** three of these four already reach *past* the binding into `libfprint-sys`.
 If that trend continues, the shim could depend on `libfprint-sys` directly and drop the

@@ -187,8 +187,17 @@ impl core::ops::BitOr for FingerStatus {
     }
 }
 
+impl core::ops::BitOrAssign for FingerStatus {
+    fn bitor_assign(&mut self, rhs: FingerStatus) {
+        self.0 |= rhs.0;
+    }
+}
+
 /// Sensor thermal state (`FpTemperature`); some sensors throttle when warm/hot.
+///
+/// `#[non_exhaustive]`: `FpTemperature` is an external vocabulary that could grow.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[non_exhaustive]
 pub enum Temperature {
     /// `FP_TEMPERATURE_COLD`: the device can run indefinitely.
     Cold,

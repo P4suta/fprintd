@@ -91,12 +91,12 @@ fn assert_metadata_agrees(blob: &[u8]) {
     // driver / device_id, with the empty-string => None collapse both readers must share
     assert_eq!(
         non_empty(&zt.1),
-        print.driver.as_ref().map(|d| d.0.as_str()),
+        print.driver.as_ref().map(|d| d.as_str()),
         "driver disagrees"
     );
     assert_eq!(
         non_empty(&zt.2),
-        print.device_id.as_ref().map(|d| d.0.as_str()),
+        print.device_id.as_ref().map(|d| d.as_str()),
         "device_id disagrees"
     );
 

@@ -18,12 +18,11 @@
 //! ```
 //! use fprint_core::{Finger, Minutia, Print, Template};
 //!
-//! let print = Print {
-//!     template: Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]),
-//!     finger: Some(Finger::RightIndex),
-//!     username: Some("alice".into()),
-//!     ..Default::default()
-//! };
+//! let print = Print::builder()
+//!     .template(Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]))
+//!     .finger(Some(Finger::RightIndex))
+//!     .username(Some("alice".into()))
+//!     .build();
 //!
 //! let bytes: Vec<u8> = fprint_fp3::to_bytes(&print)?;
 //! assert!(bytes.starts_with(fprint_fp3::MAGIC));
@@ -55,7 +54,7 @@ mod error;
 mod gvariant;
 
 pub use codec::{from_bytes, to_bytes};
-pub use error::{Fp3Error, Result};
+pub use error::Fp3Error;
 
 /// The FP3 container's leading magic bytes (`"FP3"`).
 pub const MAGIC: &[u8; 3] = b"FP3";

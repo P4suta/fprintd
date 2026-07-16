@@ -13,9 +13,12 @@ pub type Result<T> = core::result::Result<T, Error>;
 /// transport/proto buckets. `retry`-class variants correspond to fprintd's
 /// `*-retry-scan` / `*-remove-and-retry` status strings and mean "try again", not "give up".
 ///
+/// The boundary variants (`Transport`/`Protocol`/`Other`) carry a `String` rather than a `dyn`
+/// source because `Error` is a value-semantic vocabulary collapsed to strings at the D-Bus edge.
+///
 /// [`Backend`]: crate::Backend
 /// [`Device`]: crate::Device
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
     /// No such device, or it went away.

@@ -38,7 +38,9 @@
 
 use std::path::{Path, PathBuf};
 
-use fprint_mindtct::{debug_raw_minutiae, detect_minutiae, GrayImage, Minutia};
+#[cfg(feature = "unstable-diagnostics")]
+use fprint_mindtct::debug_raw_minutiae;
+use fprint_mindtct::{detect_minutiae, GrayImage, Minutia};
 
 /// The pre-flip row the detector never emits above — the block size the block-map grid steps in.
 /// The observed minimum `minutia.y` over the corpus and over noise is exactly this value.
@@ -79,12 +81,8 @@ struct Image {
 
 impl Image {
     fn as_gray(&self) -> GrayImage<'_> {
-        GrayImage {
-            data: &self.data,
-            width: self.width,
-            height: self.height,
-            ppi: self.ppi,
-        }
+        GrayImage::new(&self.data, self.width, self.height, self.ppi)
+            .expect("buffer holds the image")
     }
 }
 
@@ -178,12 +176,9 @@ fn noise_minutiae_are_inside_the_image_and_ranges() {
     for seed in 0..NOISE_SEEDS {
         let mut lcg = Lcg::new(seed);
         let data = gray_image(&mut lcg, NOISE_SIZE, NOISE_SIZE);
-        let got = detect_minutiae(GrayImage {
-            data: &data,
-            width: NOISE_SIZE,
-            height: NOISE_SIZE,
-            ppi: 500,
-        });
+        let img =
+            GrayImage::new(&data, NOISE_SIZE, NOISE_SIZE, 500).expect("buffer holds the image");
+        let got = detect_minutiae(img);
         let bad = check(&got, NOISE_SIZE, NOISE_SIZE);
         if !bad.is_empty() {
             failures.push(format!("seed {}:\n    {}", lcg.seed(), bad.join("\n    ")));
@@ -201,6 +196,7 @@ fn noise_minutiae_are_inside_the_image_and_ranges() {
 /// [`DETECTOR_TOP_MARGIN`] rows, so `y = ih - minutia.y` never reaches `height`. Asserted on the raw
 /// (pre-removal) list — removal only drops and relocates minutiae, so the raw list is the widest
 /// spread the final one can be drawn from.
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn raw_minutiae_keep_clear_of_the_top_edge() {
     use fprint_testkit::{gen::gray_image, Lcg};
@@ -221,12 +217,8 @@ fn raw_minutiae_keep_clear_of_the_top_edge() {
     }
     for seed in 0..NOISE_SEEDS {
         let data = gray_image(&mut Lcg::new(seed), NOISE_SIZE, NOISE_SIZE);
-        let img = GrayImage {
-            data: &data,
-            width: NOISE_SIZE,
-            height: NOISE_SIZE,
-            ppi: 500,
-        };
+        let img =
+            GrayImage::new(&data, NOISE_SIZE, NOISE_SIZE, 500).expect("buffer holds the image");
         for (i, m) in debug_raw_minutiae(img).iter().enumerate() {
             seen += 1;
             if m.y < DETECTOR_TOP_MARGIN {

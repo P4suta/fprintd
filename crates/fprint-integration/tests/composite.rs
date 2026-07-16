@@ -40,25 +40,25 @@ fn enumerate_finds_one_native_device() {
     assert_eq!(devices.len(), 1);
     assert!(matches!(devices[0], CompositeDevice::Native(_)));
     // `info()` is delegated through the enum.
-    assert_eq!(devices[0].info().id, DeviceId(IMAGE_ID.into()));
+    assert_eq!(devices[0].info().id, DeviceId::new(IMAGE_ID));
 }
 
 #[test]
 fn open_routes_by_id() {
     let backend = backend();
 
-    let dev = block_on(backend.open(&DeviceId(IMAGE_ID.into()))).unwrap();
+    let dev = block_on(backend.open(&DeviceId::new(IMAGE_ID))).unwrap();
     assert!(matches!(dev, CompositeDevice::Native(_)));
 
     // With no shim to fall through to, an unknown id is NotFound.
-    let missing = block_on(backend.open(&DeviceId("no-such-device".into())));
+    let missing = block_on(backend.open(&DeviceId::new("no-such-device")));
     assert!(matches!(missing, Err(Error::NotFound)));
 }
 
 #[test]
 fn enroll_then_verify_through_composite() {
     let backend = backend();
-    let mut dev = block_on(backend.open(&DeviceId(IMAGE_ID.into()))).unwrap();
+    let mut dev = block_on(backend.open(&DeviceId::new(IMAGE_ID))).unwrap();
     block_on(dev.open()).unwrap();
 
     // Enroll: drive the one multi-poll method through the composite, counting clean stages.

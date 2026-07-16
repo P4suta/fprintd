@@ -25,6 +25,12 @@ rustdoc-args = [
   "katex-header.html",
 ]
 
+[features]
+# Off by default. Exposes the intermediate-stage diagnostic surface — `DebugMaps`, `RawMinutia`, and
+# the `debug_*` entry points — used to cross-verify each pipeline stage against the stock C reference.
+# Not part of the stable API; `detect_minutiae` needs none of it.
+unstable-diagnostics = []
+
 [dependencies]
 # Zero dependencies, on purpose: this is a self-contained image-processing kernel. It does NOT depend
 # on fprint-core — its input is an 8-bit grayscale image and its output the xyt (x, y, theta) minutiae

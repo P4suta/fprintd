@@ -110,12 +110,12 @@ impl Device for LibfprintDevice {
         self.cancel = None;
         let matched = result.map_err(convert::from_gerror)?;
 
-        Ok(VerifyOutcome {
+        // Match-on-chip sensors do not surface the live scan; treat an unconvertible
+        // (undefined) print as "no scan surfaced" rather than a failure.
+        Ok(VerifyOutcome::new(
             matched,
-            // Match-on-chip sensors do not surface the live scan; treat an unconvertible
-            // (undefined) print as "no scan surfaced" rather than a failure.
-            scanned: print::fp_to_core(&scanned).ok(),
-        })
+            print::fp_to_core(&scanned).ok(),
+        ))
     }
 
     async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
@@ -148,10 +148,10 @@ impl Device for LibfprintDevice {
             None => None,
         };
 
-        Ok(IdentifyOutcome {
+        Ok(IdentifyOutcome::new(
             match_index,
-            scanned: print::fp_to_core(&scanned).ok(),
-        })
+            print::fp_to_core(&scanned).ok(),
+        ))
     }
 
     async fn list_prints(&mut self) -> Result<Vec<Print>> {

@@ -8,7 +8,7 @@
 //! behaviour on the degenerate ends of its domain — **each case traced through the code, and
 //! recorded as it is rather than as it ought to be**.
 //!
-//! ## The three that are not what a reader expects
+//! ## The two that are not what a reader expects
 //!
 //! * **[`MAX_BOZORTH_MINUTIAE`] is read by nothing.** It is exported and documented as the "hard cap
 //!   on minutiae per print", but [`match_score`] passes [`DEFAULT_BOZORTH_MINUTIAE`] (150) to
@@ -16,12 +16,11 @@
 //! * **A full turn added to `theta` is not the identity.** `theta` is normalized by the reference's
 //!   *single conditional subtract*, not a modulo, so `theta - 360` is the same direction and a
 //!   different input — and a different score.
-//! * **Two unguarded squarings panic on unbounded input.** `dx * dx` at `src/intra.rs:44` runs
-//!   before the `distance > DM_SQUARED` guard that would reject a far pair (and the `dx > DM` break
-//!   sits *inside* that guard, so nothing bounds `dx` first); `d * d` at `src/inter.rs:54` squares a
-//!   relative angle that a far-out `theta` leaves unfolded. Both overflow `i32` past ±46340. **Both
-//!   are recorded, not endorsed, and deliberately not fixed here** — fixing them changes which edges
-//!   the port emits, which is a decision for the port's owner, not a fold-in to a test suite.
+//!
+//! The two squarings that carry unbounded deltas — `dx * dx` in `src/intra.rs` and `d * d` in
+//! `src/inter.rs` — are computed in i64, so an extreme coordinate span or an unfolded `theta`
+//! yields a well-defined score rather than an overflow. The valid-input scores are unchanged; the
+//! widening only touches deltas past ±46340, which no reader produces.
 //!
 //! Where the reference's behaviour is an implementation detail rather than a promise — the score of
 //! a degenerate print — these tests assert **termination only**. A guessed number would be a second
@@ -167,10 +166,8 @@ fn theta_outside_the_canonical_range_is_accepted() {
     // Nothing rejects a non-canonical angle: full turns either way, the quarter turns the
     // `Minutia::theta` doc names, and a theta orders of magnitude past a circle all run.
     //
-    // The list stops well short of ±46340 on purpose. Past roughly there the relative angle's
-    // square overflows — `a_theta_beyond_46340_overflows_the_relative_angle` owns that boundary —
-    // and the two sides are not symmetric, because the single conditional subtract only fires on
-    // the positive one. "Any i32 is accepted" is not true, so this test does not claim it.
+    // Far-out angles are covered by `a_theta_beyond_46340_scores`; this list stays near a circle to
+    // exercise the common non-canonical cases directly.
     let base = print_of(7, 40);
     for by in [-10_000, -720, -360, -270, 0, 270, 360, 720, 10_000] {
         let bumped: Vec<Minutia> = base
@@ -201,21 +198,15 @@ fn wide_print() -> Vec<Minutia> {
     v
 }
 
-/// `dx * dx` overflows before anything bounds `dx`: `src/intra.rs:44` computes the distance, and
-/// only then does the `distance > DM_SQUARED` guard run — with the `dx > DM` break *inside* it. Any
-/// `|dx| > 46340` therefore overflows `i32`.
+/// The squared distance is computed before the length guard (with the `dx > DM` break *inside*
+/// it), so nothing bounds `dx` before it is squared. A print spanning 100000 pixels puts `dx` far
+/// past the `46340` where an i32 `dx * dx` would overflow; the i64 multiply carries it, and
+/// `match_score` returns a well-defined score.
 ///
-/// Recorded through the public seam, because that is where a caller meets it. **Not fixed here**:
-/// bounding `dx` before the multiply changes which edges stage 1 emits on wrapped input, and that
-/// is a decision for the port's owner, not a fold-in to a test suite.
-///
-/// Gated on `debug_assertions` because that is what decides the behaviour. With overflow checks off
-/// the multiply wraps instead, and a wrapped-negative `distance` passes the `distance > DM_SQUARED`
-/// guard — the far edge is then silently taken for a *short* one, which is worse than the panic.
+/// Reached through the public seam, because that is where a caller meets it. Termination is the
+/// whole claim — a guessed number would be a second oracle competing with `tests/golden.rs`.
 #[test]
-#[cfg(debug_assertions)]
-#[should_panic(expected = "attempt to multiply with overflow")]
-fn a_print_spanning_more_than_46340_pixels_overflows() {
+fn a_print_spanning_more_than_46340_pixels_scores() {
     let wide = wide_print();
     assert!(
         wide.len() >= MIN_COMPUTABLE_BOZORTH_MINUTIAE,
@@ -224,37 +215,36 @@ fn a_print_spanning_more_than_46340_pixels_overflows() {
     let _ = match_score(&wide, &wide);
 }
 
-/// The widest print that does not overflow: `46340² = 2_147_395_600 <= i32::MAX`. One pixel more is
-/// [`a_print_spanning_more_than_46340_pixels_overflows`].
+/// The width at which an i32 `dx * dx` would overflow (`46340² = 2_147_395_600 <= i32::MAX`, one
+/// pixel more overflows) is not a boundary in behaviour: the i64 square carries both sides, so each
+/// yields a well-defined score rather than a panic or wrap.
 #[test]
-fn a_print_exactly_46340_pixels_wide_is_fine() {
-    let mut v = Vec::new();
-    for x in [0, 46_340] {
-        for i in 0..5 {
-            v.push(Minutia {
-                x,
-                y: i * 10,
-                theta: 0,
-            });
+fn a_print_at_the_i32_square_boundary_scores() {
+    for span in [46_340, 46_341] {
+        let mut v = Vec::new();
+        for x in [0, span] {
+            for i in 0..5 {
+                v.push(Minutia {
+                    x,
+                    y: i * 10,
+                    theta: 0,
+                });
+            }
         }
+        let _ = match_score(&v, &v);
     }
-    let _ = match_score(&v, &v);
 }
 
-/// The same unguarded squaring, one stage later and reached by an angle rather than a distance:
-/// `src/inter.rs:54` computes `d * d` on the difference between a probe and a gallery beta.
+/// The same squaring, one stage later and reached by an angle rather than a distance:
+/// `src/inter.rs` computes `d * d` on the difference between a probe and a gallery beta.
 ///
 /// `Minutia::theta` accepts any `i32` and normalizes only canonical input, so a far-out theta stays
 /// far out; `iangle180` then folds it with a single ±360 step, which leaves a beta of roughly
-/// `-theta`. Match that against a print with canonical angles and `d` is about `theta` — so `d * d`
-/// overflows past ±46340, exactly as the distance does.
-///
-/// Gated and unfixed for the same reasons as
-/// [`a_print_spanning_more_than_46340_pixels_overflows`].
+/// `-theta`. Match that against a print with canonical angles and `d` is about `theta` — past the
+/// ±46340 where an i32 `d * d` would overflow. The i64 square carries it, so `match_score` returns
+/// a well-defined score.
 #[test]
-#[cfg(debug_assertions)]
-#[should_panic(expected = "attempt to multiply with overflow")]
-fn a_theta_beyond_46340_overflows_the_relative_angle() {
+fn a_theta_beyond_46340_scores() {
     let base = print_of(7, 40);
     let far: Vec<Minutia> = base
         .iter()

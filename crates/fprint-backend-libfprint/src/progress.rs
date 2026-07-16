@@ -36,9 +36,10 @@ pub struct Trampoline<'a, F> {
 /// monomorphizes to a plain fn pointer of the exact type libfprint expects.
 ///
 /// A failed capture arrives as a retry-domain `error` with the stage count unchanged; we relay
-/// it as [`EnrollProgress::retry`] rather than aborting the enrollment.
+/// it as [`EnrollProgress::retry`] rather than aborting the enrollment. The device's live
+/// finger-presence status is read from `dev` and attached to each report.
 pub fn on_enroll_progress<F: FnMut(EnrollProgress)>(
-    _dev: &FpDevice,
+    dev: &FpDevice,
     completed: i32,
     _print: Option<FpPrint>,
     error: Option<GError>,
@@ -56,9 +57,10 @@ pub fn on_enroll_progress<F: FnMut(EnrollProgress)>(
     let tramp: &mut Trampoline<'_, F> = unsafe { &mut *ptr.cast::<Trampoline<'_, F>>() };
 
     let retry = error.as_ref().and_then(convert::gerror_retry);
-    (tramp.cb)(EnrollProgress {
-        completed_stages: completed.max(0) as u32,
-        total_stages: tramp.total,
-        retry,
-    });
+    let mut progress = EnrollProgress::new(completed.max(0) as u32, tramp.total)
+        .with_finger_status(convert::finger_status(dev));
+    if let Some(reason) = retry {
+        progress = progress.with_retry(reason);
+    }
+    (tramp.cb)(progress);
 }

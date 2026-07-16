@@ -120,18 +120,13 @@ fn identify_selects_the_matching_gallery_entry() {
 
     // Gallery: two strangers around the true finger at index 1.
     let gallery = vec![
-        Print {
-            template: nbis(vec![synth(40, 111)]),
-            ..Print::default()
-        },
-        Print {
-            template: nbis(vec![finger]),
-            ..Print::default()
-        },
-        Print {
-            template: nbis(vec![synth(40, 333)]),
-            ..Print::default()
-        },
+        Print::builder()
+            .template(nbis(vec![synth(40, 111)]))
+            .build(),
+        Print::builder().template(nbis(vec![finger])).build(),
+        Print::builder()
+            .template(nbis(vec![synth(40, 333)]))
+            .build(),
     ];
     let outcome = block_on(dev.identify(&gallery)).unwrap();
     assert_eq!(outcome.match_index, Some(1), "identify should hit index 1");

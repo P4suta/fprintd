@@ -43,12 +43,14 @@ fn main() -> ExitCode {
         }
     };
 
-    let minutiae = detect_minutiae(GrayImage {
-        data: &data,
-        width,
-        height,
-        ppi: PPI,
-    });
+    let img = match GrayImage::new(&data, width, height, PPI) {
+        Ok(img) => img,
+        Err(e) => {
+            eprintln!("{}: {e}", path.to_string_lossy());
+            return ExitCode::FAILURE;
+        }
+    };
+    let minutiae = detect_minutiae(img);
 
     for m in &minutiae {
         println!("{} {} {} {}", m.x, m.y, m.theta, m.quality);

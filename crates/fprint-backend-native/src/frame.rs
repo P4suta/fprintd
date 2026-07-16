@@ -25,13 +25,13 @@ impl Frame {
     ///
     /// The returned view borrows `self`, so it cannot outlive the frame — the detector reads the
     /// pixels in place and returns owned minutiae, and the buffer is never copied.
-    #[must_use]
-    pub fn as_gray(&self) -> fprint_mindtct::GrayImage<'_> {
-        fprint_mindtct::GrayImage {
-            data: &self.data,
-            width: self.width,
-            height: self.height,
-            ppi: self.ppi,
-        }
+    ///
+    /// # Errors
+    ///
+    /// [`fprint_core::Error::Protocol`] when the buffer is shorter than `width * height` — a
+    /// malformed capture whose declared dimensions its pixels cannot fill.
+    pub fn as_gray(&self) -> fprint_core::Result<fprint_mindtct::GrayImage<'_>> {
+        fprint_mindtct::GrayImage::new(&self.data, self.width, self.height, self.ppi)
+            .map_err(|e| fprint_core::Error::Protocol(e.to_string()))
     }
 }

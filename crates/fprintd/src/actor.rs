@@ -59,7 +59,7 @@ impl DeviceActor {
         let (tx, rx) = mpsc::channel(16);
         let id = info.id.clone();
         std::thread::Builder::new()
-            .name(format!("fprintd-dev-{}", id.0))
+            .name(format!("fprintd-dev-{}", id.as_str()))
             .spawn(move || {
                 let rt = tokio::runtime::Builder::new_current_thread()
                     .enable_all()

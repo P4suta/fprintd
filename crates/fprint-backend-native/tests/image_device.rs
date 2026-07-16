@@ -25,14 +25,14 @@ const THRESHOLD: u32 = 40;
 const STAGES: u32 = 3;
 
 fn info() -> DeviceInfo {
-    DeviceInfo {
-        id: DeviceId("virtual_image".to_string()),
-        driver: DriverId("virtual_image".to_string()),
-        name: "Synthetic Image Sensor".to_string(),
-        scan_type: ScanType::Press,
-        features: DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
-        enroll_stages: STAGES,
-    }
+    DeviceInfo::new(
+        DeviceId::new("virtual_image"),
+        DriverId::new("virtual_image"),
+        "Synthetic Image Sensor",
+        ScanType::Press,
+        DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY,
+        STAGES,
+    )
 }
 
 fn device(source: SyntheticFrameSource) -> ImageDevice<SyntheticFrameSource> {

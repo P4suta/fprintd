@@ -40,7 +40,7 @@ fn host_completes_five_stages() {
 
     // The finished print carries the finger, driver, and an NBIS template; host storage is empty.
     assert_eq!(print.finger, Some(Finger::LeftIndex));
-    assert_eq!(print.driver, Some(DriverId("virtual_image".into())));
+    assert_eq!(print.driver, Some(DriverId::new("virtual_image")));
     assert!(matches!(print.template, Template::Nbis(_)));
     assert!(!print.device_stored);
     assert!(dev.stored_prints().is_empty());

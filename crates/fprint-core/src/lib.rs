@@ -73,7 +73,7 @@
 //!     ) -> Result<Print> {
 //!         let total_stages = self.info.enroll_stages;
 //!         for completed_stages in 1..=total_stages {
-//!             on_progress(EnrollProgress { completed_stages, total_stages, retry: None });
+//!             on_progress(EnrollProgress::new(completed_stages, total_stages));
 //!         }
 //!         template.template = Template::Raw(b"on-sensor handle".to_vec());
 //!         template.driver = Some(self.info.driver.clone());
@@ -83,7 +83,7 @@
 //!     }
 //!
 //!     async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
-//!         Ok(VerifyOutcome { matched: self.stored.as_ref() == Some(enrolled), scanned: None })
+//!         Ok(VerifyOutcome::new(self.stored.as_ref() == Some(enrolled), None))
 //!     }
 //!
 //!     // The remaining operations are stubs here; a real backend talks to the sensor.
@@ -108,14 +108,14 @@
 //!
 //!     async fn enumerate(&self) -> Result<Vec<Demo>> {
 //!         Ok(vec![Demo {
-//!             info: DeviceInfo {
-//!                 id: DeviceId("demo-0".to_string()),
-//!                 driver: DriverId("demo".to_string()),
-//!                 name: "Demo Reader".to_string(),
-//!                 scan_type: ScanType::Press,
-//!                 features: DeviceFeature::VERIFY | DeviceFeature::STORAGE,
-//!                 enroll_stages: 3,
-//!             },
+//!             info: DeviceInfo::new(
+//!                 DeviceId::new("demo-0"),
+//!                 DriverId::new("demo"),
+//!                 "Demo Reader",
+//!                 ScanType::Press,
+//!                 DeviceFeature::VERIFY | DeviceFeature::STORAGE,
+//!                 3,
+//!             ),
 //!             stored: None,
 //!         }])
 //!     }
@@ -131,7 +131,7 @@
 //!
 //! # fn main() {
 //! block_on(async {
-//!     let mut device = DemoBackend.open(&DeviceId("demo-0".to_string())).await.unwrap();
+//!     let mut device = DemoBackend.open(&DeviceId::new("demo-0")).await.unwrap();
 //!     device.open().await.unwrap();
 //!     assert!(device.has_feature(DeviceFeature::STORAGE));
 //!     assert!(device.info().features.is_match_on_chip());
@@ -144,7 +144,7 @@
 //!
 //!     assert_eq!(seen, [1, 2, 3]);
 //!     assert_eq!(print.finger, Some(Finger::RightIndex));
-//!     assert!(print.is_compatible_with_driver(&DriverId("demo".to_string())));
+//!     assert!(print.is_compatible_with_driver(&DriverId::new("demo")));
 //!     assert!(device.verify(&print).await.unwrap().matched);
 //! });
 //! # }
@@ -165,7 +165,7 @@ pub use device::{
 pub use error::{Error, Result, RetryReason};
 pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
 pub use finger::Finger;
-pub use print::{EnrollDate, Minutia, Print, Template};
+pub use print::{EnrollDate, Minutia, Print, PrintBuilder, Template};
 
 /// The names a backend or client reaches for most: the traits, the model, and the result types.
 ///
@@ -175,6 +175,7 @@ pub use print::{EnrollDate, Minutia, Print, Template};
 pub mod prelude {
     pub use crate::{
         Backend, Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, EnrollProgress, Error,
-        Finger, IdentifyOutcome, Minutia, Print, Result, ScanType, Template, VerifyOutcome,
+        Finger, IdentifyOutcome, Minutia, Print, PrintBuilder, Result, ScanType, Template,
+        VerifyOutcome,
     };
 }

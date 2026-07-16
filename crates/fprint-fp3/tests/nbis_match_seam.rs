@@ -69,13 +69,12 @@ fn jitter(pts: &[Minutia], seed: u64) -> Vec<Minutia> {
 }
 
 fn nbis_print(samples: Vec<Vec<Minutia>>) -> Print {
-    Print {
-        template: Template::Nbis(samples),
-        finger: Some(fprint_core::Finger::LeftIndex),
-        driver: Some(fprint_core::DriverId("virtual_image".into())),
-        device_id: Some(fprint_core::DeviceId("seam-test".into())),
-        ..Print::default()
-    }
+    Print::builder()
+        .template(Template::Nbis(samples))
+        .finger(Some(fprint_core::Finger::LeftIndex))
+        .driver(Some(fprint_core::DriverId::new("virtual_image")))
+        .device_id(Some(fprint_core::DeviceId::new("seam-test")))
+        .build()
 }
 
 #[test]

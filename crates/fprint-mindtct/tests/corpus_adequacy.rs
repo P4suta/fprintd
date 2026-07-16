@@ -29,6 +29,10 @@
 //!   not show the stage is *correct*, which is the `.rmin2` golden's job.
 //! * Stage 1 is the sort. It permutes the list and can never change its length, so its slot is
 //!   structurally zero rather than a gap in the corpus — [`STAGE_NAMES`] records that.
+//!
+//! Built on `debug_removal_tally`, so the whole file lives behind the `unstable-diagnostics` feature.
+
+#![cfg(feature = "unstable-diagnostics")]
 
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
@@ -106,12 +110,7 @@ fn image_tally(name: &str) -> [usize; 10] {
     let ppi: u16 = it.next().expect("manifest: ppi").parse().expect("ppi");
     let data = std::fs::read(dir.join(format!("{name}.raw")))
         .unwrap_or_else(|e| panic!("read {name}.raw: {e}"));
-    debug_removal_tally(GrayImage {
-        data: &data,
-        width,
-        height,
-        ppi,
-    })
+    debug_removal_tally(GrayImage::new(&data, width, height, ppi).expect("buffer holds the image"))
 }
 
 /// Every corpus image's [`image_tally`], run once for the whole binary — `(name, tally)` in
