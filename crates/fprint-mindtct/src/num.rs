@@ -106,10 +106,9 @@ pub(crate) fn sort_indices_int_inc(ranks: &mut [i32]) -> Vec<i32> {
 /// `sort_indices_double_inc`: sort `ranks` ascending in place and return the permutation of original
 /// indices (`0..len`) that produces that order — the stock C's `order` output.
 ///
-/// `dead_code`: the `double` twin of the wired [`sort_indices_int_inc`]. The V2 pipeline sorts only
-/// integer ranks, so this variant has no caller; transcribed for fidelity and exercised by the tests
-/// below.
-#[allow(dead_code)]
+/// The `double` twin of the wired [`sort_indices_int_inc`]. The V2 pipeline sorts only integer ranks,
+/// so this variant has no caller; it is transcribed for fidelity and compiled only for the test below.
+#[cfg(test)]
 pub(crate) fn sort_indices_double_inc(ranks: &mut [f64]) -> Vec<i32> {
     let mut order: Vec<i32> = (0..ranks.len()).map(|i| i as i32).collect();
     bubble_sort_double_inc_2(ranks, &mut order);

@@ -241,10 +241,10 @@ pub(crate) const TRUNC_SCALE: f64 = 16384.0;
 
 /// `MAX_MINUTIAE` — hard cap on the number of minutiae detected (allocation bound), so kept as a
 /// `usize`.
-// `dead_code`: the stock allocation bound. The port grows minutiae in a `Vec` rather than a
+// `#[cfg(test)]`: the stock allocation bound. The port grows minutiae in a `Vec` rather than a
 // fixed-size array, so nothing in the pipeline reads this cap; it is transcribed for fidelity to
-// `lfs.h` and pinned by the test below.
-#[allow(dead_code)]
+// `lfs.h` and compiled only for the test below that pins it.
+#[cfg(test)]
 pub(crate) const MAX_MINUTIAE: usize = 1000;
 
 #[cfg(test)]

@@ -300,7 +300,6 @@ fn find_transition(
 /// `Ignore` / `Loop` / `Traced`; "not IGNORE and not LOOP_FOUND" is exactly `matches!(_, Traced)`. The
 /// unused `num` parameter and the never-taken `< 0` system-error path are dropped, and the traced
 /// contours (which stock immediately frees) are simply discarded.
-#[allow(clippy::too_many_arguments)]
 fn validate_ridge_crossing(
     ridge_start: usize,
     ridge_end: usize,

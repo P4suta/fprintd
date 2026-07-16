@@ -284,7 +284,7 @@ fn next_scan_nbr(nbr_i: i32, scan: ScanDir) -> i32 {
 /// Returns `Some((next_x_loc, next_y_loc, next_x_edge, next_y_edge))` on success (stock `TRUE`), or
 /// `None` (stock `FALSE`) when a neighbor falls outside the image or no valid pair exists among the
 /// eight neighbors (an isolated pixel).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn next_contour_pixel(
     cur_x_loc: i32,
     cur_y_loc: i32,
@@ -377,7 +377,7 @@ fn next_contour_pixel(
 /// the loop-trigger point `(x_loop, y_loop)`, it stops and reports a [`TraceResult::Loop`] — passing
 /// that point independently lets successive half-traces from a common start detect a loop spanning
 /// both. `bdata` is the binary image (`0 == white/valley`, `1 == black/ridge`), `iw`×`ih` pixels.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn trace_contour(
     max_len: i32,
     x_loop: i32,
@@ -444,7 +444,7 @@ pub(crate) fn trace_contour(
 /// `scan` direction, returning `true` (stock `FOUND`) the moment the traced contour point equals
 /// `(x_search, y_search)`, or `false` (stock `NOT_FOUND`) if the point is not met within
 /// `search_len` steps or the trace terminates early.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn search_contour(
     x_search: i32,
     y_search: i32,
@@ -501,7 +501,7 @@ pub(crate) fn search_contour(
 /// concatenated — first half reversed (far end first), then the feature point, then the second half
 /// forward — into a contour of `2 * half_contour + 1` points ([`CenteredContour::Ok`]). Any loop,
 /// impossible trace, or short half yields the corresponding non-`Ok` variant with no contour.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn get_centered_contour(
     half_contour: i32,
     x_loc: i32,
@@ -585,7 +585,7 @@ pub(crate) fn get_centered_contour(
 /// [`HighCurvatureContour::Loop`]; if the second half loops the two halves are still concatenated and
 /// returned as a loop. A full non-loop trace yields [`HighCurvatureContour::Ok`]; a trace that cannot
 /// reach full length yields [`HighCurvatureContour::Empty`] (no contour).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn get_high_curvature_contour(
     half_contour: i32,
     x_loc: i32,

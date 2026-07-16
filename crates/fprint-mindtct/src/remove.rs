@@ -130,7 +130,7 @@ fn free_path(
 /// [`sround`]); on finding a `pix` pixel, adjusts the found/previous pair to be 4-connected
 /// ([`fix_edge_pixel_pair`]) and returns `Some((x, y, ex, ey))`. Returns `None` (stock `FALSE`) if the
 /// walk leaves the image or exhausts its steps.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn search_in_direction(
     pix: u8,
     strt_x: i32,
@@ -213,7 +213,7 @@ enum OnHook {
 /// Traces the feature contour from minutia 1's *edge* pixel toward minutia 2, first clockwise then (if
 /// that misses) counter-clockwise, each up to `max_hook_len` steps. A trace that walks onto minutia 2
 /// is a hook.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn on_hook(
     m1x: i32,
     m1y: i32,
@@ -282,7 +282,7 @@ enum IslandLake {
 /// Traces the feature contour from minutia 1 toward minutia 2 and, if it arrives, from minutia 2 back
 /// toward minutia 1 (both clockwise, each up to `max_half_loop` steps). If both halves close, they are
 /// concatenated — minutia 1, the first half, minutia 2, the second half — into the loop's contour.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn on_island_lake(
     m1x: i32,
     m1y: i32,
@@ -1103,7 +1103,7 @@ fn remove_malformations(
 /// side of it are found; short contours walked from P and Q give the four points A/B/C/D. If any step
 /// fails, or the A-B / C-D squared-distance ratio is small enough, the minutia is a pore and is
 /// removed.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn remove_pores_v2(
     minutiae: &mut Vec<DetMinutia>,
     bdata: &[u8],
@@ -1290,7 +1290,7 @@ fn pores_v2_is_pore(
 /// Trace `steps` points from a pore edge pixel and return the last contour point — the shared contour
 /// walk of [`pores_v2_is_pore`]. Returns `None` on an impossible/looping/short trace (stock's remove
 /// paths).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn pores_endpoint(
     steps: i32,
     x: i32,
@@ -1346,7 +1346,7 @@ pub(crate) type RemovalTally = [usize; NUM_REMOVAL_STAGES];
 ///
 /// Returns `Ok`; the `Result` mirrors the reference signature (whose negative error codes are
 /// unreachable in the port) so the driver in `lib.rs` can stay uniform with the detection stage.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn remove_false_minutia_v2(
     minutiae: &mut Vec<DetMinutia>,
     bdata: &mut [u8],

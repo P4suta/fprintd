@@ -40,10 +40,10 @@ pub(crate) fn bits_8to6(idata: &mut [u8]) {
 /// truncates any high bits exactly like C's `unsigned char <<= 2`, so out-of-range inputs wrap
 /// identically. MINDTCT uses this in `results.c` to restore the binarized image to 8-bit for output.
 //
-// `dead_code`: the inverse of the wired [`bits_8to6`]. The port emits minutiae, not the 8-bit
-// binarized image (`results.c`'s output stage), so nothing in the pipeline calls it; transcribed
-// for fidelity and exercised by the tests below.
-#[allow(dead_code)]
+// `#[cfg(test)]`: the inverse of the wired [`bits_8to6`]. The port emits minutiae, not the 8-bit
+// binarized image (`results.c`'s output stage), so nothing in the pipeline calls it; it is
+// transcribed for fidelity and compiled only for the tests below that pin its arithmetic.
+#[cfg(test)]
 pub(crate) fn bits_6to8(idata: &mut [u8]) {
     for pix in idata.iter_mut() {
         // Multiply every pixel value by 4 so that [0..64) -> [0..256).

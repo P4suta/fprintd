@@ -171,7 +171,7 @@ pub(crate) fn init_dftwaves(dft_coefs: &[f64], nwaves: i32, blocksize: i32) -> D
 ///
 /// Each `pad` is quantized to `1/16384` before [`sround`] to stay architecture-stable. For the
 /// shipping `_V2` geometry (`windowsize 24`, `offset 8`, dirbin grid `7x9`) this returns `13`.
-#[allow(non_snake_case)]
+#[expect(non_snake_case)]
 pub(crate) fn get_max_padding_V2(
     map_windowsize: i32,
     map_windowoffset: i32,

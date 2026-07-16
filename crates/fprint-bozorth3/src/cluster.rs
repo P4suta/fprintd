@@ -131,7 +131,7 @@ impl Bz {
     /// `bz_sift`: link a lookahead edge into the current path, or record a pairing conflict.
     ///
     /// Returns `true` on `qq[]` overflow (the caller then returns `QQ_OVERFLOW_SCORE`).
-    #[allow(clippy::too_many_arguments)] // mirrors the reference signature; splitting would obscure the port
+    #[expect(clippy::too_many_arguments)] // mirrors the reference signature; splitting would obscure the port
     fn sift(
         &mut self,
         ww: &mut i32,
@@ -495,7 +495,6 @@ impl Bz {
 
     /// (6c) Build cluster `tp` from the path collected in `y[0..tot]`, then cross-check it against
     /// every prior cluster and merge group totals where compatible and endpoint-disjoint.
-    #[allow(clippy::too_many_arguments)] // one cohesive step lifted out of run() for readability
     fn build_cluster(
         &mut self,
         colp: &[ColpRow],

@@ -110,7 +110,7 @@ pub(crate) struct DetMinutia {
 /// (allocation aborts rather than returning an error). `type`/`appearing` map to
 /// [`kind`](DetMinutia::kind) (`i32`) / a `bool`; `nbrs`/`ridge_counts` start empty (stock `NULL`,
 /// `num_nbrs == 0`).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn create_minutia(
     x_loc: i32,
     y_loc: i32,
@@ -282,7 +282,7 @@ enum AdjustResult {
 ///
 /// PORT: the four out-parameters and the `IGNORE` return collapse into [`AdjustResult`]; `Err(i32)` is
 /// a genuine (unreachable-in-port) system error.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn adjust_high_curvature_minutia_v2(
     x_loc: i32,
     y_loc: i32,
@@ -455,7 +455,7 @@ pub(crate) fn update_minutiae(
 ///
 /// PORT: the stock `realloc`/`IGNORE`/`0` returns collapse into `Vec::push`/`Vec::remove` vs. an early
 /// `Ok(())`. The reverse walk with in-place removal is preserved so list order matches the reference.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn update_minutiae_v2(
     minutiae: &mut Vec<DetMinutia>,
     minutia: DetMinutia,
@@ -549,7 +549,7 @@ pub(crate) fn update_minutiae_v2(
 /// # Errors
 ///
 /// Propagates negative stock system-error codes (unreachable in the port).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn process_horizontal_scan_minutia_v2(
     minutiae: &mut Vec<DetMinutia>,
     cx: i32,
@@ -667,7 +667,7 @@ fn process_horizontal_scan_minutia_v2(
 /// # Errors
 ///
 /// Propagates negative stock system-error codes (unreachable in the port).
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn process_vertical_scan_minutia_v2(
     minutiae: &mut Vec<DetMinutia>,
     cx: i32,
@@ -782,7 +782,7 @@ fn process_vertical_scan_minutia_v2(
 /// (skipping runs of the repeated second pair) and processing each hit via
 /// [`process_horizontal_scan_minutia_v2`]. `bdata` is `&mut` because a detected loop can erase itself
 /// from the image mid-scan, exactly as in the reference.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn scan4minutiae_horizontally_v2(
     minutiae: &mut Vec<DetMinutia>,
     bdata: &mut [u8],
@@ -866,7 +866,7 @@ fn scan4minutiae_horizontally_v2(
 ///
 /// The vertical analogue of [`scan4minutiae_horizontally_v2`]: walks every adjacent column pair
 /// left-to-right, top-to-bottom, stepping one image row per pixel pair.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn scan4minutiae_vertically_v2(
     minutiae: &mut Vec<DetMinutia>,
     bdata: &mut [u8],
@@ -1001,7 +1001,7 @@ pub(crate) fn pixelize_map(
 /// # Errors
 ///
 /// Propagates the negative stock error codes surfaced by [`pixelize_map`] and the scan routines.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn detect_minutiae_v2(
     bdata: &mut [u8],
     iw: i32,

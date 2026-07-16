@@ -262,8 +262,8 @@ impl IdentifyOutcome {
 ///
 /// `async fn` in a public trait is intentional (see the module docs), so the
 /// `async_fn_in_trait` lint — which warns that callers cannot add `+ Send` bounds — is
-/// allowed here and only here.
-#[allow(async_fn_in_trait)]
+/// expected here and only here.
+#[expect(async_fn_in_trait)]
 pub trait Device {
     /// Static metadata (available before and after `open`).
     fn info(&self) -> &DeviceInfo;
@@ -315,7 +315,7 @@ pub trait Device {
 /// A source of [`Device`]s — the entry point, analogous to libfprint's `FpContext`.
 ///
 /// The associated `Device` type keeps this on static dispatch.
-#[allow(async_fn_in_trait)]
+#[expect(async_fn_in_trait)]
 pub trait Backend {
     /// The concrete reader type this backend hands out.
     type Device: Device;

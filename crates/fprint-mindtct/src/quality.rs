@@ -225,7 +225,7 @@ fn grayscale_reliability(x: i32, y: i32, idata: &[u8], iw: i32, ih: i32, radius_
 /// # Errors
 ///
 /// Propagates [`pixelize_map`] errors; returns `Err(-3)` on an out-of-range quality-map value.
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn combined_minutia_quality(
     minutiae: &mut [DetMinutia],
     quality_map: &[i32],
