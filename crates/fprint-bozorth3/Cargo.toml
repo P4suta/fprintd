@@ -25,6 +25,12 @@ rustdoc-args = [
   "katex-header.html",
 ]
 
+[features]
+# Off by default. Exposes the stage-level diagnostic entry point `debug_pipeline` — the compatibility
+# table sizes `tests/golden.rs` checks against the stock C triple to localize a divergence to a stage.
+# Not part of the stable API; `match_score` needs none of it.
+unstable-diagnostics = []
+
 [dependencies]
 # Zero dependencies, on purpose: this is a self-contained arithmetic kernel. It does NOT depend on
 # fprint-core — its input is the xyt (x, y, theta) triple, an interoperability fact, so it defines its

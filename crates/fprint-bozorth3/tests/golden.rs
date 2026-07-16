@@ -33,13 +33,18 @@
 //!
 //! Each stage is its own `#[test]` so a divergence names the stage it happened in; the score test
 //! alone can only say a number changed.
+//!
+//! The stage tests read the pipeline sizes through `debug_pipeline`, which lives behind the
+//! `unstable-diagnostics` feature, so they compile and run under `--all-features` (CI, `bacon`,
+//! `mise run test`). The score test needs no feature and runs in a plain `cargo test`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use fprint_bozorth3::{debug_pipeline, match_score, Minutia};
+use fprint_bozorth3::{match_score, Minutia};
 
 /// Cap on reported divergences: the first few localize the bug, and a wall of them does not.
+#[cfg(feature = "unstable-diagnostics")]
 const MAX_REPORT: usize = 12;
 
 /// Pairs where the stock C reference is itself build-nondeterministic (uninitialized-read UB in
@@ -68,12 +73,14 @@ fn load_xyt(path: &Path) -> Vec<Minutia> {
 }
 
 /// One pipeline's `(probe_web_len, gallery_web_len, num_edges)` — the triple `stages.tsv` freezes.
+#[cfg(feature = "unstable-diagnostics")]
 type StageSizes = (usize, usize, usize);
 
 /// Every pair's [`StageSizes`], ours beside the stock C's.
 ///
 /// `stages.tsv` is written by the oracle's `BOZORTH3_DUMP_STAGES` driver, which calls the same
 /// `bozorth_probe_init` / `bozorth_gallery_init` / `bz_match` that `bozorth_main` does.
+#[cfg(feature = "unstable-diagnostics")]
 fn stage_sizes() -> Vec<(String, StageSizes, StageSizes)> {
     let dir = fixtures_dir();
     let stages_text = std::fs::read_to_string(dir.join("stages.tsv"))
@@ -102,7 +109,7 @@ fn stage_sizes() -> Vec<(String, StageSizes, StageSizes)> {
         let tag = it.next().unwrap();
         let probe = load_xyt(&dir.join(it.next().unwrap()));
         let gallery = load_xyt(&dir.join(it.next().unwrap()));
-        let got = debug_pipeline(&probe, &gallery);
+        let got = fprint_bozorth3::debug_pipeline(&probe, &gallery);
         let want = *want
             .get(tag)
             .unwrap_or_else(|| panic!("no expected stage sizes for {tag}"));
@@ -113,6 +120,7 @@ fn stage_sizes() -> Vec<(String, StageSizes, StageSizes)> {
 }
 
 /// Report the first [`MAX_REPORT`] divergences of one stage, or pass.
+#[cfg(feature = "unstable-diagnostics")]
 fn assert_stage(stage: &str, pick: impl Fn(StageSizes) -> usize) {
     let sizes = stage_sizes();
     let checked = sizes.len();
@@ -130,6 +138,7 @@ fn assert_stage(stage: &str, pick: impl Fn(StageSizes) -> usize) {
     );
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn stage1_web_lengths_match_stock() {
     // The pruned Web length is bz_comp + bz_find + the FDD floor. Both prints, so a probe-only
@@ -138,6 +147,7 @@ fn stage1_web_lengths_match_stock() {
     assert_stage("stage 1 gallery web length", |(_, g, _)| g);
 }
 
+#[cfg(feature = "unstable-diagnostics")]
 #[test]
 fn stage2_edge_count_matches_stock() {
     assert_stage("stage 2 compatible edge count", |(_, _, n)| n);

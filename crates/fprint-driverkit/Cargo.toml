@@ -24,8 +24,10 @@ path = "src/main.rs"
 fprint-core = { workspace = true }
 # The MINDTCT detector: turn a captured frame into minutiae while bringing a sensor up.
 fprint-mindtct = { workspace = true }
-# The BOZORTH3 matcher: score a fresh capture against a reference to prove a driver works.
-fprint-bozorth3 = { workspace = true }
+# The BOZORTH3 matcher: score a fresh capture against a reference to prove a driver works. The
+# `unstable-diagnostics` feature exposes `debug_pipeline`, which `matchcmd` uses to show the
+# per-stage table sizes behind a match.
+fprint-bozorth3 = { workspace = true, features = ["unstable-diagnostics"] }
 # The native backend: its USB wire types and frame helpers are what a new driver is written against.
 # The `serde` feature makes its `Session` model (de)serializable so a capture round-trips as a
 # `.cassette`.

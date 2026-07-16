@@ -172,13 +172,16 @@ pub fn match_score(probe: &[Minutia], gallery: &[Minutia]) -> u32 {
     score.max(0) as u32
 }
 
-/// Diagnostic (hidden): the pipeline sizes `(probe_web_len, gallery_web_len, num_compat_edges)`
-/// for a pair — stages 1 and 2, which `tests/golden.rs` checks against the stock C triple to
-/// localize any divergence to a stage.
+/// Diagnostic: the pipeline sizes `(probe_web_len, gallery_web_len, num_compat_edges)` for a pair —
+/// stages 1 and 2, which `tests/golden.rs` checks against the stock C triple to localize any
+/// divergence to a stage.
 ///
-/// Unconditional, mirroring the reference's `bozorth_probe_init` / `bozorth_gallery_init` /
-/// `bz_match`, none of which consults [`MIN_COMPUTABLE_BOZORTH_MINUTIAE`]. That guard is a
-/// *scoring* decision and lives in [`match_score`]; these sizes are facts about the tables.
+/// Behind the `unstable-diagnostics` feature and `#[doc(hidden)]`: not part of the stable API, and
+/// `match_score` needs none of it. Mirrors the reference's `bozorth_probe_init` /
+/// `bozorth_gallery_init` / `bz_match`, none of which consults [`MIN_COMPUTABLE_BOZORTH_MINUTIAE`] —
+/// that guard is a *scoring* decision and lives in [`match_score`]; these sizes are facts about the
+/// tables.
+#[cfg(feature = "unstable-diagnostics")]
 #[doc(hidden)]
 #[must_use]
 pub fn debug_pipeline(probe: &[Minutia], gallery: &[Minutia]) -> (usize, usize, usize) {
