@@ -9,44 +9,49 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/fprint-core",
-    "crates/fprint-fp3",                # FP3 (de)serialization codec (edge translator; offline)
-    "crates/fprint-bozorth3",           # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
-    "crates/fprint-mindtct",            # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
-    "crates/fprint-backend-native",     # pure-Rust virtual device: the first fprint-core Backend/Device implementor
-    "crates/fprint-integration",        # CompositeBackend / CompositeDevice (native-only off Linux)
-    # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
-    # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
-    "crates/fprint-backend-libfprint",  # M1 shim over the C libfprint via the libfprint-rs FFI crate
-    "crates/fprintd",            # M1 zbus daemon speaking net.reactivated.Fprint
-    # Not part of the stack: developer tasks (`cargo xtask <task>`). A member so that fmt, clippy
-    # and the workspace test run hold the tooling to the same bar as the code it checks.
-    "xtask",
+  "crates/fprint-core",
+  "crates/fprint-testkit",        # dev-only: deterministic test inputs + a minimal executor
+  "crates/fprint-fp3",            # FP3 (de)serialization codec (edge translator; offline)
+  "crates/fprint-bozorth3",       # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
+  "crates/fprint-mindtct",        # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
+  "crates/fprint-backend-native", # pure-Rust virtual device: the first fprint-core Backend/Device implementor
+  "crates/fprint-integration",    # CompositeBackend / CompositeDevice (native-only off Linux)
+  # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
+  # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
+  "crates/fprint-backend-libfprint", # M1 shim over the C libfprint via the libfprint-rs FFI crate
+  "crates/fprintd",                  # M1 zbus daemon speaking net.reactivated.Fprint
+  # Not part of the stack: developer tasks (`cargo xtask <task>`). A member so that fmt, clippy
+  # and the workspace test run hold the tooling to the same bar as the code it checks.
+  "xtask",
 ]
 
 [workspace.package]
-version = "0.1.0"               # first shape worth showing the world; all crates inherit via `version.workspace = true`
+version = "0.1.0" # first shape worth showing the world; all crates inherit via `version.workspace = true`
 edition = "2021"
 # The floor for the published pure crates (fprint-core, fprint-fp3, fprint-bozorth3,
 # fprint-mindtct), verified by CI's `msrv` job. The three crates that link the C libfprint stack
 # need more and declare it themselves.
 rust-version = "1.82"
-license = "MIT OR Apache-2.0"   # one licence for the whole tree; the NBIS ports are faithful ports of a public-domain source, which grants without demanding
+license = "MIT OR Apache-2.0"                                 # one licence for the whole tree; the NBIS ports are faithful ports of a public-domain source, which grants without demanding
 authors = ["Yasunobu Sakashita <crates.tank733@slmails.com>"]
 repository = "https://github.com/P4suta/fprintd"
 
 [workspace.dependencies]
 # Internal crates. Published members carry `version` alongside `path`: crates.io rejects a
 # path-only dependency, so a published crate's deps must resolve on the registry too.
-fprint-core              = { path = "crates/fprint-core", version = "0.1.0" }
-fprint-fp3               = { path = "crates/fprint-fp3", version = "0.1.0" }
-fprint-bozorth3          = { path = "crates/fprint-bozorth3", version = "0.1.0" }
-fprint-mindtct           = { path = "crates/fprint-mindtct", version = "0.1.0" }
+fprint-core = { path = "crates/fprint-core", version = "0.1.0" }
+fprint-fp3 = { path = "crates/fprint-fp3", version = "0.1.0" }
+fprint-bozorth3 = { path = "crates/fprint-bozorth3", version = "0.1.0" }
+fprint-mindtct = { path = "crates/fprint-mindtct", version = "0.1.0" }
 # Deliberately version-less: this crate is `publish = false`, and it is a *dev*-dependency of
 # the published `fprint-fp3`. Cargo includes only dev-dependencies that specify a version, so
 # leaving it out is what lets it be stripped from the published tarball. Adding a `version`
 # here would drag an unpublished crate into fprint-fp3's manifest and break `cargo publish`.
-fprint-backend-native    = { path = "crates/fprint-backend-native" }
+fprint-backend-native = { path = "crates/fprint-backend-native" }
+# Version-less for the same reason, and it is load-bearing for every published crate rather than
+# just one: the testkit is a dev-dependency of the whole tree. `cargo xtask publish-check` reads
+# the packaged manifests and refuses to find it there, so the reasoning above is a checked fact.
+fprint-testkit = { path = "crates/fprint-testkit" }
 fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version = "0.1.0" }
 
 [profile.release]

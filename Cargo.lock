@@ -244,6 +244,7 @@ version = "0.1.0"
 dependencies = [
  "fprint-core",
  "fprint-fp3",
+ "fprint-testkit",
  "gio",
  "glib",
  "libfprint-rs",
@@ -257,6 +258,7 @@ dependencies = [
  "fprint-bozorth3",
  "fprint-core",
  "fprint-mindtct",
+ "fprint-testkit",
  "nusb",
 ]
 
@@ -284,10 +286,15 @@ dependencies = [
  "fprint-backend-libfprint",
  "fprint-backend-native",
  "fprint-core",
+ "fprint-testkit",
 ]
 
 [[package]]
 name = "fprint-mindtct"
+version = "0.1.0"
+
+[[package]]
+name = "fprint-testkit"
 version = "0.1.0"
 
 [[package]]

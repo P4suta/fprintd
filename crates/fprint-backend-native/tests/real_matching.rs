@@ -11,8 +11,7 @@
 //! seam the fprintd daemon drives, with no sensor. A same-finger recapture matches; an unrelated
 //! finger does not; identify picks the right gallery slot.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, Finger, Minutia, Print, Template};

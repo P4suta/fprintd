@@ -4,8 +4,7 @@
 
 //! Verify (1:1) and identify (1:N): matching, scan surfacing, and feature gating.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{EnrollScript, FingerId, Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, DeviceFeature, Error, Finger, Print};

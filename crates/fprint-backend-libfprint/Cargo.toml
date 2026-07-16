@@ -21,6 +21,13 @@ libfprint-sys = "=0.2.0"
 glib = "0.21"
 gio = "0.21"
 
+# Gated to Linux like everything else here: the tests these serve are `#![cfg(target_os = "linux")]`.
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# The executor the virtual-driver tests drive futures with. It is `unsafe`-free, which a hand-rolled
+# `RawWaker` here would not be — this crate is the FFI quarantine, and its quarantine should hold
+# only what the FFI actually needs.
+fprint-testkit = { workspace = true }
+
 [features]
 # Opt-in integration test that drives the real libfprint `virtual_device` driver over its
 # debug socket. Off by default because it needs libfprint built with the virtual drivers and

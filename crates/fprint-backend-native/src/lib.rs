@@ -49,8 +49,6 @@ mod scenario;
 mod sources;
 mod store;
 mod synth;
-#[cfg(test)]
-mod test_exec;
 mod usb;
 mod yield_now;
 

@@ -23,5 +23,10 @@ fprint-backend-native = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 fprint-backend-libfprint = { workspace = true }
 
+[dev-dependencies]
+# The executor the composite tests drive futures with. Version-less so `cargo publish` strips it;
+# `cargo xtask lint` refuses the testkit anywhere but a dev table.
+fprint-testkit = { workspace = true }
+
 [lints]
 workspace = true

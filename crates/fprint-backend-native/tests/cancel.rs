@@ -7,8 +7,7 @@
 //! A partially-driven `enroll` that is dropped must leave the device untouched: nothing in
 //! storage, still open, ready for a fresh enrollment.
 
-mod common;
-use common::{block_on, poll_n};
+use fprint_testkit::{block_on, poll_n};
 
 use fprint_backend_native::{EnrollScript, FingerId, Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, Finger, Print};

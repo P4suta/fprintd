@@ -10,8 +10,7 @@
 //! matcher. A self-capture matches; a stranger does not; identify picks the right gallery slot;
 //! scripted retries advance no stage; and a dropped enroll future commits nothing.
 
-mod common;
-use common::{block_on, poll_n};
+use fprint_testkit::{block_on, poll_n};
 
 use fprint_backend_native::{ImageDevice, SyntheticFrameSource};
 use fprint_core::{

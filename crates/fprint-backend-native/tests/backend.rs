@@ -4,8 +4,7 @@
 
 //! The backend: enumerate the roster, open by id (known and unknown).
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{VirtualBackend, VirtualDeviceBuilder};
 use fprint_core::{Backend, Device, DeviceId, Error};

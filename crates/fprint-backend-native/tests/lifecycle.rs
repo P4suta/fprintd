@@ -4,8 +4,7 @@
 
 //! Open/close state machine and suspend/resume.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{DeviceShape, VirtualDeviceBuilder};
 use fprint_core::{Device, DeviceFeature, Error, Print, ScanType};

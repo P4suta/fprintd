@@ -208,7 +208,7 @@ fn parse_dim(token: &[u8], what: &str) -> Result<usize> {
 mod tests {
     use super::*;
     use crate::frame_source::Capture;
-    use crate::test_exec::block_on;
+    use fprint_testkit::block_on;
 
     fn tiny_frame() -> Frame {
         // A 4x3 gradient — distinct bytes so a round-trip that transposes or truncates is caught.

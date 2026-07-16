@@ -19,17 +19,15 @@
 //! corpus (`mise run mindtct-oracle`), which stock NBIS resolves to 26 minutiae. Enrolling a
 //! real finger to fill this fixture would put an irrevocable biometric in the repository.
 
-use std::future::Future;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
-use std::pin::pin;
-use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 use std::thread;
 use std::time::Duration;
 
 use fprint_backend_libfprint::LibfprintBackend;
 use fprint_core::{Backend, Device, Finger, Print, Template};
+use fprint_testkit::block_on;
 
 const SOCKET: &str = "/tmp/fp-virt-image.sock";
 /// `virtual_image` is an image device, and those enroll in 5 stages (`IMG_ENROLL_STAGES`).
@@ -144,25 +142,4 @@ fn enrolled_nbis_print_is_byte_identical_to_libfprint() {
     }
 
     block_on(dev.close()).expect("close");
-}
-
-// --- A dependency-free executor (see `virtual.rs`) -----------------------------------------
-
-fn block_on<F: Future>(future: F) -> F::Output {
-    let mut future = pin!(future);
-    let waker = noop_waker();
-    let mut cx = Context::from_waker(&waker);
-    loop {
-        if let Poll::Ready(out) = future.as_mut().poll(&mut cx) {
-            return out;
-        }
-    }
-}
-
-fn noop_waker() -> Waker {
-    const VTABLE: RawWakerVTable = RawWakerVTable::new(|_| RAW, |_| {}, |_| {}, |_| {});
-    const RAW: RawWaker = RawWaker::new(std::ptr::null(), &VTABLE);
-    // SAFETY: the vtable's clone returns the same no-op RawWaker and wake/drop do nothing, so
-    // the waker upholds the Waker contract trivially.
-    unsafe { Waker::from_raw(RAW) }
 }

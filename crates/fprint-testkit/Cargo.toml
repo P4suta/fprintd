@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "fprint-testkit"
+description = "Deterministic test inputs and a minimal executor, shared by this workspace's test suites"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+# Never shipped. Every crate takes it as a dev-dependency and no crate takes it as a normal one,
+# which `cargo xtask lint` enforces and `cargo xtask publish-check` proves of the packaged output.
+publish = false
+
+# Deliberately none, and this is the point rather than an accident. The kernels this feeds define
+# their own `Minutia` so they can stay dependency-free; a testkit that reached for `fprint-core`
+# would put a cycle between them and their own tests. It generates interoperability facts — xyt
+# triples and image bytes — so it needs to know nothing.
+
+[lints]
+workspace = true

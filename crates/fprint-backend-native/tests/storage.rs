@@ -4,8 +4,7 @@
 
 //! On-device storage: list, delete, clear on a MOC device; unsupported on a host sensor.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{EnrollScript, FingerId, Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, Error, Finger, Print};

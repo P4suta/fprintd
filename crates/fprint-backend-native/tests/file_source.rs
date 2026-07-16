@@ -10,8 +10,7 @@
 //! self-verifies through genuine MINDTCT + BOZORTH3. A second check round-trips those bytes through
 //! the PGM writer/parser to prove the file format is loss-free.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{
     Capture, FileFrameSource, Frame, FrameSource, ImageDevice, SyntheticFrameSource,

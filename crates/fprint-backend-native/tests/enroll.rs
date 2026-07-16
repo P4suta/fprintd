@@ -4,8 +4,7 @@
 
 //! Enrollment: multi-stage progress, retries, MOC storage, duplicates, full storage.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{EnrollScript, FingerId, Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, DriverId, EnrollProgress, Error, Finger, Print, RetryReason, Template};

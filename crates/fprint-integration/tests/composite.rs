@@ -10,8 +10,7 @@
 //! *through* the composite [`Device`] impl. On Linux the same backend could add a shim device
 //! via [`CompositeBackend::new`]; the default test stays native-only so it passes anywhere.
 
-mod common;
-use common::block_on;
+use fprint_testkit::block_on;
 
 use fprint_backend_native::{
     EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder,

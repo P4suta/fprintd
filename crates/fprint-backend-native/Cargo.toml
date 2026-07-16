@@ -15,13 +15,12 @@ publish = false
 [features]
 # Off by default: a default build (Windows/pure) pulls no USB stack at all. `usb` activates the real
 # `nusb`-backed transport (`NusbTransport`); the protocol, driver, and mock-driven tests are always
-# built and need no feature. `hwtest` gates any test that requires a physical sensor to be present.
+# built and need no feature.
 #
-# NOTE: `usb`/`hwtest` gate the *experimental*, hardware-unverified capture seam — an open invitation,
-# not a project goal (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
+# NOTE: `usb` gates the *experimental*, hardware-unverified capture seam — an open invitation, not a
+# project goal (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
 default = []
 usb = ["dep:nusb"]
-hwtest = []
 
 [dependencies]
 fprint-core = { workspace = true }
@@ -42,3 +41,9 @@ nusb = { version = "0.1", optional = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The executor every test here drives futures with, and the deterministic sources the property
+# suites draw from. Version-less so `cargo publish` strips it — this crate is `publish = false`
+# either way, and `cargo xtask lint` refuses the testkit anywhere but a dev table.
+fprint-testkit = { workspace = true }

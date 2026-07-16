@@ -22,16 +22,14 @@
 //! then verify the same id (match) and a different id (no match), and confirm the enrolled
 //! [`Print`] round-trips through `fprint-fp3` — the D1 template-unification guarantee.
 
-use std::future::Future;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
-use std::pin::pin;
-use std::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 use std::thread;
 use std::time::Duration;
 
 use fprint_backend_libfprint::LibfprintBackend;
 use fprint_core::{Backend, Device, Finger, Print, ScanType, Template};
+use fprint_testkit::block_on;
 
 const SOCKET: &str = "/tmp/fp-virt.sock";
 const ENROLL_STAGES: usize = 5; // virtual_device's built-in default
@@ -202,28 +200,4 @@ fn enroll_then_verify_over_virtual_socket() {
     );
 
     block_on(dev.close()).expect("close");
-}
-
-// --- A dependency-free executor -----------------------------------------------------------
-//
-// The shim's async fns contain no `.await` points (every op is a blocking `*_sync` FFI call),
-// so each future is ready on its first poll. A no-op waker is all we need.
-
-fn block_on<F: Future>(future: F) -> F::Output {
-    let mut future = pin!(future);
-    let waker = noop_waker();
-    let mut cx = Context::from_waker(&waker);
-    loop {
-        if let Poll::Ready(out) = future.as_mut().poll(&mut cx) {
-            return out;
-        }
-    }
-}
-
-fn noop_waker() -> Waker {
-    const VTABLE: RawWakerVTable = RawWakerVTable::new(|_| RAW, |_| {}, |_| {}, |_| {});
-    const RAW: RawWaker = RawWaker::new(std::ptr::null(), &VTABLE);
-    // SAFETY: the vtable's clone returns the same no-op RawWaker and wake/drop do nothing, so
-    // the waker upholds the Waker contract trivially.
-    unsafe { Waker::from_raw(RAW) }
 }

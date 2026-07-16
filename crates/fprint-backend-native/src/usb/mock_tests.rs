@@ -22,11 +22,11 @@ use fprint_core::{
 
 use crate::frame::Frame;
 use crate::frame_source::{Capture, FrameSource};
-use crate::test_exec::block_on;
 use crate::usb::proto;
 use crate::usb::source::UsbFrameSource;
 use crate::usb::transport::UsbTransport;
 use crate::{ImageDevice, SyntheticFrameSource};
+use fprint_testkit::block_on;
 
 /// Same threshold / stage count as `tests/image_device.rs`: identical bytes, identical pipeline.
 const THRESHOLD: u32 = 40;
