@@ -12,7 +12,10 @@
 #  * `linux`  — the authoritative Linux verification inside the pinned libfprint container: the shim
 #               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
 #               the fprintd D-Bus daemon end-to-end. This is where the Linux-only crates are lint
-#               and test gated.
+#               and test gated. It is also the only job with a dependency graph worth caching — 109
+#               third-party crates against 0 on Windows — and the runner shares no volume with the
+#               last run, so it caches sccache's 167 MiB rather than a 2.5 GB target tree. See
+#               docker/docker-compose.ci.yml.
 #  * `unit`   — the systemd unit, against real systemd: it parses, and `Alias=` takes the seat from
 #               upstream's unit. The coexistence design rests on that symlink. See xtask/src/unit.rs.
 #  * `msrv`   — the published pure crates on the declared 1.82. Every other job runs latest stable,
@@ -96,29 +99,49 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # The image cache above holds the libfprint build and nothing Rust. This job's `fp-target`
+      # volume is created empty on every run, so without this the 109 third-party crates behind the
+      # libfprint-sys bindgen spine compile from scratch every time. sccache's cache is what carries
+      # between runs — 167 MiB measured, so restoring it costs seconds. Keyed on the lockfile and
+      # the image: either one moving is what invalidates the compilations.
+      # See docker/docker-compose.ci.yml.
+      - uses: actions/cache@v4
+        with:
+          path: .sccache
+          key: sccache-linux-${{ hashFiles('Cargo.lock', 'docker/Dockerfile') }}
+          restore-keys: sccache-linux-
       # Separate steps, so a failure names itself.
       - name: Clippy the whole workspace (incl. shim & daemon)
         run: >
-          docker compose -f docker/docker-compose.yml run --rm dev
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
           cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Test the whole workspace (incl. shim & daemon)
         run: >
-          docker compose -f docker/docker-compose.yml run --rm dev
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
           cargo test --workspace --all-features
       # The `check` job documents everything that builds off Linux. These two only build here,
       # so this is the only place their intra-doc links can be checked at all.
       - name: Rustdoc (Linux-only crates, warnings are errors)
         run: >
-          docker compose -f docker/docker-compose.yml run --rm -e RUSTDOCFLAGS=-D\ warnings dev
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm
+          -e RUSTDOCFLAGS=-D\ warnings dev
           cargo doc --no-deps --all-features -p fprintd -p fprint-backend-libfprint
       # Already covered by --all-features above; named separately because these two are the M2
       # FP3 byte-identity proof against the real C library — Raw via virtual_device, NBIS via
       # virtual_image — and a silent loss of either would matter.
       - name: Shim vs. real libfprint virtual drivers (M2 FP3 byte-identity)
         run: |
-          docker compose -f docker/docker-compose.yml run --rm dev \
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev \
             cargo test -p fprint-backend-libfprint --features virtual \
               --test virtual --test virtual_image
+      # The hit rate is the whole case for the cache above, so it is printed rather than assumed.
+      # Dependencies should hit and the workspace's own ten crates should miss; a run that misses
+      # everything means the key is churning, and the cache is then cost without benefit.
+      - name: sccache hit rate
+        if: always()
+        run: >
+          docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
+          sccache --show-stats
 
   unit:
     name: systemd unit (Alias takes the seat)

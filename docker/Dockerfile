@@ -48,6 +48,23 @@ RUN git clone --depth 1 --branch "${LIBFPRINT_REF}" \
 # libfprint build so editing it never invalidates that (slow) layer's cache.
 RUN rustup component add clippy rustfmt
 
+# sccache, for CI only — nothing here turns it on. `docker/docker-compose.ci.yml` sets
+# RUSTC_WRAPPER, because CI is where a build starts from nothing: a runner shares no volume with
+# the last one, so the 109 third-party crates behind the libfprint-sys bindgen spine are compiled
+# from scratch on every pull request. Measured in this image: `cargo test --workspace
+# --all-features --no-run` takes 84s cold and 36s against a warm cache, at a 167 MiB cache and a
+# 130/130 hit rate. A dev box keeps its `fp-target` volume and needs none of it.
+#
+# Pinned: an unpinned tool is a moving dependency, and this one sits under every compile.
+ARG SCCACHE_VERSION=0.8.2
+RUN curl -sSfL \
+        "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_VERSION}/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+        -o /tmp/sccache.tar.gz \
+    && tar -xzf /tmp/sccache.tar.gz -C /tmp \
+    && install -m 0755 "/tmp/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl/sccache" /usr/local/bin/sccache \
+    && rm -rf /tmp/sccache.tar.gz "/tmp/sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl" \
+    && sccache --version
+
 ENV CARGO_HOME=/cargo
 WORKDIR /work
 CMD ["bash"]

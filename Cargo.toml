@@ -62,6 +62,20 @@ fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version =
 [profile.release]
 lto = "thin"
 
+# The kernels are compute, and the tests run them on their worst input deliberately: BOZORTH3 on ten
+# minutiae stacked at one pixel (`tests/totality.rs`), MINDTCT over the whole image corpus.
+# Unoptimized, that is 41s of `cargo test` for the four pure crates and 4s optimized — the work is
+# the same and the codegen is the whole difference. Three CI runners and every `mise run mutants`
+# mutant pay it.
+#
+# `opt-level` alone. `debug_assertions` and `overflow-checks` are separate switches and stay on,
+# which is load-bearing: `tests/totality.rs` pins two unfixed `i32` overflows with `#[should_panic]`,
+# and they panic only while those checks are on. Debuginfo stays too — trimming it measured slower,
+# not faster, and a test failure wants the backtrace. `[profile.dev]` is untouched: `cargo build` and
+# a debugger want the opposite trade, and nothing here reaches them.
+[profile.test]
+opt-level = 2
+
 # One strict lint policy for the whole workspace; every crate opts in with
 # `[lints] workspace = true`. Clippy warnings are hard errors, so a plain `cargo clippy`
 # (or `cargo build`) is as strict as CI. Crate-specific needs are handled tightly and

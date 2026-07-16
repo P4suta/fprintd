@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# What the `linux` CI job adds to docker-compose.yml. Used only there, and only as a second
+# `-f`; a dev box runs the base file alone and is unaffected by anything in here.
+#
+# The base file's `fp-target` and `fp-cargo-registry` are named volumes, which is right for a dev
+# box — on Windows a bind-mounted target directory pays the filesystem translation on every object
+# file — and worthless on a runner, which shares no volume with the last run. So CI starts cold and
+# compiles 109 third-party crates behind the libfprint-sys bindgen spine on every pull request.
+#
+# sccache answers that without touching the volumes: its cache is a bind mount that
+# `actions/cache` can carry between runs, and at 167 MiB it costs a few seconds to move. Measured
+# in this image, `cargo test --workspace --all-features --no-run`: 84s cold, 36s warm, 130/130 hits.
+# The workspace's own ten crates change with the pull request and rightly miss; the dependencies
+# do not change and always hit.
+#
+# `CARGO_INCREMENTAL: 0` for the same reason it is absent from the base file: incremental artifacts
+# are written for a *next* build, and on a runner there is never a next build. A dev box keeps its
+# volume, so the base file leaves incremental on.
+
+services:
+  dev:
+    volumes:
+      - ../.sccache:/sccache
+    environment:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: /sccache
+      # Well above the measured 167 MiB, so the cache never evicts what CI is about to ask for.
+      SCCACHE_CACHE_SIZE: 2G
+      CARGO_INCREMENTAL: "0"

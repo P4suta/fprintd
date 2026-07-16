@@ -63,6 +63,18 @@ run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fp
 description = "Check the systemd unit against real systemd: it parses, and Alias= takes the seat"
 run = "cargo xtask unit-verify"
 
+# Supply chain: advisories, the licence boundary ARCHITECTURE.md argues in prose, wildcard pins,
+# and source registries. Adds no dependency — cargo-deny is a CLI that reads Cargo.lock.
+[tasks.deny]
+description = "Check the dependency graph: advisories, licences, wildcard pins, sources"
+run = "cargo deny check"
+
+# `reuse lint` accepts a custom LicenseRef-* identifier and crates.io does not, so a green lint is
+# no evidence a crate can leave the workspace. This asks the registry's own rules.
+[tasks.publish-check]
+description = "Check the published crates against the registry's rules: licence, deps, contents"
+run = "cargo xtask publish-check"
+
 # --- NBIS oracles: the stock C tools as the ground truth our ports are checked against --------
 # Both are DELIBERATE regeneration of frozen goldens, and need reference/nbis-stock + Docker.
 # See xtask/src/oracle.rs.
@@ -89,14 +101,6 @@ run = "cargo xtask mindtct-oracle"
 [tasks.fuzz]
 description = "DELIBERATE: fuzz one target in the nightly container (`fuzz <target> [seconds]`)"
 run = "cargo xtask fuzz"
-
-[tasks.publish-check]
-description = "Check the published crates against the registry's rules: licence, deps, contents"
-run = "cargo xtask publish-check"
-
-[tasks.deny]
-description = "Check the dependency graph: advisories, licences, wildcard pins, sources"
-run = "cargo deny check"
 
 # --- Mutation testing: which lines the tests do not defend ----------------------------------
 # DELIBERATE because of its size, not its dependencies: it is 5,784 mutants over the published

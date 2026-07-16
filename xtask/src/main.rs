@@ -64,14 +64,9 @@ fn main() -> ExitCode {
 
 /// `fuzz <target> [seconds]`: the one task that takes arguments.
 fn fuzz_task(root: &Path, mut args: impl Iterator<Item = String>) -> Result<(), String> {
-    let target = args.next().ok_or_else(|| {
-        format!(
-            "fuzz: which target?
-
-{}",
-            usage()
-        )
-    })?;
+    let target = args
+        .next()
+        .ok_or_else(|| format!("fuzz: which target?\n\n{}", usage()))?;
     let seconds = match args.next() {
         None => FUZZ_SECONDS,
         Some(s) => s
