@@ -11,6 +11,19 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+readme = "README.md"
+keywords = ["fingerprint", "biometrics", "bozorth3", "nbis", "matcher"]
+categories = ["algorithms", "science"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = [
+  "--cfg",
+  "docsrs",
+  "--generate-link-to-definition",
+  "--html-in-header",
+  "katex-header.html",
+]
 
 [dependencies]
 # Zero dependencies, on purpose: this is a self-contained arithmetic kernel. It does NOT depend on

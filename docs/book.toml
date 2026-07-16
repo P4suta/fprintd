@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[book]
+title = "The fprint-rs Book"
+authors = ["fprintd (pure-Rust) contributors"]
+description = "Guide to the pure-Rust, fprintd-compatible fingerprint stack."
+language = "en"
+# This file lives in docs/, so the book root is docs/ and the source is docs/ itself:
+# SUMMARY.md and the existing spec chapters sit here, not in a src/ subdirectory.
+src = "."
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+no-section-label = true
+# The generated rustdoc is published alongside the book at /api.
+additional-css = []
+
+[output.html.search]
+enable = true
+
+[output.html.playground]
+# Snippets cite real crate APIs; they are read, not run in-page.
+runnable = false

@@ -7,6 +7,13 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+readme = "README.md"
+keywords = ["fingerprint", "biometrics", "fprintd", "libfprint", "async"]
+categories = ["authentication", "hardware-support"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 
 [dependencies]
 # Intentionally dependency-free for now: this crate is the pure domain model + traits.

@@ -86,15 +86,33 @@ A surviving mutant is untested code, not broken code, so this gates nothing. A p
 same question asked of its own diff, and the answers arrive as annotations on the changed lines.
 
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
-(`cargo xtask <task>`), where a compiler and clippy can see it. Shell quoted inside a
-task runner is read by nothing, and runs under whichever shell the runner picked —
-`cmd.exe` on Windows, `sh` in CI. `mise run lint` enforces this, along with the norms no
-compiler checks: no shell scripts; no comment that narrates a past or a future the reader
-cannot check — say what is true now, and let git hold the history; and **the one rule
-itself**. The phrases it rejects are listed in [`xtask/src/lint.rs`](xtask/src/lint.rs), and
-the dependency graph it holds you to is in [`xtask/src/deps.rs`](xtask/src/deps.rs) — which
-also pins `fprint-core`'s dependency-freedom and the `#![forbid(unsafe_code)]` quarantine.
-Both are where to add one.
+(`cargo xtask <task>`), where a compiler and clippy can see it. Shell that would branch,
+loop, or capture output is read by nothing in a task runner and runs under whichever shell it
+picked — `cmd.exe` on Windows, `sh` in CI — so it lives in `xtask` instead. A workflow may
+chain two single commands with `&&`/`||` (they mean the same under every shell a runner
+provides), but `$(…)`, `set -e` and `bash -c` are banned everywhere. `mise run lint` enforces
+this across `mise.toml` and every `.github/workflows/*.yml`, along with the norms no compiler
+checks: no shell scripts; no comment that narrates a past or a future the reader cannot check —
+say what is true now, and let git hold the history (a generated `CHANGELOG.md` is the one
+exception); and **the one rule itself**. The phrases it rejects are in
+[`xtask/src/lint.rs`](xtask/src/lint.rs), and the graph it holds you to is in
+[`xtask/src/deps.rs`](xtask/src/deps.rs) — which reads `cargo metadata` and pins the charter
+crates' dependency-freedom and the `#![forbid(unsafe_code)]` quarantine. Both are where to add
+one.
+
+### Modern where it is free
+
+The default is to reach for a well-chosen crate or tool, not to hand-roll. Two rules bound
+where that reach may go. **The one rule:** dependencies flow toward the leaves. **The lockfile
+rule:** no third-party crate enters a published crate's normal dependency graph — tooling
+reaches the code as an external CLI the workspace invokes but never names (nextest, llvm-cov,
+release-plz, git-cliff, mdbook), as a dev-dependency Cargo strips from the tarball, or as a
+dependency of a `publish = false` crate. Three crates are the **charter**: `fprint-core` and
+the two NBIS kernels take no third-party dependency in any table, because the core's zero
+dependencies are the architecture and the kernels' bit-exact port *is* the product. Every other
+crate takes the dependencies it needs. `cargo xtask lint` checks all of this against the
+resolved graph; `cargo xtask publish-check` keeps `release-plz.toml` holding back exactly the
+unpublishable crates.
 
 ## License hygiene
 

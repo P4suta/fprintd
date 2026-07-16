@@ -9,6 +9,17 @@ rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+readme = "README.md"
+keywords = ["fingerprint", "libfprint", "ffi", "fprintd", "linux"]
+categories = ["authentication", "hardware-support", "api-bindings"]
+
+# Linux-only crate: docs.rs must build for the Linux target, or the `#![cfg(target_os = "linux")]`
+# in lib.rs empties it and there is nothing to document.
+[package.metadata.docs.rs]
+all-features = true
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["x86_64-unknown-linux-gnu"]
+rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 
 # Every dependency is gated to Linux so the (Windows) workspace stays lean and resolvable:
 # on any other target this crate compiles to an empty module (see the `#![cfg]` in lib.rs)
