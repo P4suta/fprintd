@@ -70,10 +70,10 @@ jobs:
           tool: cargo-nextest
       - name: Rustfmt
         run: cargo fmt --all --check
-      # `--all-features` here is about the platform axis, not the feature axis: Linux already
-      # covers the feature space, but nothing else compiles fprint-backend-native's `usb` seam
-      # (nusb) — so a contributor taking up that invitation on this project's own primary dev
-      # platform would be the first to find it broken.
+      # `--all-features` covers the feature axis here: fprint-backend-native's `usb`/nusb seam, the
+      # fp3 GVariant oracle, mindtct's `unstable-diagnostics`. fprintd compiles to nothing off Linux,
+      # so nothing pulls the D-Bus `zvariant` that upstream miscompiles beside the oracle's `gvariant`
+      # — the whole workspace builds here. The `linux` job cannot, and excludes fp3 there.
       - name: Clippy (workspace, all targets, all features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       # One clippy run over again on Windows only, turned into inline PR annotations. Windows because
@@ -130,15 +130,20 @@ jobs:
           path: .sccache
           key: sccache-linux-${{ hashFiles('Cargo.lock', 'docker/Dockerfile') }}
           restore-keys: sccache-linux-
+      # `--exclude fprint-fp3`: its dev-only GVariant oracle pulls `zvariant/gvariant`, which upstream
+      # zvariant 5.13.0 miscompiles once the daemon's `zvariant` D-Bus features unify onto the same
+      # build — a combination that only arises here, where fprintd is real. fp3 is a pure,
+      # platform-independent crate fully covered by the check job, so excluding it keeps the conflict
+      # out while the rest of the workspace still builds with every feature.
       # Separate steps, so a failure names itself.
       - name: Clippy the whole workspace (incl. shim & daemon)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          cargo clippy --workspace --all-targets --all-features --exclude fprint-fp3 -- -D warnings
       - name: Test the whole workspace (incl. shim & daemon)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
-          cargo test --workspace --all-features
+          cargo test --workspace --all-features --exclude fprint-fp3
       # The `check` job documents everything that builds off Linux. These two only build here,
       # so this is the only place their intra-doc links can be checked at all.
       - name: Rustdoc (Linux-only crates, warnings are errors)

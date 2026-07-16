@@ -61,7 +61,10 @@ run = "docker compose -f docker/docker-compose.yml build"
 
 [tasks.docker-test]
 description = "Run the whole workspace test suite (incl. Linux-only crates) in the container"
-run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test --workspace --all-features"
+# `--exclude fprint-fp3`: its dev-only GVariant oracle pulls `zvariant/gvariant`, which upstream
+# zvariant miscompiles once the daemon's `zvariant` D-Bus features unify onto the same build (only on
+# Linux, where fprintd is real). fp3 is pure and fully covered by the Windows/macOS `check` job.
+run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test --workspace --all-features --exclude fprint-fp3"
 
 [tasks.docker-shell]
 description = "Interactive shell in the Linux dev container (repo bind-mounted at /work)"
