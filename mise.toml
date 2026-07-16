@@ -89,3 +89,7 @@ run = "cargo xtask mindtct-oracle"
 [tasks.fuzz]
 description = "DELIBERATE: fuzz one target in the nightly container (`fuzz <target> [seconds]`)"
 run = "cargo xtask fuzz"
+
+[tasks.publish-check]
+description = "Check the published crates against the registry's rules: licence, deps, contents"
+run = "cargo xtask publish-check"

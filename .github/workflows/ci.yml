@@ -20,6 +20,9 @@
 #               libfprint stack declare 1.85 themselves (the pinned FFI binding is
 #               `edition = "2024"`) and are covered by `linux`. `--locked`, so the check is not
 #               against a moving dependency graph.
+#  * `publish`— the published crates against the registry's own rules. `reuse lint` accepts a
+#               custom LicenseRef-* identifier and crates.io does not, so a green REUSE run is no
+#               evidence a crate can leave the workspace. See xtask/src/publish.rs.
 #  * `reuse`  — SPDX/REUSE license compliance.
 
 name: CI
@@ -118,6 +121,16 @@ jobs:
         run: >
           cargo check --locked
           -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native
+
+  publish:
+    name: publish-check (the registry's rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check the published crates package, strip and ship what they claim
+        run: cargo xtask publish-check
 
   reuse:
     name: reuse lint

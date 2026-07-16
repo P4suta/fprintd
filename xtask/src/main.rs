@@ -18,6 +18,7 @@ mod docker;
 mod fuzz;
 mod lint;
 mod oracle;
+mod publish;
 mod references;
 mod sloc;
 mod unit;
@@ -38,6 +39,7 @@ fn main() -> ExitCode {
 
     let result = match task.as_deref() {
         Some("lint") => lint::check(&root),
+        Some("publish-check") => publish::check(&root),
         Some("unit-verify") => unit::verify(&root),
         Some("sloc") => sloc::measure(&root),
         Some("clone-ref") => references::clone_upstream(&root),
@@ -83,6 +85,7 @@ fn usage() -> String {
         "",
         "tasks:",
         "  lint               repository rules a compiler does not enforce",
+        "  publish-check      check the published crates against the registry's rules",
         "  unit-verify        check the systemd unit parses, and that Alias= takes the seat",
         "  sloc               M0: measure upstream libfprint by subsystem",
         "  clone-ref          clone the upstream C we read (libfprint, fprintd, the binding)",
