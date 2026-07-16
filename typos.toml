@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# What `typos` must not flag. Without it the pre-commit hook reports 122 errors and not one of them
+# is a typo: a check that fires on correct code gets switched off, so this file is what keeps that
+# one worth reading.
+#
+# Every entry is a name the NBIS C already chose. Nothing here is a word this project writes — where
+# the spelling was ours it was reworded instead (`mis-read` → `read wrong`), because allowing a
+# fragment like `mis` would allow every `mis-anything` after it, and a list that grows is a list
+# that stops meaning anything. A real misspelling gets fixed, never listed.
+#
+# `extend-identifiers`, not `extend-words`: an identifier must match whole. `LfsParms` is allowed;
+# `Parms` inside some future name is not.
+
+[files]
+# The MINDTCT corpus is raw 8-bit fingerprint images — bytes, not prose. Read as text, the pixel
+# data spells letter pairs (`Pn`, `Iy`, `Ue`, `Fo`, ...) and each one is reported: thousands of
+# errors about an image. The BOZORTH3 `.xyt` fixtures are decimal integers and read fine.
+extend-exclude = ["crates/fprint-mindtct/tests/fixtures/*.raw"]
+
+[default.extend-identifiers]
+LfsParms = "LfsParms"             # the parameter block — `lfs.h`
+binar = "binar"                   # `binar.c`, cited by the binarization port's docs
+iy = "iy"                         # image row index, paired with `ix` — the ports walk stock's grid
+match_2nd_pair = "match_2nd_pair" # `matchpat.c` L122

@@ -228,7 +228,7 @@ mod tests {
     // Frozen GLib-normal-form bytes, captured from a zvariant-based encoder whose output was
     // validated against libfprint's framing. They are the oracle: the encoder must reproduce
     // each byte-for-byte. Shapes with a zero-minutia sample carry no golden here — that
-    // encoder mis-framed them — and are covered by the round-trip tests instead.
+    // encoder framed them wrong — and are covered by the round-trip tests instead.
 
     /// (a) full NBIS: all metadata, samples of counts 2/1/3, a real enroll date.
     const GOLDEN_NBIS_FULL: &[u8] = &[

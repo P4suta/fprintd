@@ -195,10 +195,10 @@ fn dft_power_stats(
     let mut pownorms = vec![0.0_f64; nstats];
 
     for (i, w) in (fw..tw).enumerate() {
-        let (pm, pd, pn) = get_max_norm(&powers[w as usize], ndirs);
+        let (pm, pd, pnorm) = get_max_norm(&powers[w as usize], ndirs);
         powmaxs[i] = pm;
         powmax_dirs[i] = pd;
-        pownorms[i] = pn;
+        pownorms[i] = pnorm;
     }
 
     let wis = sort_dft_waves(&powmaxs, &pownorms);
@@ -1328,11 +1328,11 @@ mod tests {
     fn get_max_norm_picks_first_max() {
         // Power peaks at dir 2; ties keep the first index.
         let pv = vec![1.0, 2.0, 9.0, 9.0, 1.0, 1.0, 1.0, 1.0];
-        let (pm, pd, pn) = get_max_norm(&pv, 8);
+        let (pm, pd, pnorm) = get_max_norm(&pv, 8);
         assert_eq!(pm, 9.0);
         assert_eq!(pd, 2); // first of the two 9.0 peaks
         let powsum: f64 = pv.iter().sum();
-        assert!((pn - 9.0 / (powsum.max(MIN_POWER_SUM) / 8.0)).abs() < 1e-12);
+        assert!((pnorm - 9.0 / (powsum.max(MIN_POWER_SUM) / 8.0)).abs() < 1e-12);
     }
 
     // --- Full pipeline on a flat image: every block is low contrast ---------------------------

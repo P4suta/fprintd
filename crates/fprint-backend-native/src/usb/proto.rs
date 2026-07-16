@@ -85,7 +85,7 @@ pub fn parse_frame_header(bytes: &[u8]) -> Result<(usize, usize)> {
 /// The chunks are concatenated in order (a real sensor streams the image in several bulk-in
 /// transfers) and the total must be exactly `width * height` bytes. Errors with [`Error::Protocol`]
 /// on a geometry overflow or a length mismatch, so a truncated or overrun transfer is rejected
-/// rather than silently producing a mis-shaped frame.
+/// rather than silently producing a frame of the wrong shape.
 pub fn assemble_frame(chunks: &[&[u8]], width: usize, height: usize, ppi: u16) -> Result<Frame> {
     let expected = width
         .checked_mul(height)

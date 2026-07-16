@@ -110,7 +110,7 @@ fn frame_from_raw(data: Vec<u8>, width: usize, height: usize, ppi: u16) -> Resul
 /// `<maxval>` single-whitespace `<binary pixels>`, with `#` comment lines permitted anywhere in
 /// the header (skipped to end of line). Only 8-bit images (`maxval <= 255`) are supported, since
 /// [`Frame`] is 8-bit; a larger `maxval` (16-bit big-endian samples) is rejected rather than
-/// silently mis-read.
+/// silently read wrong.
 fn parse_pgm(bytes: &[u8], ppi: u16) -> Result<Frame> {
     let mut cur = 0usize;
 

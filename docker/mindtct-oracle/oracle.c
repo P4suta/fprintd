@@ -116,10 +116,10 @@ static void write_xyt(const char *path, const MINUTIAE *minutiae, int iw, int ih
     }
     for (int i = 0; i < minutiae->num; i++) {
         MINUTIA *m = minutiae->list[i];
-        int ox, oy, ot, oq;
-        lfs2nist_minutia_XYT(&ox, &oy, &ot, m, iw, ih);
-        oq = sround(m->reliability * 100.0);
-        fprintf(fp, "%d %d %d %d\n", ox, oy, ot, oq);
+        int out_x, out_y, out_theta, out_qual;
+        lfs2nist_minutia_XYT(&out_x, &out_y, &out_theta, m, iw, ih);
+        out_qual = sround(m->reliability * 100.0);
+        fprintf(fp, "%d %d %d %d\n", out_x, out_y, out_theta, out_qual);
     }
     fclose(fp);
 }
