@@ -42,6 +42,7 @@ rust-version = "1.82"
 license = "MIT OR Apache-2.0"                                 # one licence for the whole tree; the NBIS ports are faithful ports of a public-domain source, which grants without demanding
 authors = ["Yasunobu Sakashita <crates.tank733@slmails.com>"]
 repository = "https://github.com/P4suta/fprintd"
+homepage = "https://github.com/P4suta/fprintd"
 
 [workspace.dependencies]
 # Internal crates. Published members carry `version` alongside `path`: crates.io rejects a
@@ -70,11 +71,11 @@ lto = "thin"
 # the same and the codegen is the whole difference. Three CI runners and every `mise run mutants`
 # mutant pay it.
 #
-# `opt-level` alone. `debug_assertions` and `overflow-checks` are separate switches and stay on,
-# which is load-bearing: `tests/totality.rs` pins two unfixed `i32` overflows with `#[should_panic]`,
-# and they panic only while those checks are on. Debuginfo stays too — trimming it measured slower,
-# not faster, and a test failure wants the backtrace. `[profile.dev]` is untouched: `cargo build` and
-# a debugger want the opposite trade, and nothing here reaches them.
+# `opt-level` alone: this profile changes nothing else. `debug_assertions` and `overflow-checks` keep
+# their test defaults (on) — a cheap correctness net with no reason to disable. The matcher squares its
+# coordinate and angle deltas in `i64`, so no test relies on a checked overflow. Debuginfo stays too —
+# trimming it measured slower, not faster, and a test failure wants the backtrace. `[profile.dev]` is
+# untouched: `cargo build` and a debugger want the opposite trade, and nothing here reaches them.
 [profile.test]
 opt-level = 2
 

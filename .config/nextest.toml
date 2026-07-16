@@ -6,6 +6,13 @@
 # deterministic; a nondeterministic one is a bug to fix, not to retry away.
 retries = 0
 
+# Every test here runs in well under a second; the slowest (BOZORTH3 on its worst input, MINDTCT over
+# the corpus) is a couple of seconds. A test crossing 60s has hung, not slowed down — a non-terminating
+# input is the failure mode this suite guards against (`fprint-mindtct/tests/bounds.rs::noise_terminates`).
+# Terminate it so a reintroduced hang fails the run fast instead of stalling the runner until the job
+# timeout. `cargo test` has no such guard, which is why the check lives here.
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
 final-status-level = "flaky"
 

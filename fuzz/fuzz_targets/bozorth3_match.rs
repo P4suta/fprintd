@@ -20,26 +20,14 @@
 //!
 //! So a crash is the finding here, and determinism is the cheap oracle riding along.
 //!
-//! ## The two known overflows, and why this target stays clear of both
-//!
-//! `crates/fprint-bozorth3/tests/totality.rs` records **two** `i32` overflow panics, both
-//! deliberately unfixed:
-//!
-//! * `src/intra.rs:44` squares `dx` before the `distance > DM_SQUARED` guard can reject the pair,
-//!   so a print spanning more than 46340 pixels panics.
-//! * `src/inter.rs:54` squares a relative angle that a far-out `theta` leaves unfolded, so a
-//!   `theta` past ±46340 panics.
-//!
-//! Both are known. A target that re-finds them reports nothing. [`FIELD`] keeps every coordinate
-//! inside `0..=400`, and `gen::xyt` draws `theta` from `0..=359` (`gen::xyt_jittered` folds it with
-//! `rem_euclid`), so neither multiply can reach its bound and **every crash this target reports is
-//! a new one**.
-//!
 //! ## Why the input is bounded the way it is
 //!
 //! [`FIELD`] is 400 because `DM` is 125: an edge longer than that is discarded, so minutiae
 //! scattered over a field much wider than a finger form no edges at all and the pipeline is
-//! skipped. A 40000-wide field would satisfy the overflow bound above and score a constant 0.
+//! skipped. A 40000-wide field would score a constant 0 — no edge survives — so widening it buys no
+//! coverage. `match_score` squares its coordinate and angle deltas in `i64` (`src/intra.rs`,
+//! `src/inter.rs`), so an extreme span or an unfolded `theta` yields a well-defined score rather than
+//! an overflow; the field bound is about coverage and runtime, not about staying clear of a panic.
 //!
 //! [`MIN_SEPARATION`] and [`MAX_MINUTIAE`] bound the *density*, which is what bounds the runtime.
 //! Coincident minutiae make every pair a zero-length, mutually compatible edge; stage 2 then
