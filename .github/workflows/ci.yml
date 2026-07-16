@@ -63,10 +63,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Rustfmt
         run: cargo fmt --all --check
-      - name: Clippy (workspace, all targets)
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test (workspace)
-        run: cargo test --workspace
+      # `--all-features` here is about the platform axis, not the feature axis: Linux already
+      # covers the feature space, but nothing else compiles fprint-backend-native's `usb` seam
+      # (nusb) — so a contributor taking up that invitation on this project's own primary dev
+      # platform would be the first to find it broken.
+      - name: Clippy (workspace, all targets, all features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test (workspace, all features)
+        run: cargo test --workspace --all-features
       # Strict rustdoc for the cross-platform library surface (the public face). The two Linux-only
       # crates document in the `linux` job, where their cfg-gated modules and deps compile.
       - name: Rustdoc (library crates, warnings are errors)
@@ -79,8 +83,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build the pinned libfprint dev image
-        run: docker compose -f docker/docker-compose.yml build
+      # The image builds libfprint v1.94.10 from source. Without an exported cache that happens on
+      # every run, because runners share nothing — several minutes to rebuild a byte-identical
+      # pinned image. docker-compose.yml already names `fp-rs-dev`, so every `run` below picks this
+      # up with no further change.
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: fp-rs-dev
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
       # Separate steps, so a failure names itself.
       - name: Clippy the whole workspace (incl. shim & daemon)
         run: >
