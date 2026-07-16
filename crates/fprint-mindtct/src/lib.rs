@@ -294,14 +294,9 @@ fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
 /// The reliability that becomes each minutia's `quality` is derived from the **original** 8-bit image
 /// (the unpadded pixels) and the block maps at the scan resolution `ppmm = ppi / 25.4`, exactly as
 /// stock `combined_minutia_quality` consumes `idata`. Returns an empty list on the (size) error paths
-/// the pipeline can surface — including a degenerate image (any zero dimension, or one too small to
-/// carry a single block).
-///
-/// # Panics
-///
-/// The buffer length is not a panic source — [`GrayImage::new`] guarantees it. An image with either
-/// dimension under 25 pixels can panic in the block-map window clamp; a realistic fingerprint is far
-/// outside that band.
+/// the pipeline can surface — a degenerate image (any zero dimension), one too small to carry a single
+/// block, or one too small to place the block-map window (a dimension under 25 pixels). A realistic
+/// fingerprint is far outside those bands.
 ///
 /// # Examples
 ///

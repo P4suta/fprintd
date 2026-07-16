@@ -30,16 +30,11 @@
 //! practice — libFuzzer's default `-max_len` is 4096, so an accepted image is about 64×64 unless
 //! the corpus is run with a larger one.
 //!
-//! ## The known panic band
-//!
-//! This target found a bug — an image with either dimension under 25 inverts the window clamp at
-//! `src/maps.rs:329` and can index a padded image with a wrapped negative offset — and
-//! [`in_the_known_panic_band`] now steps around it, so the search hunts unknown bugs rather than
-//! re-reporting a recorded one. That is the same reason `bozorth3_match` bounds its coordinates.
-//!
-//! `crates/fprint-mindtct/tests/regressions.rs` owns the finding: it states the arithmetic, pins
-//! both landing sites and both edges, and being a `#[test]` it holds whether or not anyone runs
-//! this target again. **Narrow the skip the moment the clamp is fixed.**
+//! An image with a dimension under 25 pixels cannot carry the block-map window, so `detect_minutiae`
+//! answers with the empty list its size-error contract promises (`crates/fprint-mindtct/src/maps.rs`
+//! rejects it, `crates/fprint-mindtct/tests/regressions.rs` pins the boundary). The validity
+//! assertions below hold vacuously over that empty list, so the target fuzzes the whole size domain
+//! without a special case.
 //!
 //! ## Limits
 //!
@@ -62,20 +57,6 @@ const MAX_DIM: i32 = 512;
 /// The scan resolution every fixture and every `validity.rs` case uses.
 const PPI: u16 = 500;
 
-/// The panic this target already found, as `crates/fprint-mindtct/tests/regressions.rs` records it:
-/// `src/maps.rs:329` clamps the window origin with `.max(min).min(max)`, and below 25 pixels the
-/// two limits invert, so `.min()` wins and can drive the offset negative.
-///
-/// This is the geometric condition for the *inverted clamp*, not for the panic: most shapes in here
-/// survive. It is skipped whole because everything in it computes an offset the port cannot be
-/// trusted with, so a crash from inside would be the recorded bug wearing a new stack trace.
-///
-/// Nothing outside it panicked across the sweep in `tests/regressions.rs`, so the search still
-/// covers every shape a reader produces. **Narrow this the moment the clamp is fixed.**
-fn in_the_known_panic_band(width: usize, height: usize) -> bool {
-    width >= 8 && height >= 8 && (width < 25 || height < 25)
-}
-
 fuzz_target!(|data: &[u8]| {
     let mut u = Unstructured::new(data);
     let (width, height) = {
@@ -94,9 +75,6 @@ fuzz_target!(|data: &[u8]| {
     if needed > pixels.len() {
         // Short buffer: a documented precondition violation, and `tests/bounds.rs` already owns the
         // panic it causes.
-        return;
-    }
-    if in_the_known_panic_band(width, height) {
         return;
     }
 

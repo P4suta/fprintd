@@ -317,6 +317,16 @@ fn gen_initial_maps(
     let xmaxlimit = pw - dftgrids.pad - lfsparms.windowsize - 1;
     let ymaxlimit = ph - dftgrids.pad - lfsparms.windowsize - 1;
 
+    // A window origin must exist between the min and max limits. For an image with a dimension under
+    // `windowsize + 1` the max limit falls below the min — there is nowhere to place the
+    // `windowsize × windowsize` low-contrast window clear of the padding — and clamping to an inverted
+    // range would drive the origin negative, indexing a wrapped offset. Surface it as the size error
+    // the front-end already answers with an empty minutiae list, exactly as `block_offsets` rejects an
+    // image smaller than a single block.
+    if xmaxlimit < xminlimit || ymaxlimit < yminlimit {
+        return Err(-82);
+    }
+
     for bi in 0..bsize {
         // Adjust block offset from block origin to surrounding window origin.
         let dft_offset = blkoffs[bi] - (lfsparms.windowoffset * pw) - lfsparms.windowoffset;
