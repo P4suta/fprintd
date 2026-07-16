@@ -12,8 +12,9 @@
 //!
 //! ## Reproduction guarantee (and its one honest limit)
 //!
-//! The compatibility tables (stages 1–2) are **bit-identical** to the reference (verified: the
-//! `(probe_web_len, gallery_web_len, num_edges)` triple matches exactly), and the score matches
+//! The compatibility tables (stages 1–2) are **bit-identical** to the reference — the
+//! `(probe_web_len, gallery_web_len, num_edges)` triple is frozen in `stages.tsv` and checked here
+//! by [`stage1_web_lengths_match_stock`] and [`stage2_edge_count_matches_stock`] — and the score matches
 //! **exactly** on every non-trivial match — including the largest, most cluster-heavy ones. A
 //! handful of tiny near-tolerance-boundary pairs can differ by **±1**, because the *reference itself
 //! is not deterministic there*: stock `bz_match_score` reads uninitialized stack locals in a rare
@@ -23,11 +24,23 @@
 //! and is ≤1 from the other. Those pairs are enumerated in [`REFERENCE_UNSTABLE`]; every other pair
 //! must match to the integer, and no divergence may exceed 1 — a precise regression guard, not a
 //! blanket tolerance.
+//!
+//! The stage tests are what make that limit an argument rather than a hope: they hold on **every**
+//! pair, including the three in [`REFERENCE_UNSTABLE`]. Stages 1–2 exact and only the score
+//! divergent confines the divergence to `bz_match_score`, which is where the reference's
+//! uninitialized read is. Without them, a bug in stage 1 that happened to shift those three scores
+//! by 1 would be indistinguishable from the known UB.
+//!
+//! Each stage is its own `#[test]` so a divergence names the stage it happened in; the score test
+//! alone can only say a number changed.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use fprint_bozorth3::{match_score, Minutia};
+use fprint_bozorth3::{debug_pipeline, match_score, Minutia};
+
+/// Cap on reported divergences: the first few localize the bug, and a wall of them does not.
+const MAX_REPORT: usize = 12;
 
 /// Pairs where the stock C reference is itself build-nondeterministic (uninitialized-read UB in
 /// `bz_match_score`), so its score is only defined up to ±1. Our deterministic result may differ
@@ -52,6 +65,82 @@ fn load_xyt(path: &Path) -> Vec<Minutia> {
             Minutia { x, y, theta }
         })
         .collect()
+}
+
+/// One pipeline's `(probe_web_len, gallery_web_len, num_edges)` — the triple `stages.tsv` freezes.
+type StageSizes = (usize, usize, usize);
+
+/// Every pair's [`StageSizes`], ours beside the stock C's.
+///
+/// `stages.tsv` is written by the oracle's `BOZORTH3_DUMP_STAGES` driver, which calls the same
+/// `bozorth_probe_init` / `bozorth_gallery_init` / `bz_match` that `bozorth_main` does.
+fn stage_sizes() -> Vec<(String, StageSizes, StageSizes)> {
+    let dir = fixtures_dir();
+    let stages_text = std::fs::read_to_string(dir.join("stages.tsv"))
+        .expect("stages.tsv missing — run `mise run bozorth3-oracle`");
+    let want: BTreeMap<&str, StageSizes> = stages_text
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| {
+            let mut it = l.split('\t');
+            let tag = it.next().expect("bad stages.tsv line");
+            let mut n = || {
+                it.next()
+                    .expect("bad stages.tsv line")
+                    .trim()
+                    .parse()
+                    .unwrap()
+            };
+            (tag, (n(), n(), n()))
+        })
+        .collect();
+
+    let pairs_text = std::fs::read_to_string(dir.join("pairs.txt")).expect("pairs.txt missing");
+    let mut out = Vec::new();
+    for line in pairs_text.lines().filter(|l| !l.trim().is_empty()) {
+        let mut it = line.split_whitespace();
+        let tag = it.next().unwrap();
+        let probe = load_xyt(&dir.join(it.next().unwrap()));
+        let gallery = load_xyt(&dir.join(it.next().unwrap()));
+        let got = debug_pipeline(&probe, &gallery);
+        let want = *want
+            .get(tag)
+            .unwrap_or_else(|| panic!("no expected stage sizes for {tag}"));
+        out.push((tag.to_string(), got, want));
+    }
+    assert!(!out.is_empty(), "no pairs checked — corpus missing?");
+    out
+}
+
+/// Report the first [`MAX_REPORT`] divergences of one stage, or pass.
+fn assert_stage(stage: &str, pick: impl Fn(StageSizes) -> usize) {
+    let sizes = stage_sizes();
+    let checked = sizes.len();
+    let diverged: Vec<String> = sizes
+        .iter()
+        .filter(|(_, got, want)| pick(*got) != pick(*want))
+        .take(MAX_REPORT)
+        .map(|(tag, got, want)| format!("{tag}: got {}, want {}", pick(*got), pick(*want)))
+        .collect();
+    assert!(
+        diverged.is_empty(),
+        "{stage} diverges from stock NBIS on {}+ of {checked} pairs:\n  {}",
+        diverged.len(),
+        diverged.join("\n  ")
+    );
+}
+
+#[test]
+fn stage1_web_lengths_match_stock() {
+    // The pruned Web length is bz_comp + bz_find + the FDD floor. Both prints, so a probe-only
+    // divergence cannot hide behind a matching gallery.
+    assert_stage("stage 1 probe web length", |(p, _, _)| p);
+    assert_stage("stage 1 gallery web length", |(_, g, _)| g);
+}
+
+#[test]
+fn stage2_edge_count_matches_stock() {
+    assert_stage("stage 2 compatible edge count", |(_, _, n)| n);
 }
 
 #[test]

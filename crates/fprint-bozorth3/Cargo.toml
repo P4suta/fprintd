@@ -21,3 +21,9 @@ authors.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# Deterministic xyt generation for the property and totality suites. Version-less so `cargo publish`
+# strips it: `fprint-testkit` is `publish = false`, and `cargo xtask publish-check` proves it is
+# absent from this crate's packaged manifest.
+fprint-testkit = { workspace = true }

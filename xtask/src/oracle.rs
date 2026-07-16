@@ -67,7 +67,10 @@ pub fn regenerate(root: &Path, oracle: Oracle) -> Result<(), String> {
     gen_corpus(root, oracle, &fixtures)?;
     let binary = compile(root, oracle, &stock)?;
     match oracle {
-        Oracle::Bozorth3 => score_bozorth3(root, &binary, &fixtures),
+        Oracle::Bozorth3 => {
+            score_bozorth3(root, &binary, &fixtures)?;
+            dump_stages_bozorth3(root, &binary, &fixtures)
+        }
         Oracle::Mindtct => detect_mindtct(root, &binary, &fixtures),
     }
 }
@@ -212,6 +215,42 @@ fn score_bozorth3(root: &Path, binary: &Path, fixtures: &Path) -> Result<(), Str
     println!(
         "xtask: wrote {} ({} scores)",
         expected.display(),
+        lines.len()
+    );
+    Ok(())
+}
+
+/// Freeze the per-pair stage-1/stage-2 sizes.
+///
+/// A second run rather than an extra column on [`score_bozorth3`]: that task's stdout *is*
+/// `expected.tsv`, so anything more printed there would move a golden. One run, one artifact —
+/// which makes `expected.tsv` byte-identical by construction rather than by inspection.
+///
+/// The triple is what `docs/bozorth3-algorithm.md` claims is bit-identical to the reference on
+/// every pair. Frozen here, that claim is checked rather than asserted, and with it the argument
+/// that the ±1 score residual is confined to `bz_match_score`.
+fn dump_stages_bozorth3(root: &Path, binary: &Path, fixtures: &Path) -> Result<(), String> {
+    println!("xtask: dumping the stage-1/stage-2 sizes");
+    let stdout = Run::new(GCC_IMAGE)
+        .env("BOZORTH3_DUMP_STAGES", "1")
+        .arg(container_path(&relative_to(root, binary)?))
+        .arg(container_path(&relative_to(root, fixtures)?))
+        .arg(container_path(&relative_to(
+            root,
+            &fixtures.join("pairs.txt"),
+        )?))
+        .output(root)?;
+
+    let mut lines: Vec<&str> = stdout.lines().map(str::trim_end).collect();
+    lines.sort_unstable();
+    let stages = fixtures.join("stages.tsv");
+    let mut body = lines.join("\n");
+    body.push('\n');
+    std::fs::write(&stages, body).map_err(|e| format!("write {}: {e}", stages.display()))?;
+
+    println!(
+        "xtask: wrote {} ({} triples)",
+        stages.display(),
         lines.len()
     );
     Ok(())
