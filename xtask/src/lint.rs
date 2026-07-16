@@ -36,11 +36,11 @@ const NARRATION: [&str; 10] = [
 /// tasks, anything longer belongs in this crate, where a compiler reads it.
 const SHELL_IN_TASKS: [&str; 5] = ["&&", "||", "bash -c", "set -e", "$("];
 
-struct Finding {
-    file: PathBuf,
-    line: usize,
-    rule: &'static str,
-    text: String,
+pub(crate) struct Finding {
+    pub(crate) file: PathBuf,
+    pub(crate) line: usize,
+    pub(crate) rule: &'static str,
+    pub(crate) text: String,
 }
 
 pub fn check(root: &Path) -> Result<(), String> {
@@ -48,6 +48,7 @@ pub fn check(root: &Path) -> Result<(), String> {
     no_shell_scripts(root, &mut findings)?;
     no_shell_in_tasks(root, &mut findings)?;
     no_narration(root, &mut findings)?;
+    crate::deps::check(root, &mut findings)?;
 
     if findings.is_empty() {
         println!("xtask: repository rules ok");

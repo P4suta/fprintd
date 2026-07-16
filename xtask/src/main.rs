@@ -13,6 +13,7 @@
 
 #![forbid(unsafe_code)]
 
+mod deps;
 mod docker;
 mod fuzz;
 mod lint;
