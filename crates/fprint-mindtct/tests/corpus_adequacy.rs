@@ -31,6 +31,7 @@
 //!   structurally zero rather than a gap in the corpus — [`STAGE_NAMES`] records that.
 
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use fprint_mindtct::{debug_removal_tally, GrayImage};
 
@@ -113,17 +114,32 @@ fn image_tally(name: &str) -> [usize; 10] {
     })
 }
 
+/// Every corpus image's [`image_tally`], run once for the whole binary — `(name, tally)` in
+/// `manifest.txt` order.
+///
+/// All three tests here read the same counts for the same images: two want the sum, one wants them
+/// per image. `debug_removal_tally` runs the detector, so computing it per test spends 39 runs on
+/// what 13 answer. The tally is a pure function of a frozen fixture.
+static TALLIES: LazyLock<Vec<(String, [usize; 10])>> = LazyLock::new(|| {
+    let tallies: Vec<(String, [usize; 10])> = corpus_names()
+        .into_iter()
+        .map(|name| {
+            let tally = image_tally(&name);
+            (name, tally)
+        })
+        .collect();
+    assert!(!tallies.is_empty(), "no images checked — corpus missing?");
+    tallies
+});
+
 /// Sum the per-stage drop counts over the whole corpus.
 fn corpus_tally() -> [usize; 10] {
     let mut total = [0usize; 10];
-    let mut checked = 0usize;
-    for name in corpus_names() {
-        for (slot, n) in image_tally(&name).iter().enumerate() {
+    for (_, tally) in TALLIES.iter() {
+        for (slot, n) in tally.iter().enumerate() {
             total[slot] += n;
         }
-        checked += 1;
     }
-    assert!(checked > 0, "no images checked — corpus missing?");
     total
 }
 
@@ -172,8 +188,7 @@ fn corpus_blind_stages_are_still_blind() {
 /// This is a structural property of stage 1, so it is checked per image rather than on the sum.
 #[test]
 fn sort_stage_never_changes_the_list_length() {
-    for name in corpus_names() {
-        let tally = image_tally(&name);
+    for (name, tally) in TALLIES.iter() {
         assert_eq!(
             tally[0], 0,
             "{name}: the sort stage dropped {} minutia(e); it must only permute",

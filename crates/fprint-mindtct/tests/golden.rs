@@ -22,7 +22,9 @@
 //! `#[test]` so a divergence localizes to the offending stage; failure messages name the image, the
 //! `(bx, by)` block, and the `got`/`want` pair, capped so a wholesale divergence stays readable.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use fprint_mindtct::{
     debug_maps, debug_raw_minutiae, debug_removed_minutiae, detect_minutiae, DebugMaps, GrayImage,
@@ -128,6 +130,35 @@ fn run_port(name: &str) -> DebugMaps {
     debug_maps(img)
 }
 
+/// Every corpus image's [`DebugMaps`], run once for the whole binary.
+///
+/// Five of the tests below want the same maps for the same images, and [`run_port`] is the entire
+/// front-end: per-test it runs 95 times to answer what 13 runs answer. The maps are a pure function
+/// of a frozen fixture, so the second run of one is not a second measurement.
+///
+/// ## Honest limit
+///
+/// A panic inside [`run_port`] poisons this, and a test that was not the first to touch it then
+/// reports the poison instead of the panic. That costs a message on one crash and keeps the
+/// localization these tests are built for: a divergence is an assertion failure, and those still
+/// land one per stage.
+static PORTS: LazyLock<BTreeMap<String, DebugMaps>> = LazyLock::new(|| {
+    corpus_names()
+        .into_iter()
+        .map(|name| {
+            let maps = run_port(&name);
+            (name, maps)
+        })
+        .collect()
+});
+
+/// One corpus image's maps, from [`PORTS`].
+fn port(name: &str) -> &'static DebugMaps {
+    PORTS
+        .get(name)
+        .unwrap_or_else(|| panic!("{name}: not in manifest.txt"))
+}
+
 /// Compare one flat block map against its golden dump, exact. Returns a list of human-readable
 /// mismatch descriptions (`(bx,by): got G want W`), capped at `MAX_REPORT` entries plus a count.
 fn diff_map(got: &[i32], gold: &GoldenMap) -> Vec<String> {
@@ -197,7 +228,7 @@ fn assert_map_matches_stock(which: Which) {
     let mut failures: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for name in corpus_names() {
-        let maps = run_port(&name);
+        let maps = port(&name);
         let gold = load_dump_map(&dir.join(format!("{name}.{}", which.ext())));
         // The port's reported geometry must agree with the dump geometry before per-block diffing
         // is meaningful; a mismatch here is reported by this stage too (it gates the comparison).
@@ -214,7 +245,7 @@ fn assert_map_matches_stock(which: Which) {
             checked += 1;
             continue;
         }
-        let diffs = diff_map(which.field(&maps), &gold);
+        let diffs = diff_map(which.field(maps), &gold);
         if !diffs.is_empty() {
             failures.push(format!(
                 "{name} [{}]:\n    {}",
@@ -241,7 +272,7 @@ fn map_dimensions_match_stock() {
     let mut failures: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for name in corpus_names() {
-        let maps = run_port(&name);
+        let maps = port(&name);
         // All four dumps share the block geometry; the direction map's dump is the witness.
         let gold = load_dump_map(&dir.join(format!("{name}.dm")));
         if maps.map_w != gold.w || maps.map_h != gold.h {
@@ -306,7 +337,7 @@ fn binarized_dims_match_stock() {
     let mut failures: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for name in corpus_names() {
-        let maps = run_port(&name);
+        let maps = port(&name);
         let man = load_manifest(&dir.join(format!("{name}.manifest")));
         let bd = load_brwdim(&dir.join(format!("{name}.brwdim")));
         let brw_len = std::fs::metadata(dir.join(format!("{name}.brw")))
@@ -371,7 +402,7 @@ fn binarized_image_matches_stock_where_removal_is_noop() {
             corpus.iter().any(|n| n == name),
             "{name} not in corpus — update BRW_EXACT_IMAGES"
         );
-        let maps = run_port(name);
+        let maps = port(name);
         let bd = load_brwdim(&dir.join(format!("{name}.brwdim")));
         let want = std::fs::read(dir.join(format!("{name}.brw")))
             .unwrap_or_else(|e| panic!("read {name}.brw: {e}"));
@@ -422,7 +453,7 @@ fn binarized_matches_stock() {
     let mut failures: Vec<String> = Vec::new();
     let mut checked = 0usize;
     for name in corpus_names() {
-        let maps = run_port(&name);
+        let maps = port(&name);
         let man = load_manifest(&dir.join(format!("{name}.manifest")));
         let want = std::fs::read(dir.join(format!("{name}.brwpre")))
             .unwrap_or_else(|e| panic!("read {name}.brwpre — run `mise run mindtct-oracle`: {e}"));
