@@ -13,10 +13,14 @@
 
 #![forbid(unsafe_code)]
 
+mod capture_golden;
 mod ci;
 mod deps;
+mod device_db;
 mod docker;
+mod driver_check;
 mod fuzz;
+mod hw_checklist;
 mod lint;
 mod mutants;
 mod oracle;
@@ -49,8 +53,12 @@ fn main() -> ExitCode {
         Some("clone-ref-nbis") => references::clone_nbis(&root),
         Some("bozorth3-oracle") => oracle::regenerate(&root, Oracle::Bozorth3),
         Some("mindtct-oracle") => oracle::regenerate(&root, Oracle::Mindtct),
+        Some("device-db") => device_db::regenerate(&root),
         Some("fuzz") => fuzz_task(&root, args),
         Some("mutants") => mutants::run(&root, args.next()),
+        Some("hw-checklist") => hw_checklist_task(&root, args),
+        Some("driver-check") => driver_check::run(&root, driver_arg(args)),
+        Some("capture-golden") => capture_golden_task(&root, args),
         Some(other) => Err(format!("unknown task `{other}`\n\n{}", usage())),
         None => Err(usage()),
     };
@@ -78,6 +86,35 @@ fn fuzz_task(root: &Path, mut args: impl Iterator<Item = String>) -> Result<(), 
     fuzz::run(root, &target, seconds)
 }
 
+/// `hw-checklist [driver] [--json]`: an optional driver filter and a `--json` flag, in any order.
+fn hw_checklist_task(root: &Path, args: impl Iterator<Item = String>) -> Result<(), String> {
+    let mut driver = None;
+    let mut json = false;
+    for arg in args {
+        match arg.as_str() {
+            "--json" => json = true,
+            other => driver = Some(other.to_string()),
+        }
+    }
+    hw_checklist::run(root, driver, json)
+}
+
+/// `capture-golden <driver> <recording-path>`: both arguments are required.
+fn capture_golden_task(root: &Path, mut args: impl Iterator<Item = String>) -> Result<(), String> {
+    let driver = args
+        .next()
+        .ok_or_else(|| format!("capture-golden: which driver?\n\n{}", usage()))?;
+    let recording = args
+        .next()
+        .ok_or_else(|| format!("capture-golden: which recording?\n\n{}", usage()))?;
+    capture_golden::run(root, &driver, Path::new(&recording))
+}
+
+/// The lone optional positional `[driver]` some tasks take.
+fn driver_arg(mut args: impl Iterator<Item = String>) -> Option<String> {
+    args.next()
+}
+
 fn usage() -> String {
     [
         "usage: cargo xtask <task>",
@@ -92,8 +129,12 @@ fn usage() -> String {
         "  clone-ref-nbis     clone stock NIST NBIS, for the golden oracles",
         "  bozorth3-oracle    regenerate the BOZORTH3 goldens from stock NBIS (DELIBERATE)",
         "  mindtct-oracle     regenerate the MINDTCT goldens from stock NBIS (DELIBERATE)",
+        "  device-db          regenerate the native device DB from libfprint id-tables (DELIBERATE)",
         "  fuzz <target> [s]  fuzz one target in the nightly container (DELIBERATE; default 60s)",
         "  mutants [base]     which lines the tests do not defend (DELIBERATE; [base] = that diff only)",
+        "  hw-checklist       list the pending HW-verified markers ([driver] filters; --json)",
+        "  driver-check       run a native driver's acceptance checks ([driver] scopes)",
+        "  capture-golden     freeze a driver's recording as a golden fixture (<driver> <recording>)",
     ]
     .join("\n")
 }

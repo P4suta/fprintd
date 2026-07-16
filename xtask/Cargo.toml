@@ -20,6 +20,9 @@ cargo_metadata = "0.19"
 # Reads release-plz.toml to check it against the resolved `publish = false` set. Parsing config is
 # not the linter's job to hand-roll.
 toml = "0.8"
+# Reads the JSON `cargo xtask hw-checklist --json` emits, so `driver-check` reports its pending count
+# rather than re-deriving it. Already in the graph behind cargo_metadata, so this pins no new version.
+serde_json = "1"
 
 [lints]
 workspace = true
