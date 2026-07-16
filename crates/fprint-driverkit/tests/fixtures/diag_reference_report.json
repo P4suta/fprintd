@@ -1,0 +1,10 @@
+{
+  "width": 256,
+  "height": 256,
+  "minutiae_count": 17,
+  "mean_reliability": 97.76470588235294,
+  "pixel_mean": 128.0691680908203,
+  "pixel_stdev": 68.00328027567734,
+  "dynamic_range": 226,
+  "foreground_fraction": 1.0
+}

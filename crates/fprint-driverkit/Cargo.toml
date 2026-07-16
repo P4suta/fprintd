@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "fprint-driverkit"
+description = "Developer toolkit (`fpdev`) for bringing up a native driver for an unsupported fingerprint sensor: probe a device, capture and inspect frames, and iterate against the pure-Rust MINDTCT/BOZORTH3 pipeline. A workbench for driver authors, not a shipped binary."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+# A driver-author workbench, not part of the stack: it drives the `publish = false` native backend
+# and makes no semver promise, so it stays off crates.io. Run it with `cargo run -p fprint-driverkit`.
+publish = false
+
+[[bin]]
+name = "fpdev"
+path = "src/main.rs"
+
+[dependencies]
+# The domain model (Print, Template, Finger, the Device trait).
+fprint-core = { workspace = true }
+# The MINDTCT detector: turn a captured frame into minutiae while bringing a sensor up.
+fprint-mindtct = { workspace = true }
+# The BOZORTH3 matcher: score a fresh capture against a reference to prove a driver works.
+fprint-bozorth3 = { workspace = true }
+# The native backend: its USB wire types and frame helpers are what a new driver is written against.
+# The `serde` feature makes its `Session` model (de)serializable so a capture round-trips as a
+# `.cassette`.
+fprint-backend-native = { workspace = true, features = ["serde"] }
+# Argument parsing (derive).
+clap = { version = "4", features = ["derive"] }
+# Styled terminal output for the interactive bring-up flows.
+owo-colors = "4"
+# Deriving the cassette model's own wrappers and reading the ids a captured session carries.
+serde = { version = "1", features = ["derive"] }
+# The `.cassette` on-disk form: pretty JSON with hex byte payloads, human-diffable in a review.
+serde_json = "1"
+# Parsing a `.pcapng` USB capture (Wireshark/usbmon/USBPcap export) into a session on `fpdev import`.
+pcap-file = "2"
+# Decoding a captured frame to a PNG and reading raw pixel buffers on `fpdev frame`.
+image = "0.25"
+# Drawing minutiae markers, orientation ticks, and glyphs onto a diagnostic overlay (`image` 0.25).
+imageproc = "0.25"
+# The optional text-UI for `fpdev doctor`: an in-terminal dashboard over the same diagnostics.
+ratatui = "0.29"
+# Terminal setup and input events behind the `doctor` TUI (the backend `ratatui` renders onto).
+crossterm = "0.28"
+# Reading little/big-endian scalars out of a raw capture buffer.
+byteorder = "1"
+# Drive the backend's `async` USB transport to completion in `fpdev shell` with no runtime, the same
+# minimal executor `fprint-cli` uses.
+pollster = "0.4"
+
+[features]
+# Off by default: `fpdev shell` runs its offline dry-run backend with no USB stack. `usb` turns on
+# the live seam, forwarding to the backend's real `nusb`-backed transport (HW-verified: required).
+default = []
+usb = ["fprint-backend-native/usb"]
+
+[lints]
+workspace = true

@@ -26,6 +26,10 @@ name = "fprint-cli"
 release = false
 
 [[package]]
+name = "fprint-driverkit"
+release = false
+
+[[package]]
 name = "fprint-backend-native"
 release = false
 

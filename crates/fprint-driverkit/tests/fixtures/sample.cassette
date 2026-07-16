@@ -1,0 +1,35 @@
+{
+  "device": {
+    "vid": 5002,
+    "pid": 17
+  },
+  "transfers": [
+    {
+      "Control": {
+        "request_type": 64,
+        "request": 1,
+        "value": 0,
+        "index": 0,
+        "data": "02ff"
+      }
+    },
+    {
+      "BulkOut": {
+        "ep": 2,
+        "data": "50"
+      }
+    },
+    {
+      "BulkIn": {
+        "ep": 129,
+        "data": "01fe04000200"
+      }
+    },
+    {
+      "BulkIn": {
+        "ep": 129,
+        "data": "1020304050607080"
+      }
+    }
+  ]
+}

@@ -60,6 +60,15 @@ const ALLOWED: &[(&str, &[&str])] = &[
             "fprint-backend-native",
         ],
     ),
+    (
+        "fprint-driverkit",
+        &[
+            "fprint-core",
+            "fprint-mindtct",
+            "fprint-bozorth3",
+            "fprint-backend-native",
+        ],
+    ),
     ("fprint-backend-libfprint", &["fprint-core", "fprint-fp3"]),
     (
         "fprint-integration",

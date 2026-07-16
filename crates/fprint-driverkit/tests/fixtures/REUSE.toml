@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The `fpdev import`/`replay`/`diag` test fixtures are hand-authored capture and cassette blobs plus
+# the `diag` goldens, all carrying no inline SPDX header: a synthesized pcapng, a classic pcap, and
+# usbmon text logs of one bring-up exchange, a recorded `.cassette`, and the `diag` reference overlay
+# (PNG) and report (JSON). They are synthesized here — no sensor produced them — and encode only
+# interoperability facts, so they are ours under the crate's own license.
+
+version = 1
+
+[[annotations]]
+path = ["*.pcapng", "*.pcap", "*.txt", "*.cassette", "*.png", "*.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
+SPDX-License-Identifier = "MIT OR Apache-2.0"

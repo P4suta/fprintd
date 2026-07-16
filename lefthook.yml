@@ -52,7 +52,7 @@ pre-commit:
     rustdoc:
       tags: lint
       glob: "*.rs"
-      run: cargo doc --no-deps -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native -p fprint-integration
+      run: cargo doc --no-deps -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native -p fprint-integration -p fprint-driverkit
       env:
         RUSTDOCFLAGS: -D warnings
 
