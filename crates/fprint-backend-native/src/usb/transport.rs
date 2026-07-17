@@ -9,7 +9,7 @@
 //! `#[cfg(feature = "usb")]` so a default build has no USB dependency; a scripted mock over the same
 //! trait exercises the driver offline (see the `mock_tests` module).
 //!
-//! **Hardware verification.** [`NusbTransport`]'s method bodies map onto `nusb` 0.1's transfer API,
+//! **Hardware verification.** [`NusbTransport`]'s method bodies map onto `nusb` 0.2's transfer API,
 //! but no byte of real I/O — nor the precise `nusb` call shapes — can be confirmed without a
 //! physical Validity sensor. The whole `NusbTransport` block is therefore marked "HW-verified:
 //! required": it is the best compilable rendering of the intended calls, to be reconciled against
@@ -73,7 +73,9 @@ pub struct UsbDeviceInfo {
 /// [`fprint_core::Error::Transport`] if the platform USB backend cannot enumerate the bus.
 #[cfg(feature = "usb")]
 pub fn list_usb_devices() -> Result<Vec<UsbDeviceInfo>> {
+    use nusb::MaybeFuture;
     let devices = nusb::list_devices()
+        .wait()
         .map_err(|e| fprint_core::Error::Transport(format!("list USB devices: {e}")))?;
     Ok(devices
         .map(|d| UsbDeviceInfo {
@@ -89,9 +91,14 @@ pub fn list_usb_devices() -> Result<Vec<UsbDeviceInfo>> {
 
 // --- Real nusb-backed transport (feature-gated; hardware-only verification) ----------------------
 
+/// How long a control transfer waits before `nusb` reports a timeout. HW-verified: required, so the
+/// value is a placeholder to reconcile against a real sensor, not a tuned figure.
+#[cfg(feature = "usb")]
+const USB_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// A [`UsbTransport`] over a claimed [`nusb::Interface`].
 ///
-/// HW-verified: required for the entire `impl` below. The bodies render the intended `nusb` 0.1
+/// HW-verified: required for the entire `impl` below. The bodies render the intended `nusb` 0.2
 /// transfer calls, but the actual endpoint behaviour — and any drift in `nusb`'s exact API — can
 /// only be confirmed against a physical Validity VFS5011. This type exists so
 /// `ImageDevice<UsbFrameSource<NusbTransport>>` type-checks and links; it is not exercised by the
@@ -110,7 +117,7 @@ impl NusbTransport {
 
     /// Open the first bus device matching `id` and claim its interface 0.
     ///
-    /// HW-verified: required. The enumeration and claim shapes render `nusb` 0.1's API, and
+    /// HW-verified: required. The enumeration and claim shapes render `nusb` 0.2's API, and
     /// interface 0 is the assumed control/bulk interface; the real interface number, and that any
     /// bytes flow at all, can only be confirmed against a physical sensor. This is the live seam
     /// `fpdev shell` drives; nothing offline depends on it.
@@ -119,7 +126,9 @@ impl NusbTransport {
     /// [`fprint_core::Error::Transport`] if no matching device is present, or the OS refuses the
     /// open or the interface claim.
     pub fn open(id: super::UsbId) -> Result<Self> {
+        use nusb::MaybeFuture;
         let info = nusb::list_devices()
+            .wait()
             .map_err(|e| fprint_core::Error::Transport(format!("list USB devices: {e}")))?
             .find(|d| d.vendor_id() == id.vid && d.product_id() == id.pid)
             .ok_or_else(|| {
@@ -128,11 +137,12 @@ impl NusbTransport {
                     id.vid, id.pid
                 ))
             })?;
-        let device = info.open().map_err(|e| {
+        let device = info.open().wait().map_err(|e| {
             fprint_core::Error::Transport(format!("open {:04x}:{:04x}: {e}", id.vid, id.pid))
         })?;
         let iface = device
             .claim_interface(0)
+            .wait()
             .map_err(|e| fprint_core::Error::Transport(format!("claim interface 0: {e}")))?;
         Ok(NusbTransport { iface })
     }
@@ -141,24 +151,35 @@ impl NusbTransport {
 #[cfg(feature = "usb")]
 impl UsbTransport for NusbTransport {
     async fn bulk_out(&mut self, ep: u8, data: &[u8]) -> Result<()> {
-        // HW-verified: required. `nusb` 0.1 takes an owned buffer for an OUT transfer and returns a
-        // `Completion`; `into_result` surfaces the transfer status.
-        let completion = self.iface.bulk_out(ep, data.to_vec()).await;
+        // HW-verified: required. `nusb` 0.2 claims an endpoint queue, submits a filled `Buffer`, and
+        // reports the status on the returned `Completion`.
+        use nusb::transfer::{Buffer, Bulk, Out};
+        let mut endpoint = self.iface.endpoint::<Bulk, Out>(ep).map_err(|e| {
+            fprint_core::Error::Transport(format!("claim bulk-out ep {ep:#04x}: {e}"))
+        })?;
+        let mut buf = Buffer::new(data.len());
+        buf.extend_from_slice(data);
+        endpoint.submit(buf);
+        let completion = endpoint.next_complete().await;
         completion
-            .into_result()
-            .map(|_| ())
+            .status
             .map_err(|e| fprint_core::Error::Transport(format!("bulk_out ep {ep:#04x}: {e}")))
     }
 
     async fn bulk_in(&mut self, ep: u8, len: usize) -> Result<Vec<u8>> {
-        // HW-verified: required. A `RequestBuffer` sizes the read; the completion yields the bytes.
-        let completion = self
-            .iface
-            .bulk_in(ep, nusb::transfer::RequestBuffer::new(len))
-            .await;
+        // HW-verified: required. An IN `Buffer` sizes the read; the completion yields the bytes and
+        // `actual_len` bounds what actually arrived.
+        use nusb::transfer::{Buffer, Bulk, In};
+        let mut endpoint = self.iface.endpoint::<Bulk, In>(ep).map_err(|e| {
+            fprint_core::Error::Transport(format!("claim bulk-in ep {ep:#04x}: {e}"))
+        })?;
+        endpoint.submit(Buffer::new(len));
+        let completion = endpoint.next_complete().await;
         completion
-            .into_result()
-            .map_err(|e| fprint_core::Error::Transport(format!("bulk_in ep {ep:#04x}: {e}")))
+            .status
+            .map_err(|e| fprint_core::Error::Transport(format!("bulk_in ep {ep:#04x}: {e}")))?;
+        let n = completion.actual_len;
+        Ok(completion.buffer[..n].to_vec())
     }
 
     async fn control(
@@ -181,35 +202,40 @@ impl UsbTransport for NusbTransport {
             let length = u16::try_from(data.len()).map_err(|_| {
                 fprint_core::Error::Transport("control IN length exceeds u16".to_string())
             })?;
-            let completion = self
-                .iface
-                .control_in(ControlIn {
-                    control_type,
-                    recipient,
-                    request,
-                    value,
-                    index,
-                    length,
+            self.iface
+                .control_in(
+                    ControlIn {
+                        control_type,
+                        recipient,
+                        request,
+                        value,
+                        index,
+                        length,
+                    },
+                    USB_TIMEOUT,
+                )
+                .await
+                .map_err(|e| {
+                    fprint_core::Error::Transport(format!("control_in req {request:#04x}: {e}"))
                 })
-                .await;
-            completion.into_result().map_err(|e| {
-                fprint_core::Error::Transport(format!("control_in req {request:#04x}: {e}"))
-            })
         } else {
-            let completion = self
-                .iface
-                .control_out(ControlOut {
-                    control_type,
-                    recipient,
-                    request,
-                    value,
-                    index,
-                    data,
+            self.iface
+                .control_out(
+                    ControlOut {
+                        control_type,
+                        recipient,
+                        request,
+                        value,
+                        index,
+                        data,
+                    },
+                    USB_TIMEOUT,
+                )
+                .await
+                .map(|()| Vec::new())
+                .map_err(|e| {
+                    fprint_core::Error::Transport(format!("control_out req {request:#04x}: {e}"))
                 })
-                .await;
-            completion.into_result().map(|_| Vec::new()).map_err(|e| {
-                fprint_core::Error::Transport(format!("control_out req {request:#04x}: {e}"))
-            })
         }
     }
 }

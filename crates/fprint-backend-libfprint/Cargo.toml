@@ -37,8 +37,8 @@ fprint-fp3 = { workspace = true }
 # manages the GObject lifetime itself. A normal caret — no workaround depends on a point release
 # now that the binding is gone — keeps a published library from forcing one patch on the graph.
 libfprint-sys = "0.2"
-glib = "0.21"
-gio = "0.21"
+glib = "0.22"
+gio = "0.22"
 # The per-device worker thread hands each operation's reply (oneshot) and progress (mpsc) back to
 # the caller's future over these runtime-agnostic channels — no async runtime is pulled in. Both
 # already resolve in the tree via glib, so naming them adds no crate to the graph; `futures-core`
