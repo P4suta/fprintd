@@ -43,7 +43,7 @@ fprint-bozorth3 = { workspace = true }
 # The real USB transport, behind the optional `usb` feature only: a default build resolves the crate
 # graph but compiles no USB code. Our wrapper is `#![forbid(unsafe_code)]`; nusb's internal `unsafe`
 # is nusb's concern, quarantined to the leaf transport as `ARCHITECTURE.md` requires.
-nusb = { version = "0.1", optional = true }
+nusb = { version = "0.2", optional = true }
 # The wire model's serialization, behind the optional `serde` feature only: a default build derives
 # nothing. Payload bytes are written as a hex string (see `usb::wire`), so a `.cassette` reads and
 # diffs as text.
