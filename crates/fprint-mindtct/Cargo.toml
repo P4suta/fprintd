@@ -15,12 +15,21 @@ authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "minutiae", "mindtct", "nbis", "image-processing"]
 categories = ["algorithms", "computer-vision"]
+# These integration tests use the `publish = false` fprint-testkit dev-dep, which goes version-less
+# in the packaged manifest, so an unpacked tarball cannot compile them. Kept out of the tarball;
+# they run in-tree.
+exclude = [
+  "tests/regressions.rs", # fprint-testkit (gen/Lcg)
+  "tests/bounds.rs",      # fprint-testkit (gen/Lcg + gen::gray_image)
+  "tests/validity.rs",    # fprint-testkit (gen::gray_image/Lcg noise sweep)
+]
+# The golden corpus under tests/fixtures ships with the crate on purpose: bit-exactness against the
+# stock C tool is this crate's promise, and the reference data lets downstream reproduce it. It is
+# well under the crates.io size limit, so it is not excluded.
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
-  "--cfg",
-  "docsrs",
   "--generate-link-to-definition",
   "--html-in-header",
   "katex-header.html",

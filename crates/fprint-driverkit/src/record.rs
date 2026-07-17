@@ -263,7 +263,9 @@ mod tests {
         // Seed a scripted device with FRAMES synthetic captures, then record a capture off it.
         let mut scripted = ScriptedTransport::new();
         for _ in 0..FRAMES {
-            scripted.push_frame(&frame);
+            scripted
+                .push_frame(&frame)
+                .expect("reference frame fits the wire header");
         }
         let recorder = RecordingTransport::for_device(scripted, id);
         let tape = recorder.tape();

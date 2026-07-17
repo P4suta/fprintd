@@ -44,6 +44,12 @@
 //! partial for two further reasons of its own: [`Template::Undefined`](fprint_core::Template)
 //! has no on-disk form, and an [`EnrollDate`](fprint_core::EnrollDate) outside the Julian day's
 //! `i32` range has no encoding ([`Fp3Error::DateOutOfRange`]).
+//!
+//! The signature's reserved `a{sv}` metadata dictionary is **not** a data channel: libfprint always
+//! writes it empty, so `to_bytes` writes it empty and `from_bytes` ignores whatever it holds.
+//! Preserving a populated reserved dict would mean carrying wire bytes inside the domain
+//! [`Print`](fprint_core::Print), which principle 3 forbids — so a (non-conforming) blob with a
+//! non-empty reserved dict decodes without it. This is by design, not a gap.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -54,14 +60,15 @@ mod error;
 mod gvariant;
 
 pub use codec::{from_bytes, to_bytes};
-pub use error::Fp3Error;
+pub use error::{Fp3Error, Result};
 
 /// The FP3 container's leading magic bytes (`"FP3"`).
 pub const MAGIC: &[u8; 3] = b"FP3";
 
 /// The crate's essentials, for a single glob import.
 ///
-/// Pulls in the two verbs and the error type: `use fprint_fp3::prelude::*;`.
+/// Pulls in the two verbs, the error type and its [`Result`] alias:
+/// `use fprint_fp3::prelude::*;`.
 pub mod prelude {
-    pub use crate::{from_bytes, to_bytes, Fp3Error};
+    pub use crate::{from_bytes, to_bytes, Fp3Error, Result};
 }

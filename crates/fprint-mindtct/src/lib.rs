@@ -75,14 +75,32 @@ impl Minutia {
     }
 }
 
+/// The smallest image dimension MINDTCT can process, in pixels.
+///
+/// Below this in either axis there is nowhere to place the `windowsize × windowsize` block-map window
+/// clear of the padding (the constraint is `dimension ≥ windowsize + 1`), nor room for a single
+/// `blocksize × blocksize` block — so detection has no defined output. Derived from the shipping
+/// `LFSPARMS_V2` (`blocksize = 8`, `windowsize = 24`), it is the tightest bound of the two.
+/// [`GrayImage::new`] rejects any image below it, which is what lets [`detect_minutiae`] be total.
+pub const MIN_DETECTABLE_DIM: usize = {
+    let blocksize = crate::params::LFSPARMS_V2.blocksize;
+    let window = crate::params::LFSPARMS_V2.windowsize + 1;
+    (if blocksize > window {
+        blocksize
+    } else {
+        window
+    }) as usize
+};
+
 /// An 8-bit grayscale fingerprint image, row-major, one byte per pixel.
 ///
 /// `data` holds at least `width * height` bytes (0 = black, 255 = white). `ppi` is the scan
 /// resolution in pixels-per-inch, carried because several MINDTCT thresholds are resolution-relative.
 ///
-/// Build one with [`GrayImage::new`], which rejects a buffer shorter than `width * height`; the
-/// fields are private, so a value cannot exist around a short buffer. A *longer* `data` is accepted
-/// and its trailing bytes are ignored.
+/// Build one with [`GrayImage::new`], which rejects an image MINDTCT cannot process — too small to
+/// carry a block-map window ([`MIN_DETECTABLE_DIM`]), too large for its `i32` pixel arithmetic, or a
+/// buffer shorter than `width * height`. The fields are private, so a value can only exist around a
+/// detectable image; a *longer* `data` is accepted and its trailing bytes are ignored.
 #[derive(Clone, Copy, Debug)]
 pub struct GrayImage<'a> {
     /// The pixels, row-major, one byte each (0 = black, 255 = white).
@@ -103,15 +121,32 @@ impl<'a> GrayImage<'a> {
     ///
     /// # Errors
     ///
-    /// Returns [`ImageError::TooSmall`] when `data.len() < width * height`.
+    /// - [`ImageError::TooLarge`] when either dimension exceeds `i32::MAX`, the range MINDTCT's
+    ///   internal pixel arithmetic addresses.
+    /// - [`ImageError::TooSmall`] when either dimension is below [`MIN_DETECTABLE_DIM`]: MINDTCT
+    ///   cannot place a block-map window on it, so detection has no defined output.
+    /// - [`ImageError::BufferTooShort`] when `data.len() < width * height`.
+    ///
+    /// A successfully constructed `GrayImage` is therefore guaranteed detectable: an empty
+    /// [`detect_minutiae`] result then means "no minutiae", never "image rejected".
     pub fn new(
         data: &'a [u8],
         width: usize,
         height: usize,
         ppi: u16,
     ) -> Result<GrayImage<'a>, ImageError> {
-        if data.len() < width.saturating_mul(height) {
+        if width > i32::MAX as usize || height > i32::MAX as usize {
+            return Err(ImageError::TooLarge { width, height });
+        }
+        if width < MIN_DETECTABLE_DIM || height < MIN_DETECTABLE_DIM {
             return Err(ImageError::TooSmall {
+                width,
+                height,
+                min: MIN_DETECTABLE_DIM,
+            });
+        }
+        if data.len() < width.saturating_mul(height) {
+            return Err(ImageError::BufferTooShort {
                 width,
                 height,
                 got: data.len(),
@@ -123,6 +158,26 @@ impl<'a> GrayImage<'a> {
             height,
             ppi,
         })
+    }
+
+    /// Construct without the detectability checks `new` enforces, for crate-internal tests that
+    /// exercise sub-detection geometry (e.g. the padding seam) on images below [`MIN_DETECTABLE_DIM`].
+    ///
+    /// Kept `pub(crate)` and test-only on purpose: the invariant `new` upholds — a `GrayImage` a
+    /// caller holds is always detectable — must not be circumventable from outside the crate.
+    #[cfg(test)]
+    pub(crate) fn from_parts_unchecked(
+        data: &'a [u8],
+        width: usize,
+        height: usize,
+        ppi: u16,
+    ) -> GrayImage<'a> {
+        GrayImage {
+            data,
+            width,
+            height,
+            ppi,
+        }
     }
 
     /// Image width in pixels.
@@ -150,12 +205,12 @@ impl<'a> GrayImage<'a> {
     }
 }
 
-/// The error [`GrayImage::new`] returns when a buffer cannot hold the stated image.
+/// The error [`GrayImage::new`] returns when the supplied image cannot be processed by MINDTCT.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ImageError {
     /// The pixel buffer is shorter than `width * height`.
-    TooSmall {
+    BufferTooShort {
         /// Stated image width in pixels.
         width: usize,
         /// Stated image height in pixels.
@@ -163,15 +218,41 @@ pub enum ImageError {
         /// Length of the buffer supplied.
         got: usize,
     },
+    /// A dimension is below [`MIN_DETECTABLE_DIM`]: there is nowhere to place the block-map window,
+    /// so detection has no defined output.
+    TooSmall {
+        /// Stated image width in pixels.
+        width: usize,
+        /// Stated image height in pixels.
+        height: usize,
+        /// The smallest dimension MINDTCT can process ([`MIN_DETECTABLE_DIM`]).
+        min: usize,
+    },
+    /// A dimension exceeds `i32::MAX`, the range MINDTCT's internal pixel arithmetic addresses.
+    TooLarge {
+        /// Stated image width in pixels.
+        width: usize,
+        /// Stated image height in pixels.
+        height: usize,
+    },
 }
 
 impl core::fmt::Display for ImageError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match *self {
-            ImageError::TooSmall { width, height, got } => write!(
+            ImageError::BufferTooShort { width, height, got } => write!(
                 f,
                 "grayscale buffer holds {got} bytes, need {} for a {width}x{height} image",
                 width.saturating_mul(height)
+            ),
+            ImageError::TooSmall { width, height, min } => write!(
+                f,
+                "image {width}x{height} is too small to detect minutiae: each dimension must be at least {min} pixels"
+            ),
+            ImageError::TooLarge { width, height } => write!(
+                f,
+                "image {width}x{height} is too large: each dimension must be at most {}",
+                i32::MAX
             ),
         }
     }
@@ -183,6 +264,7 @@ impl std::error::Error for ImageError {}
 // diagnostic identity is gated: `unstable-diagnostics` exports it, otherwise it stays crate-internal.
 // The single definition lives in `diag` so the two visibilities share one struct.
 #[cfg(feature = "unstable-diagnostics")]
+#[doc(hidden)]
 pub use diag::DebugMaps;
 #[cfg(not(feature = "unstable-diagnostics"))]
 pub(crate) use diag::DebugMaps;
@@ -233,8 +315,10 @@ struct DetectState {
 /// Reuses [`build_maps`] for the pad → 6-bit scale → block maps → directional binarization stages,
 /// converts the binary image to the detector's `0 == valley` / `1 == ridge` convention
 /// (stock `gray2bin(1, 1, 0)`, `detect.c` L614), then runs `detect_minutiae_V2` over the unpadded
-/// image and block maps. Returns [`None`] on the (size) error paths the pipeline can surface — an
-/// empty front-end map or a `detect_minutiae_V2` error.
+/// image and block maps. Returns [`None`] on the internal size/error paths — an empty front-end map
+/// or a `detect_minutiae_V2` error. Those paths are unreachable for a value produced by
+/// [`GrayImage::new`], which rejects any image below [`MIN_DETECTABLE_DIM`]; the [`None`] arm is kept
+/// as a defensive net, not a reachable outcome.
 fn run_detect(img: GrayImage<'_>) -> Option<DetectState> {
     use crate::detect::detect_minutiae_v2;
     use crate::params::LFSPARMS_V2;
@@ -249,6 +333,8 @@ fn run_detect(img: GrayImage<'_>) -> Option<DetectState> {
     let mut bdata: Vec<u8> = maps.binarized.iter().map(|&p| u8::from(p < 1)).collect();
 
     let p = &LFSPARMS_V2;
+    // `width()`/`height() as i32` here and throughout this module are lossless: `GrayImage::new`
+    // rejects any dimension above `i32::MAX`, so the value always fits the detector's i32 arithmetic.
     let minutiae = detect_minutiae_v2(
         &mut bdata,
         img.width() as i32,
@@ -293,10 +379,10 @@ fn to_raw(minutiae: &[crate::detect::DetMinutia]) -> Vec<RawMinutia> {
 ///
 /// The reliability that becomes each minutia's `quality` is derived from the **original** 8-bit image
 /// (the unpadded pixels) and the block maps at the scan resolution `ppmm = ppi / 25.4`, exactly as
-/// stock `combined_minutia_quality` consumes `idata`. Returns an empty list on the (size) error paths
-/// the pipeline can surface — a degenerate image (any zero dimension), one too small to carry a single
-/// block, or one too small to place the block-map window (a dimension under 25 pixels). A realistic
-/// fingerprint is far outside those bands.
+/// stock `combined_minutia_quality` consumes `idata`. Returns an empty list when the image has no
+/// detectable ridge structure — that is the *only* meaning of an empty result. An image too small to
+/// carry a block-map window is rejected earlier, by [`GrayImage::new`] ([`MIN_DETECTABLE_DIM`]), so it
+/// never reaches this function; a realistic fingerprint is far above that floor.
 ///
 /// # Examples
 ///
@@ -415,8 +501,11 @@ pub fn detect_minutiae(img: GrayImage<'_>) -> Vec<Minutia> {
 #[doc(hidden)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RawMinutia {
+    /// Pixel x, origin top-left.
     pub x: i32,
+    /// Pixel y, origin top-left.
     pub y: i32,
+    /// Integer direction on `0..=31` (`0..2*num_directions`).
     pub direction: i32,
     /// Stock `type`: `0 == BIFURCATION`, `1 == RIDGE_ENDING`.
     pub kind: i32,

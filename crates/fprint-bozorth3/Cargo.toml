@@ -15,12 +15,20 @@ authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "biometrics", "bozorth3", "nbis", "matcher"]
 categories = ["algorithms", "science"]
+# These integration tests use the `publish = false` fprint-testkit dev-dep, which goes version-less
+# in the packaged manifest, so an unpacked tarball cannot compile them. Kept out of the tarball;
+# they run in-tree.
+exclude = [
+  "tests/totality.rs",   # fprint-testkit (gen/Lcg totality sweep)
+  "tests/properties.rs", # fprint-testkit (gen/ByteSource/Lcg property sweep)
+]
+# The golden corpus under tests/fixtures ships with the crate on purpose: score-exactness against the
+# stock C tool is this crate's promise, and the reference data lets downstream reproduce it. It is
+# well under the crates.io size limit, so it is not excluded.
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
-  "--cfg",
-  "docsrs",
   "--generate-link-to-definition",
   "--html-in-header",
   "katex-header.html",

@@ -70,7 +70,8 @@ enum Command {
 /// Arguments for `fpdev probe`.
 ///
 /// A `(--vid, --pid)` pair selects one device to classify offline; `--all` dumps the whole known
-/// database. With no selector, live enumeration is reported as not-yet-wired. Both ids accept
+/// database. With no selector, the connected USB devices are enumerated live (under the `usb`
+/// feature; without it, the command explains that live probing needs that feature). Both ids accept
 /// `0x`-prefixed or bare hex.
 #[derive(Args)]
 struct ProbeArgs {

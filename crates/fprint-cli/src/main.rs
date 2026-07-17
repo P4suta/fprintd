@@ -210,7 +210,9 @@ fn demo_verify(
 ) -> Result<(bool, u32), Box<dyn Error>> {
     let enrolled_t = triples_to_nbis(enroll);
     let present_t = triples_to_nbis(present);
-    let score = nbis_match_score(&enrolled_t, &present_t);
+    let score = nbis_match_score(&enrolled_t, &present_t)
+        .score()
+        .expect("triples build Nbis templates, so the pair is comparable");
 
     let mut dev = VirtualDeviceBuilder::host_image_sensor()
         .bozorth3_matching(DEFAULT_THRESHOLD)
@@ -273,7 +275,8 @@ fn cmd_verify(a: &VerifyArgs) -> Result<(), Box<dyn Error>> {
     let enrolled = fprint_fp3::from_bytes(&std::fs::read(&a.enrolled)?)?;
     let probe = fprint_fp3::from_bytes(&std::fs::read(&a.probe)?)?;
 
-    let score = nbis_match_score(&enrolled.template, &probe.template);
+    // `None` when the stored templates cannot be host-matched — e.g. a match-on-chip `Raw` handle.
+    let score = nbis_match_score(&enrolled.template, &probe.template).score();
     let finger = enrolled.finger.unwrap_or(Finger::RightIndex);
 
     let mut dev = VirtualDeviceBuilder::host_image_sensor()
@@ -289,15 +292,17 @@ fn cmd_verify(a: &VerifyArgs) -> Result<(), Box<dyn Error>> {
     let matched = block_on(dev.verify(&device_print))?.matched;
 
     if a.json {
+        // `null` when the templates cannot be host-matched (a match-on-chip handle).
+        let score_json = score.map_or_else(|| "null".to_string(), |s| s.to_string());
         println!(
-            "{{\"matched\":{},\"score\":{},\"threshold\":{}}}",
-            matched, score, a.threshold,
+            "{{\"matched\":{matched},\"score\":{score_json},\"threshold\":{}}}",
+            a.threshold,
         );
     } else {
+        let score_text = score.map_or_else(|| "n/a".to_string(), |s| s.to_string());
         println!(
-            "{} (score {}, threshold {})",
+            "{} (score {score_text}, threshold {})",
             verdict(matched),
-            score,
             a.threshold,
         );
     }
@@ -623,8 +628,9 @@ fn grating(g: &Grating) -> Vec<u8> {
 
 // --- file readers ---------------------------------------------------------------------------
 
-/// Read a binary (P5) PGM image, returning `(data, width, height)`. Comments (`#`) and
-/// arbitrary header whitespace are tolerated; 16-bit (`maxval > 255`) is rejected.
+/// Read a binary (P5) PGM image, returning `(data, width, height)`. Comments (`#`) and arbitrary
+/// header whitespace are tolerated; 8-bit samples are taken as-is and 16-bit (`maxval > 255`)
+/// samples are read big-endian and downscaled to 8-bit.
 fn read_pgm(path: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut pos = 0;
@@ -636,20 +642,33 @@ fn read_pgm(path: &Path) -> Result<(Vec<u8>, usize, usize), String> {
     let width = parse_header_num(&bytes, &mut pos)?;
     let height = parse_header_num(&bytes, &mut pos)?;
     let maxval = parse_header_num(&bytes, &mut pos)?;
-    if maxval > 255 {
-        return Err("PGM: 16-bit images are not supported".to_string());
+    if maxval == 0 || maxval > 65535 {
+        return Err(format!("PGM: maxval {maxval} out of range (1..=65535)"));
     }
     // Exactly one whitespace byte separates the header from the raster.
     pos += 1;
 
-    let need = width
+    let pixels = width
         .checked_mul(height)
         .ok_or("PGM: dimensions overflow")?;
-    let end = pos.checked_add(need).ok_or("PGM: dimensions overflow")?;
-    let raster = bytes
-        .get(pos..end)
-        .ok_or("PGM: raster shorter than the header declares")?;
-    Ok((raster.to_vec(), width, height))
+    let data = if maxval <= 255 {
+        let end = pos.checked_add(pixels).ok_or("PGM: dimensions overflow")?;
+        bytes
+            .get(pos..end)
+            .ok_or("PGM: raster shorter than the header declares")?
+            .to_vec()
+    } else {
+        // 16-bit: two big-endian bytes per sample, downscaled to 8-bit as `sample * 255 / maxval`.
+        let need = pixels.checked_mul(2).ok_or("PGM: dimensions overflow")?;
+        let end = pos.checked_add(need).ok_or("PGM: dimensions overflow")?;
+        bytes
+            .get(pos..end)
+            .ok_or("PGM: raster shorter than the header declares")?
+            .chunks_exact(2)
+            .map(|s| (u16::from_be_bytes([s[0], s[1]]) as usize * 255 / maxval) as u8)
+            .collect()
+    };
+    Ok((data, width, height))
 }
 
 fn skip_ws_comments(b: &[u8], pos: &mut usize) {

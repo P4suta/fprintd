@@ -172,8 +172,7 @@ impl<S: FrameSource> Device for ImageDevice<S> {
         let scanned = self.one_scan().await?;
         // A frame was captured, so a finger was on the sensor.
         on_status(FingerStatus::PRESENT);
-        let matched =
-            fprint_pipeline::nbis_match_score(&enrolled.template, &scanned) >= self.threshold;
+        let matched = fprint_pipeline::nbis_verify(&enrolled.template, &scanned, self.threshold);
         Ok(VerifyOutcome::new(matched, Some(self.scan_print(scanned))))
     }
 
@@ -193,19 +192,6 @@ impl<S: FrameSource> Device for ImageDevice<S> {
             match_index,
             Some(self.scan_print(scanned)),
         ))
-    }
-
-    async fn list_prints(&mut self) -> Result<Vec<Print>> {
-        // Host-image sensors keep no templates on the device.
-        Err(Error::NotSupported)
-    }
-
-    async fn delete_print(&mut self, _print: &Print) -> Result<()> {
-        Err(Error::NotSupported)
-    }
-
-    async fn clear_storage(&mut self) -> Result<()> {
-        Err(Error::NotSupported)
     }
 
     async fn suspend(&mut self) -> Result<()> {

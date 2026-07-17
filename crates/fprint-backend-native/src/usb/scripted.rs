@@ -75,10 +75,16 @@ impl ScriptedTransport {
     /// Script one on-the-wire frame: the self-describing header followed by the pixel payload — the
     /// exact pair one [`UsbFrameSource::capture`](super::source::UsbFrameSource) reads back (a header
     /// `bulk_in`, then a payload `bulk_in`).
-    pub fn push_frame(&mut self, frame: &Frame) {
-        let (w, h) = frame_dims(frame);
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Transport`] if a frame dimension exceeds `u16::MAX`: the wire header carries each as a
+    /// `u16`, so a larger frame has no on-the-wire form.
+    pub fn push_frame(&mut self, frame: &Frame) -> Result<()> {
+        let (w, h) = frame_dims(frame)?;
         self.push_bulk_in(proto::encode_frame_header(w, h));
         self.push_bulk_in(frame.data.clone());
+        Ok(())
     }
 
     /// The host-to-device payloads written so far, in order — the bulk-out/control traffic a test
@@ -115,9 +121,12 @@ impl UsbTransport for ScriptedTransport {
     }
 }
 
-/// A frame's `(width, height)` as the `u16` pair the header carries.
-fn frame_dims(frame: &Frame) -> (u16, u16) {
-    let w = u16::try_from(frame.width).expect("frame width fits u16");
-    let h = u16::try_from(frame.height).expect("frame height fits u16");
-    (w, h)
+/// A frame's `(width, height)` as the `u16` pair the header carries, or [`Error::Transport`] if a
+/// dimension does not fit — the wire header has no wider form.
+fn frame_dims(frame: &Frame) -> Result<(u16, u16)> {
+    let w = u16::try_from(frame.width)
+        .map_err(|_| Error::Transport(format!("frame width {} exceeds u16", frame.width)))?;
+    let h = u16::try_from(frame.height)
+        .map_err(|_| Error::Transport(format!("frame height {} exceeds u16", frame.height)))?;
+    Ok((w, h))
 }

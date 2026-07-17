@@ -17,12 +17,12 @@ and `from_bytes`.
 ```text
 use fprint_core::{Finger, Minutia, Print, Template};
 
-let print = Print {
-    template: Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]),
-    finger: Some(Finger::RightIndex),
-    username: Some("alice".into()),
-    ..Default::default()
-};
+// `Print` is `#[non_exhaustive]`; build it with the builder, not a struct literal.
+let print = Print::builder()
+    .template(Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]))
+    .finger(Finger::RightIndex)
+    .username("alice".to_string())
+    .build();
 
 let bytes = fprint_fp3::to_bytes(&print)?;         // -> Vec<u8>, starts with fprint_fp3::MAGIC
 let same = fprint_fp3::from_bytes(&bytes)?;        // -> Print

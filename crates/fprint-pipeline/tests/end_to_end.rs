@@ -25,6 +25,15 @@ const THRESHOLD: u32 = 40;
 /// Scan resolution recorded in every synthetic frame (500 ppi, as in the oracle corpus).
 const PPI: u16 = 500;
 
+/// The BOZORTH3 score for two host-side templates. Every pairing in this file is `Nbis`-vs-`Nbis`, so
+/// the outcome is always [`fprint_pipeline::MatchScore::Scored`]; this unwraps it for the numeric
+/// assertions below (the `Incomparable` arm is exercised in the crate's unit tests).
+fn bz_score(enrolled: &Template, scanned: &Template) -> u32 {
+    nbis_match_score(enrolled, scanned)
+        .score()
+        .expect("both templates are Nbis, so the pair is comparable")
+}
+
 // --- Deterministic synthetic-fingerprint generator (LCG grating) ---------------------------------
 // A faithful port of `docker/mindtct-oracle/gen_corpus.py`'s grating: parallel sinusoidal ridges,
 // gently curved, with scattered ridge-dislocation dipoles that plant ridge-ending / bifurcation
@@ -216,7 +225,7 @@ fn a_capture_self_matches_strongly() {
     assert_eq!(sample_count(&template), 1);
     assert!(minutiae_in_first_sample(&template) >= 10);
 
-    let score = nbis_match_score(&template, &template);
+    let score = bz_score(&template, &template);
     assert!(
         score >= THRESHOLD,
         "a capture must self-match above threshold {THRESHOLD}, got {score}"
@@ -232,7 +241,7 @@ fn re_noised_recapture_of_same_finger_matches() {
     let enrolled = template_from_images(&[image(&data, g.width, g.height)]);
     let probe = template_from_images(&[image(&again, g.width, g.height)]);
 
-    let score = nbis_match_score(&enrolled, &probe);
+    let score = bz_score(&enrolled, &probe);
     assert!(
         score >= THRESHOLD,
         "a re-noised recapture of the same finger must verify (>= {THRESHOLD}), got {score}"
@@ -249,8 +258,8 @@ fn unrelated_finger_scores_below_threshold() {
     let ta = template_from_images(&[image(&da, a.width, a.height)]);
     let tb = template_from_images(&[image(&db, b.width, b.height)]);
 
-    let self_score = nbis_match_score(&ta, &ta);
-    let cross = nbis_match_score(&ta, &tb);
+    let self_score = bz_score(&ta, &ta);
+    let cross = bz_score(&ta, &tb);
     assert!(
         cross < THRESHOLD,
         "an unrelated finger must not verify (< {THRESHOLD}), got {cross}"
@@ -282,11 +291,11 @@ fn multi_capture_template_keeps_one_sample_per_frame() {
     let stranger = template_from_images(&[image(&db, b.width, b.height)]);
 
     assert!(
-        nbis_match_score(&enrolled, &genuine) >= THRESHOLD,
+        nbis_match_score(&enrolled, &genuine).accepts(THRESHOLD),
         "the enrolled finger must verify against the multi-sample template"
     );
     assert!(
-        nbis_match_score(&enrolled, &stranger) < THRESHOLD,
+        !nbis_match_score(&enrolled, &stranger).accepts(THRESHOLD),
         "a stranger must not verify against the multi-sample template"
     );
 }
@@ -303,7 +312,7 @@ fn rotated_recapture_still_matches_rotation_invariant() {
     let enrolled = template_from_images(&[image(&data, g.width, g.height)]);
     let rotated = template_from_images(&[image(&rot, rw, rh)]);
 
-    let score = nbis_match_score(&enrolled, &rotated);
+    let score = bz_score(&enrolled, &rotated);
     assert!(
         score >= THRESHOLD,
         "a rotated recapture of the same finger must still verify (>= {THRESHOLD}), got {score}"

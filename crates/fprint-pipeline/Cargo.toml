@@ -16,6 +16,10 @@ readme = "README.md"
 keywords = ["fingerprint", "biometrics", "minutiae", "mindtct", "bozorth3"]
 categories = ["authentication", "computer-vision"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition"]
+
 [dependencies]
 # The domain model: the `Minutia`/`Template`/`Print` this crate's functions produce and consume. The
 # glue's whole job is to speak these in terms of the two dependency-free kernels below.

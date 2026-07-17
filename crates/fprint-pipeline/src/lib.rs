@@ -15,7 +15,8 @@
 //! between them and the domain model, so you do not have to write them:
 //!
 //! - [`extract_minutiae`] / [`template_from_images`] — the front half, over [`fprint_mindtct`].
-//! - [`nbis_match_score`] / [`nbis_identify`] — the back half, over [`fprint_bozorth3`].
+//! - [`nbis_match_score`] (→ [`MatchScore`]) / [`nbis_verify`] / [`nbis_identify`] — the back half,
+//!   over [`fprint_bozorth3`].
 //! - [`minutia_to_core`] / [`minutiae_to_bozorth`] — the boundary conversions, exposed for callers
 //!   that assemble their own pipeline.
 //!
@@ -25,7 +26,9 @@
 //! ## Image → template → match
 //!
 //! ```
-//! use fprint_pipeline::{template_from_images, nbis_match_score, GrayImage};
+//! use fprint_pipeline::{
+//!     nbis_identify, nbis_match_score, nbis_verify, template_from_images, GrayImage,
+//! };
 //!
 //! // A procedural fingerprint-like frame: dark horizontal ridges with a gap cut into every other
 //! // ridge. A gap ends a ridge, and a ridge ending is a minutia (plain stripes would have none).
@@ -41,20 +44,27 @@
 //!         .collect()
 //! }
 //!
+//! // Enroll one capture, then take a second capture of the same finger as the probe.
 //! let frame = synthetic_frame();
 //! let img = GrayImage::new(&frame, 128, 128, 500).expect("buffer holds the image");
-//!
-//! // Enroll one capture, then verify a second capture of the same finger against it.
 //! let enrolled = template_from_images(&[img]);
 //!
 //! let frame2 = synthetic_frame();
 //! let scan = GrayImage::new(&frame2, 128, 128, 500).expect("buffer holds the image");
 //! let scanned = template_from_images(&[scan]);
 //!
+//! // Verify (1:1): a bool decision against a driver threshold, or read the raw score.
+//! let threshold = 40;
+//! let _accepted: bool = nbis_verify(&enrolled, &scanned, threshold);
+//! let score: Option<u32> = nbis_match_score(&enrolled, &scanned).score();
+//!
 //! // A same-finger recapture out-scores an unrelated print; the caller picks the accept threshold.
-//! let score = nbis_match_score(&enrolled, &scanned);
 //! let stranger = template_from_images(&[]);
-//! assert!(score >= nbis_match_score(&enrolled, &stranger));
+//! assert!(score >= nbis_match_score(&enrolled, &stranger).score());
+//!
+//! // Identify (1:N): the gallery index whose enrolled template best matches the probe.
+//! let gallery = vec![enrolled, stranger];
+//! assert_eq!(nbis_identify(&scanned, &gallery, 0), Some(0));
 //! ```
 //!
 //! ## Persistence
@@ -71,11 +81,11 @@ mod detector;
 mod matcher;
 
 pub use detector::{extract_minutiae, minutia_to_core, template_from_images};
-pub use matcher::{minutiae_to_bozorth, nbis_identify, nbis_match_score};
+pub use matcher::{minutiae_to_bozorth, nbis_identify, nbis_match_score, nbis_verify, MatchScore};
 
-// The input type a caller builds a frame with, and its constructor error, pulled to the top so the
-// common path needs to name only this crate.
-pub use fprint_mindtct::{GrayImage, ImageError};
+// The input type a caller builds a frame with, its constructor error, and the detection floor that
+// error names — pulled to the top so the common path needs to name only this crate.
+pub use fprint_mindtct::{GrayImage, ImageError, MIN_DETECTABLE_DIM};
 
 // The layers this crate joins, re-exported so `fprint_pipeline::fprint_core::Print` (and the two
 // kernels) resolve without adding them as separate dependencies. The glue produces and consumes
@@ -92,7 +102,8 @@ pub use fprint_mindtct;
 /// the leaf crates.
 pub mod prelude {
     pub use crate::{
-        extract_minutiae, nbis_identify, nbis_match_score, template_from_images, GrayImage,
+        extract_minutiae, nbis_identify, nbis_match_score, nbis_verify, template_from_images,
+        GrayImage, MatchScore,
     };
     pub use fprint_core::{Finger, Minutia, Print, Template};
 }

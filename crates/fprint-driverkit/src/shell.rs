@@ -614,7 +614,9 @@ mod tests {
     fn scripted_with(frames: &[Frame]) -> ScriptedTransport {
         let mut t = ScriptedTransport::new();
         for f in frames {
-            t.push_frame(f); // real header bytes + payload, exactly as the wire carries them
+            // real header bytes + payload, exactly as the wire carries them
+            t.push_frame(f)
+                .expect("reference frame fits the wire header");
         }
         t
     }

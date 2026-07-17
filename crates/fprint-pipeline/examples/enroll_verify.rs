@@ -11,7 +11,7 @@
 //! reproducible. A real driver would feed captured frames to both halves.
 
 use fprint_pipeline::fprint_core::{Minutia, Template};
-use fprint_pipeline::{extract_minutiae, nbis_identify, nbis_match_score, GrayImage};
+use fprint_pipeline::{extract_minutiae, nbis_identify, nbis_match_score, nbis_verify, GrayImage};
 
 /// A conventional BOZORTH3 accept threshold: a same-finger recapture clears it comfortably while an
 /// unrelated finger scores near zero.
@@ -67,17 +67,17 @@ fn matching_half() -> bool {
     let same = Template::Nbis(vec![recapture_a]);
     let other = Template::Nbis(vec![finger_b]);
 
-    let same_score = nbis_match_score(&enrolled, &same);
-    let other_score = nbis_match_score(&enrolled, &other);
-
-    let pass = same_score >= THRESHOLD;
-    let reject = other_score < THRESHOLD;
+    // The 1:1 decision goes through `nbis_verify`; `nbis_match_score` reads the raw score to print.
+    let pass = nbis_verify(&enrolled, &same, THRESHOLD);
+    let reject = !nbis_verify(&enrolled, &other, THRESHOLD);
     println!(
-        "verify: same finger scored {same_score} -> {}",
+        "verify: same finger scored {:?} -> {}",
+        nbis_match_score(&enrolled, &same).score(),
         verdict(pass, "PASS", "unexpected REJECT")
     );
     println!(
-        "verify: other finger scored {other_score} -> {}",
+        "verify: other finger scored {:?} -> {}",
+        nbis_match_score(&enrolled, &other).score(),
         verdict(reject, "REJECT", "unexpected PASS")
     );
 

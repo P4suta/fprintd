@@ -170,7 +170,7 @@ impl VirtualDevice {
                 if matches!(enrolled, Template::Nbis(_))
                     && matches!(scanned, Template::Nbis(_)) =>
             {
-                fprint_pipeline::nbis_match_score(enrolled, scanned) >= threshold
+                fprint_pipeline::nbis_match_score(enrolled, scanned).accepts(threshold)
             }
             _ => matches(enrolled, scanned),
         }

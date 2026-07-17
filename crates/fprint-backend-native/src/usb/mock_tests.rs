@@ -63,7 +63,9 @@ fn device_serving(frames: usize) -> ImageDevice<UsbFrameSource<ScriptedTransport
     let frame = reference_frame();
     let mut transport = ScriptedTransport::new();
     for _ in 0..frames {
-        transport.push_frame(&frame);
+        transport
+            .push_frame(&frame)
+            .expect("reference frame fits the wire header");
     }
     device_from(transport)
 }
@@ -97,7 +99,9 @@ fn session_serving(frames: usize) -> Session {
 fn capture_assembles_the_scripted_frame_exactly() {
     let frame = reference_frame();
     let mut transport = ScriptedTransport::new();
-    transport.push_frame(&frame);
+    transport
+        .push_frame(&frame)
+        .expect("reference frame fits the wire header");
     let mut source = UsbFrameSource::new(transport);
 
     match block_on(source.capture()).unwrap() {
@@ -117,7 +121,9 @@ fn capture_assembles_the_scripted_frame_exactly() {
 fn capture_sends_the_capture_command() {
     let frame = reference_frame();
     let mut transport = ScriptedTransport::new();
-    transport.push_frame(&frame);
+    transport
+        .push_frame(&frame)
+        .expect("reference frame fits the wire header");
     let mut source = UsbFrameSource::new(transport);
     let _ = block_on(source.capture()).unwrap();
 

@@ -9,8 +9,9 @@
 //! open invitation, never a yardstick for this project (see `ARCHITECTURE.md` §Non-goals and
 //! `docs/adding-a-driver.md`). This module does not capture from a real sensor: the Validity
 //! VFS5011 protocol values (VID/PID, endpoints, frame geometry, init/deinit byte sequences) are
-//! placeholders marked "HW-verified: required", there is no device enumeration, and the
-//! `nusb`-backed transport has done no real I/O. It is a worked example, not a working driver.
+//! placeholders marked "HW-verified: required", nothing discovers a sensor and opens it into a
+//! running device, and the `nusb`-backed transport has done no real I/O. It is a worked example,
+//! not a working driver.
 //!
 //! The layering keeps the platform-independent protocol out of the platform-dependent transport:
 //!

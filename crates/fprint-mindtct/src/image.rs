@@ -204,7 +204,8 @@ mod tests {
     #[test]
     fn pad_gray_image_pads_with_pad_value() {
         let data = [1u8, 2, 3, 4];
-        let img = GrayImage::new(&data, 2, 2, 500).unwrap();
+        // 2x2 is below the detection floor; construct unchecked to test the padding seam in isolation.
+        let img = GrayImage::from_parts_unchecked(&data, 2, 2, 500);
         let (pdata, pw, ph) = pad_gray_image(&img, 1);
         assert_eq!((pw, ph), (4, 4));
         // Center holds the image; border is PAD_VALUE (128).
@@ -216,7 +217,8 @@ mod tests {
     #[test]
     fn pad_gray_image_zero_maxpad_copies_unchanged() {
         let data = [11u8, 22, 33, 44, 55, 66];
-        let img = GrayImage::new(&data, 3, 2, 500).unwrap();
+        // 3x2 is below the detection floor; construct unchecked to test the copy path in isolation.
+        let img = GrayImage::from_parts_unchecked(&data, 3, 2, 500);
         let (pdata, pw, ph) = pad_gray_image(&img, 0);
         assert_eq!((pw, ph), (3, 2));
         assert_eq!(pdata, data);

@@ -33,8 +33,11 @@ for m in &minutiae {
 }
 ```
 
-`GrayImage::new` rejects a buffer shorter than `width * height` with `ImageError::TooSmall`; a longer
-buffer is accepted and its tail ignored.
+`GrayImage::new` rejects an image MINDTCT cannot process — a dimension below the detection floor
+(`ImageError::TooSmall`, `MIN_DETECTABLE_DIM`), one past `i32::MAX` (`TooLarge`), or a buffer shorter
+than `width * height` (`BufferTooShort`); a longer buffer is accepted and its tail ignored. A
+successfully built `GrayImage` is guaranteed detectable, so an empty `detect_minutiae` result means
+"no minutiae", never "image rejected".
 
 ## Links
 

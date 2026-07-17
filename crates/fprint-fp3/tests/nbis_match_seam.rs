@@ -13,7 +13,7 @@
 //! not.
 
 use fprint_core::{Minutia, Print, Template};
-use fprint_pipeline::{nbis_identify, nbis_match_score};
+use fprint_pipeline::{nbis_identify, nbis_match_score, nbis_verify, MatchScore};
 
 /// A conventional BOZORTH3 accept threshold; a same-finger recapture clears it comfortably while an
 /// unrelated finger scores near zero.
@@ -91,14 +91,18 @@ fn enrolled_nbis_print_survives_fp3_and_matches_via_bozorth3() {
     assert_eq!(enrolled, back, "FP3 round-trip must be exact");
 
     // The read-back enrolled template matches a fresh capture of the same finger...
-    let same = nbis_match_score(&back.template, &Template::Nbis(vec![recapture_a]));
+    let same = nbis_match_score(&back.template, &Template::Nbis(vec![recapture_a]))
+        .score()
+        .expect("both templates are Nbis");
     assert!(
         same >= THRESHOLD,
         "same-finger recapture should match (score {same} < {THRESHOLD})"
     );
 
     // ...but not an unrelated finger.
-    let different = nbis_match_score(&back.template, &Template::Nbis(vec![finger_b]));
+    let different = nbis_match_score(&back.template, &Template::Nbis(vec![finger_b]))
+        .score()
+        .expect("both templates are Nbis");
     assert!(
         different < THRESHOLD,
         "unrelated finger should not match (score {different} >= {THRESHOLD})"
@@ -136,10 +140,13 @@ fn identify_picks_the_matching_gallery_entry() {
 
 #[test]
 fn raw_moc_template_is_never_host_matched() {
-    // A match-on-chip Raw handle is opaque; host-side scoring must decline (score 0), regardless.
+    // A match-on-chip Raw handle is opaque; host-side scoring must decline as *incomparable* — never
+    // conflating "no host minutiae to compare" with a real zero score.
     let raw = Template::Raw(b"opaque".to_vec());
     let nbis = Template::Nbis(vec![synth(20, 1)]);
-    assert_eq!(nbis_match_score(&raw, &nbis), 0);
-    assert_eq!(nbis_match_score(&nbis, &raw), 0);
-    assert_eq!(nbis_match_score(&raw, &raw), 0);
+    assert_eq!(nbis_match_score(&raw, &nbis), MatchScore::Incomparable);
+    assert_eq!(nbis_match_score(&nbis, &raw), MatchScore::Incomparable);
+    assert_eq!(nbis_match_score(&raw, &raw), MatchScore::Incomparable);
+    // An incomparable pair never verifies, at any threshold.
+    assert!(!nbis_verify(&raw, &nbis, 0));
 }

@@ -81,7 +81,9 @@ fn reference_replay_reproduces_the_frozen_facts() {
         xyt.push_str(&format!("{} {} {}\n", m.x, m.y, m.theta));
     }
     let template = template_from_images(&[frame.as_gray().expect("valid dims")]);
-    let score = nbis_match_score(&template, &template);
+    let score = nbis_match_score(&template, &template)
+        .score()
+        .expect("a host-side Nbis template self-compares");
 
     let dir = fixtures();
     if std::env::var_os("CAPTURE_GOLDEN_BLESS").is_some() {

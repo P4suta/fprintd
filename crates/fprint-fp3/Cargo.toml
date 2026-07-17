@@ -11,6 +11,13 @@ authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "fprintd", "gvariant", "fp3", "serialization"]
 categories = ["encoding", "parser-implementations"]
+# These integration tests use `publish = false` dev-deps that go version-less in the packaged
+# manifest, so an unpacked tarball cannot compile them. Kept out of the tarball; they run in-tree.
+exclude = [
+  "tests/property.rs",  # fprint-testkit (Lcg/xyt generators)
+  "tests/malformed.rs", # fprint-testkit (ByteSource/Lcg mutation harness)
+  "tests/roundtrip.rs", # fprint-backend-native (VirtualDevice enroll round-trip)
+]
 
 [dependencies]
 # The GVariant framing is hand-rolled in `src/gvariant.rs`; this crate is a self-contained
@@ -42,4 +49,4 @@ workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
+rustdoc-args = ["--generate-link-to-definition"]
