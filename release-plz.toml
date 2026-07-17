@@ -16,8 +16,15 @@
 # onto independent version lines.
 dependencies_update = false
 changelog_config = "cliff.toml"
+git_tag_enable = true
 git_release_enable = true
 pr_labels = ["release"]
+# Publish only on a Release PR merge, never directly on a push to main. Without this the first push
+# would publish the current manifest version at once, skipping review of the bump and CHANGELOG
+# before the irreversible crates.io publish.
+release_always = false
+# Run cargo-semver-checks before each release to gate breaking API changes.
+semver_check = true
 
 # The publish = false members. release-plz must not version-bump, changelog, tag, or publish them.
 # Listing each keeps the release set equal to the workspace's publishable crates (checked by

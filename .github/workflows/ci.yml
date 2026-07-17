@@ -247,3 +247,27 @@ jobs:
         with:
           name: coverage-lcov
           path: lcov.info
+
+  # Single aggregation gate — the one status context the branch ruleset requires. `if: always()`
+  # so it runs even when a needed job fails; `skipped` counts as pass, so PR-only jobs report green
+  # on push and merge_group. `needs` lists the gating jobs only: `mutants` reports rather than gates
+  # and `coverage` has no floor, so both are intentionally excluded. Keep this list in step with the
+  # gating jobs above.
+  ci-required:
+    name: ci-required
+    if: always()
+    needs: [check, linux, unit, msrv, publish, deny, reuse]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: verify all required jobs passed (skipped counts as pass)
+        run: |-
+          results="${{ join(needs.*.result, ' ') }}"
+          echo "needs results: $results"
+          for r in $results; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::a required job did not pass ($r)"
+              exit 1
+            fi
+          done
+          echo "all required jobs passed"
