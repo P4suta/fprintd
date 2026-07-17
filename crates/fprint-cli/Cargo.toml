@@ -37,7 +37,7 @@ fprint-backend-native = { workspace = true }
 # Argument parsing (derive).
 clap = { version = "4", features = ["derive"] }
 # Drives the backend's `async fn` operations to completion on this thread, no runtime.
-pollster = "0.4"
+pollster = "1.0"
 
 [lints]
 workspace = true

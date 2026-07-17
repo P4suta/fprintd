@@ -54,7 +54,7 @@ crossterm = "0.28"
 byteorder = "1"
 # Drive the backend's `async` USB transport to completion in `fpdev shell` with no runtime, the same
 # minimal executor `fprint-cli` uses.
-pollster = "0.4"
+pollster = "1.0"
 
 [features]
 # Off by default: `fpdev shell` runs its offline dry-run backend with no USB stack. `usb` turns on
