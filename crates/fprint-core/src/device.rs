@@ -47,7 +47,7 @@
 //! ```
 
 use crate::error::RetryReason;
-use crate::{DeviceFeature, FingerStatus, Print, Result, ScanType, Temperature};
+use crate::{DeviceFeature, Error, FingerStatus, Print, Result, ScanType, Temperature};
 
 /// Stable identifier for a physical reader (opaque; assigned by the backend).
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -326,13 +326,30 @@ pub trait Device {
     }
 
     /// List prints stored on the device (match-on-chip devices with `STORAGE`).
-    async fn list_prints(&mut self) -> Result<Vec<Print>>;
+    ///
+    /// A device that keeps no on-sensor storage (a host-image sensor) inherits the default, which
+    /// reports [`Error::NotSupported`] — the absence of storage is spoken by *not* overriding this,
+    /// its presence by advertising [`DeviceFeature::STORAGE`] and overriding it.
+    async fn list_prints(&mut self) -> Result<Vec<Print>> {
+        Err(Error::NotSupported)
+    }
 
     /// Delete one print from on-device storage.
-    async fn delete_print(&mut self, print: &Print) -> Result<()>;
+    ///
+    /// Defaults to [`Error::NotSupported`] for a device without on-sensor storage; see
+    /// [`list_prints`](Device::list_prints).
+    async fn delete_print(&mut self, print: &Print) -> Result<()> {
+        let _ = print;
+        Err(Error::NotSupported)
+    }
 
     /// Erase all templates from on-device storage.
-    async fn clear_storage(&mut self) -> Result<()>;
+    ///
+    /// Defaults to [`Error::NotSupported`] for a device without on-sensor storage; see
+    /// [`list_prints`](Device::list_prints).
+    async fn clear_storage(&mut self) -> Result<()> {
+        Err(Error::NotSupported)
+    }
 
     /// Prepare for system suspend (the sensor may need to stop an active wait).
     async fn suspend(&mut self) -> Result<()>;
@@ -393,15 +410,6 @@ mod tests {
             _: F,
         ) -> Result<IdentifyOutcome> {
             todo!("has_feature never scans")
-        }
-        async fn list_prints(&mut self) -> Result<Vec<Print>> {
-            todo!("has_feature never touches storage")
-        }
-        async fn delete_print(&mut self, _: &Print) -> Result<()> {
-            todo!("has_feature never touches storage")
-        }
-        async fn clear_storage(&mut self) -> Result<()> {
-            todo!("has_feature never touches storage")
         }
         async fn suspend(&mut self) -> Result<()> {
             todo!("has_feature never suspends")

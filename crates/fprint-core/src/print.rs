@@ -65,12 +65,47 @@ pub struct EnrollDate {
 }
 
 impl EnrollDate {
-    /// An enrollment date from its Gregorian `year`, `month`, and `day`.
+    /// An enrollment date from a `year`, `month`, and `day` the caller vouches for, without
+    /// range-checking — for reconstructing a known-good date (the FP3 Julian decoder). Untrusted
+    /// input goes through [`try_new`](EnrollDate::try_new).
     #[must_use]
     pub fn new(year: i32, month: u8, day: u8) -> Self {
         EnrollDate { year, month, day }
     }
+
+    /// An enrollment date, rejecting a `month` outside `1..=12` or a `day` outside `1..=31` with
+    /// an [`InvalidEnrollDate`] naming the offending field.
+    pub fn try_new(year: i32, month: u8, day: u8) -> Result<Self, InvalidEnrollDate> {
+        if !(1..=12).contains(&month) {
+            return Err(InvalidEnrollDate::Month(month));
+        }
+        if !(1..=31).contains(&day) {
+            return Err(InvalidEnrollDate::Day(day));
+        }
+        Ok(EnrollDate { year, month, day })
+    }
 }
+
+/// The error [`EnrollDate::try_new`] returns for a month outside `1..=12` or a day outside
+/// `1..=31`, naming the offending field and value.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum InvalidEnrollDate {
+    /// The month was not in `1..=12`.
+    Month(u8),
+    /// The day was not in `1..=31`.
+    Day(u8),
+}
+
+impl core::fmt::Display for InvalidEnrollDate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            InvalidEnrollDate::Month(m) => write!(f, "{m} is not a valid month (expected 1..=12)"),
+            InvalidEnrollDate::Day(d) => write!(f, "{d} is not a valid day (expected 1..=31)"),
+        }
+    }
+}
+
+impl std::error::Error for InvalidEnrollDate {}
 
 /// The biometric payload of a print, matching libfprint's `FpiPrintType`.
 ///
@@ -252,8 +287,42 @@ impl PrintBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::{Minutia, Print, Template};
+    use super::{EnrollDate, InvalidEnrollDate, Minutia, Print, Template};
     use crate::{DriverId, Finger};
+
+    /// [`EnrollDate::try_new`] accepts an in-range date and rejects a month or day out of range,
+    /// naming the offending field. The boundaries `1..=12` / `1..=31` are inclusive.
+    #[test]
+    fn try_new_accepts_in_range_and_rejects_out_of_range() {
+        assert_eq!(
+            EnrollDate::try_new(2026, 7, 15),
+            Ok(EnrollDate::new(2026, 7, 15))
+        );
+        // Inclusive boundaries are accepted.
+        for (month, day) in [(1u8, 1u8), (12, 31)] {
+            assert_eq!(
+                EnrollDate::try_new(2026, month, day),
+                Ok(EnrollDate::new(2026, month, day))
+            );
+        }
+        // Out-of-range month/day are rejected, and the error names the offending value.
+        assert_eq!(
+            EnrollDate::try_new(2026, 0, 1),
+            Err(InvalidEnrollDate::Month(0))
+        );
+        assert_eq!(
+            EnrollDate::try_new(2026, 13, 1),
+            Err(InvalidEnrollDate::Month(13))
+        );
+        assert_eq!(
+            EnrollDate::try_new(2026, 1, 0),
+            Err(InvalidEnrollDate::Day(0))
+        );
+        assert_eq!(
+            EnrollDate::try_new(2026, 1, 32),
+            Err(InvalidEnrollDate::Day(32))
+        );
+    }
 
     /// **A print built by [`Print::new_for_enroll`] carries its finger and nothing else.**
     ///

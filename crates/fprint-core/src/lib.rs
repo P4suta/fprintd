@@ -170,7 +170,7 @@ pub use device::{
 pub use error::{Error, Result, RetryReason};
 pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
 pub use finger::{Finger, InvalidFinger};
-pub use print::{EnrollDate, Minutia, Print, PrintBuilder, Template};
+pub use print::{EnrollDate, InvalidEnrollDate, Minutia, Print, PrintBuilder, Template};
 
 /// The names a backend or client reaches for most: the traits, the model, and the result types.
 ///

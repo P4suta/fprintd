@@ -9,12 +9,16 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// Errors surfaced by [`Backend`]/[`Device`] operations.
 ///
-/// Roughly mirrors libfprint's `FpDeviceError` (`FP_DEVICE_ERROR_*`) plus a few
-/// transport/proto buckets. `retry`-class variants correspond to fprintd's
-/// `*-retry-scan` / `*-remove-and-retry` status strings and mean "try again", not "give up".
+/// A flat *translation vocabulary*, not a source-chaining wrapper: a closed classification
+/// mirroring libfprint's `FpDeviceError` (`FP_DEVICE_ERROR_*`) plus a few transport/proto
+/// buckets. Each backend maps its native failures (glib `GError`, USB errors) onto these
+/// variants, and the daemon remaps them onto D-Bus names; the terminal form is a human-readable
+/// string at that edge. `retry`-class variants correspond to fprintd's `*-retry-scan` /
+/// `*-remove-and-retry` status strings and mean "try again", not "give up".
 ///
-/// The boundary variants (`Transport`/`Protocol`/`Other`) carry a `String` rather than a `dyn`
-/// source because `Error` is a value-semantic vocabulary collapsed to strings at the D-Bus edge.
+/// The boundary variants (`Transport`/`Protocol`/`Other`) carry a `String`, not a `dyn` source:
+/// the vocabulary is closed and value-semantic, so it collapses to strings at the D-Bus edge
+/// rather than chaining a cause.
 ///
 /// [`Backend`]: crate::Backend
 /// [`Device`]: crate::Device
