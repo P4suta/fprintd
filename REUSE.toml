@@ -22,6 +22,7 @@ path = [
   "fuzz/Cargo.lock",
   "mise.toml",
   ".gitignore",
+  ".gitattributes",
   "fuzz/.gitignore",
   "**/*.md",
 ]
