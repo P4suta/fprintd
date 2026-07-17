@@ -10,9 +10,9 @@ security reports seriously.
 
 **Please do not open a public issue for security problems.**
 
-Report privately to **crates.tank733@slmails.com**. (Once this project is hosted
-publicly, GitHub's private vulnerability reporting — *Security → Advisories →
-Report a vulnerability* — will be the preferred channel.) Include:
+Report privately through GitHub's [private vulnerability
+reporting](https://github.com/P4suta/fprintd/security/advisories/new)
+(Security → Advisories → *Report a vulnerability*). Include:
 
 - the affected crate and version / commit,
 - the platform and how the daemon was configured, and
