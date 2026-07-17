@@ -33,7 +33,7 @@ members = [
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.1.0" # all crates inherit via `version.workspace = true`
+version = "0.1.0"
 edition = "2021"
 # MSRV floor for the published pure crates (fprint-core, fprint-fp3, fprint-bozorth3,
 # fprint-mindtct), verified by CI's `msrv` job. The three C-linking crates need more and declare it
