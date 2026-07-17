@@ -13,7 +13,7 @@
 //! `G_MININT32` sentinel, the maybe-strings, the NBIS `(a(aiaiai))` payload — lives here
 //! and never leaks up into `fprint-core` (`ARCHITECTURE.md` principle 3).
 //!
-//! The public surface is two verbs:
+//! The public surface is `to_bytes` and `from_bytes`:
 //!
 //! ```
 //! use fprint_core::{Finger, Minutia, Print, Template};
@@ -30,26 +30,26 @@
 //! # Ok::<(), fprint_fp3::Fp3Error>(())
 //! ```
 //!
-//! ## What round-trips, exactly
+//! ## Round-trip
 //!
 //! `from_bytes(to_bytes(p))` reproduces `p` for every [`Print`](fprint_core::Print) whose
-//! `finger` is `Some` and whose `driver`/`device_id` are either `None` or non-empty. **Outside
-//! that, two distinctions collapse**, because the wire cannot express them:
+//! `finger` is `Some` and whose `driver`/`device_id` are either `None` or non-empty. Outside
+//! that, two distinctions collapse because the wire cannot express them:
 //!
 //! * `finger: None` decodes as `Some(Finger::Unknown)` — the FP3 `y` byte has no "absent".
 //! * `driver`/`device_id` of `Some("")` decode as `None` — GVariant `s` is not nullable, so the
-//!   empty string is how the format spells "unset".
+//!   empty string is the format's "unset".
 //!
 //! `tests/property.rs` states the exact law, collapse included, and sweeps it. `to_bytes` is
 //! partial for two further reasons of its own: [`Template::Undefined`](fprint_core::Template)
 //! has no on-disk form, and an [`EnrollDate`](fprint_core::EnrollDate) outside the Julian day's
 //! `i32` range has no encoding ([`Fp3Error::DateOutOfRange`]).
 //!
-//! The signature's reserved `a{sv}` metadata dictionary is **not** a data channel: libfprint always
+//! The signature's reserved `a{sv}` metadata dictionary is not a data channel: libfprint always
 //! writes it empty, so `to_bytes` writes it empty and `from_bytes` ignores whatever it holds.
-//! Preserving a populated reserved dict would mean carrying wire bytes inside the domain
-//! [`Print`](fprint_core::Print), which principle 3 forbids — so a (non-conforming) blob with a
-//! non-empty reserved dict decodes without it. This is by design, not a gap.
+//! Preserving a populated reserved dict would carry wire bytes inside the domain
+//! [`Print`](fprint_core::Print), which principle 3 forbids, so a non-conforming blob with a
+//! non-empty reserved dict decodes without it.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

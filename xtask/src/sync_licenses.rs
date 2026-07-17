@@ -7,7 +7,7 @@
 //! `cargo package` ships only a crate's own directory, so a licence text kept in the workspace
 //! root `LICENSES/` never reaches the tarball. Each published crate therefore carries its own
 //! `LICENSES/` copy: `reuse lint` on an extracted tarball resolves the crate's REUSE.toml against
-//! it, and the tarball is self-describing on its own.
+//! it, and the tarball is self-describing.
 //!
 //! `LICENSES/` at the workspace root stays the single source of truth. This copies it; the copies
 //! are a mechanical mirror, and [`publish::check`](crate::publish::check) fails the build if any

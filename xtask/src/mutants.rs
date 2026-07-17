@@ -2,28 +2,26 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Mutation testing: which lines the tests do not actually defend.
+//! Mutation testing: which lines the tests do not defend.
 //!
-//! `cargo test` green says the goldens pass. It does not say a golden would notice if a stage
-//! stopped doing its work — `crates/fprint-mindtct/tests/corpus_adequacy.rs` makes that argument for
-//! one file by hand, and cargo-mutants makes it for every line by deleting the line and watching for
-//! red. What it scopes and how it builds is in `.cargo/mutants.toml`; this file is what the command
-//! line cannot say declaratively.
+//! `cargo test` green says the goldens pass. It does not say a golden would catch a stage that
+//! stopped doing its work. `crates/fprint-mindtct/tests/corpus_adequacy.rs` makes that argument for
+//! one file by hand; cargo-mutants makes it for every line by deleting the line and watching for a
+//! test failure. Scope and build settings are in `.cargo/mutants.toml`; this file holds what the
+//! command line cannot state declaratively.
 //!
 //! Two runs, one task:
 //!
 //! * no argument — every mutant in the published crates. DELIBERATE: 5,784 of them, hours.
 //! * a base ref  — only mutants on lines the branch touched, which is what CI runs on a pull
-//!   request. A `git diff` and a `cargo mutants` is two commands and a file between them, so it is
+//!   request. A `git diff` plus a `cargo mutants` is two commands and a file between them, so it is
 //!   a program rather than a line of `mise.toml`.
 //!
-//! ## What a finding is, and is not
+//! ## What a finding means
 //!
-//! A surviving mutant is untested code, not broken code. Nothing here gates a merge: a check that
-//! fires on correct code gets switched off (see `lint.rs`), and by that standard this is a report.
-//! The task still exits non-zero when mutants survive, because a task that lies about its result is
-//! worse than a task that fails; CI is where the decision not to gate is taken, and it is taken in
-//! `.github/workflows/ci.yml`.
+//! A surviving mutant is untested code, not broken code. Nothing here gates a merge; this is a
+//! report. The task still exits non-zero when mutants survive, so it does not misreport its result.
+//! CI takes the decision not to gate, in `.github/workflows/ci.yml`.
 
 use std::path::Path;
 use std::process::Command;
@@ -33,9 +31,9 @@ use std::process::Command;
 const DIFF: &str = "target/mutants-diff.patch";
 
 /// Jobs per core. cargo-mutants runs one `cargo test` per job and defaults to one job, which leaves
-/// a 16-core box testing 5,784 mutants on one core. Half is not arbitrary: each job's `cargo test`
-/// spawns its own threads, and cargo-mutants' jobserver caps the total at the core count anyway, so
-/// the remaining halves are what those threads run in.
+/// a 16-core box testing 5,784 mutants on one core. Half the cores: each job's `cargo test` spawns
+/// its own threads, and cargo-mutants' jobserver caps the total at the core count, so the remaining
+/// cores run those threads.
 const JOBS_PER_CORE: usize = 2;
 
 /// Mutation-test the published crates; `base` restricts it to the lines changed since that ref.
@@ -58,8 +56,7 @@ pub fn run(root: &Path, base: Option<String>) -> Result<(), String> {
         .status()
         .map_err(|e| format!("spawn cargo-mutants: {e} (cargo install cargo-mutants)"))?;
     if !status.success() {
-        // cargo-mutants has already printed the survivors, and repeating them here would say it
-        // twice and no better.
+        // cargo-mutants has already printed the survivors; no need to repeat them.
         return Err(format!("mutants survived, or the run failed ({status})"));
     }
     Ok(())

@@ -20,8 +20,7 @@ sites carry a `HW-verified: required` marker pointing back here.
 
 `fprint-fp3` hand-rolls the GVariant serialization (no `zvariant`). Its correctness is proven three
 ways: self round-trip identity (`from_bytes(to_bytes(p)) == p`); byte-for-byte equality against
-**frozen golden fixtures** (permanent oracles that caught two real framing bugs during the
-hand-roll); and **byte-identity against a real C libfprint blob**:
+**frozen golden fixtures**; and **byte-identity against a real C libfprint blob**:
 
 - The shim's Docker tests enroll on the real virtual drivers and assert our `to_bytes` output is a
   **fixed point of the shim's own libfprint FFI `deserialize`/`serialize`** (`src/ffi.rs`, exposed
@@ -42,10 +41,9 @@ is not an option — see `SECURITY.md`.
 ## Experimental native USB capture seam (unpublished, off by default)
 
 `fprint-backend-native`'s `usb` feature and the `fpdev` (`fprint-driverkit`) live-USB paths are a
-**worked example of a native host-image driver, not a working one**. Native drivers are an open
-invitation, never a project goal (`ARCHITECTURE.md` §Non-goals), so this is a **deliberate,
-hardware-gated boundary** — recorded here, not worked around. Both crates are `publish = false`; the
-feature is off by default, so nothing on crates.io reaches any of it.
+**worked example of a native host-image driver, not a working one**. Native drivers are a non-goal;
+see [ADR 0004](adr/0004-coexistence-shim-first.md). This is a hardware-gated boundary. Both crates
+are `publish = false`; the feature is off by default, so nothing on crates.io reaches any of it.
 
 | id | site | what | removal condition |
 |---|---|---|---|

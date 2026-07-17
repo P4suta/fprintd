@@ -7,10 +7,9 @@
 The GObject-free core of an fprintd-compatible fingerprint stack: the domain model
 (fingers, device capabilities, prints/templates) plus the `Backend`/`Device` traits a
 concrete backend implements. Zero dependencies, `#![forbid(unsafe_code)]`. Both traits are
-native `async fn` traits with no `dyn` and no runtime, so a whole backend is a struct and two
-impl blocks. It contains no drivers, no USB code, and no matching algorithms — those live in
-downstream crates, and the daemon depends only on these traits, so the backend can be swapped
-without touching it.
+native `async fn` traits with no `dyn` and no runtime. It contains no drivers, USB code, or
+matching algorithms; those live in downstream crates. The daemon depends only on these traits,
+so a backend can be swapped without touching it.
 
 ## Quickstart
 

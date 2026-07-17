@@ -4,8 +4,8 @@
 
 //! Running things in containers, without going through a shell.
 //!
-//! No argument built here is parsed by `sh`, which is what keeps a bind-mount path portable: a
-//! path handed to [`std::process::Command`] reaches Docker as written, on any host.
+//! No argument built here is parsed by `sh`, which keeps a bind-mount path portable: a path handed
+//! to [`std::process::Command`] reaches Docker as written, on any host.
 //!
 //! Two shapes, because `docker run --rm` keeps nothing:
 //!
@@ -120,9 +120,9 @@ pub struct Session {
 impl Session {
     /// Start `image` doing nothing, under a name unique to this process.
     ///
-    /// `sleep` rather than the image's entrypoint: what is needed is a filesystem to work in.
-    /// The duration is a timeout, not a schedule — the container is removed as soon as the task
-    /// is done, and the ceiling only matters if the task is killed.
+    /// `sleep` rather than the image's entrypoint: the task needs only a filesystem to work in. The
+    /// duration is a timeout, not a schedule — the container is removed when the task is done, and
+    /// the ceiling matters only if the task is killed.
     pub fn start(image: &str) -> Result<Session, String> {
         let name = format!("fprintd-xtask-{}", std::process::id());
         // A leftover from a killed run would collide; clear it without caring if it is there.

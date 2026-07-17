@@ -1,18 +1,12 @@
-# Adding a native driver — an open invitation
+# Adding a native driver
 
-Bringing up a fingerprint sensor with a pure-Rust driver is **welcome, and never
-required**. This project's north star is coexistence: we speak fprintd's contract
-and keep the C libfprint as a shim so real hardware works today. Reaching parity
-with libfprint's driver estate is explicitly a non-goal (see
-[`ARCHITECTURE.md`](../ARCHITECTURE.md) §Non-goals) — so a native driver is a gift
-to the ecosystem, contributed at your pace, not a milestone the project is racing
-toward.
+Native drivers are a non-goal; see [ADR 0004](adr/0004-coexistence-shim-first.md).
 
-If you'd like to try, here is where to plug in. This page is the seam reference — the trait,
-the layers, the license rule, and the acceptance criteria. For the step-by-step bring-up that
-uses these — identify the device, scaffold a driver, decode its frames, and open a pull
-request — follow [Bringing up a sensor with fpdev](bringing-up-a-sensor.md); the `fpdev`
-workbench drives every phase offline.
+This page is the seam reference: the trait, the layers, the license rule, and the
+acceptance criteria. For the step-by-step bring-up (identify the device, scaffold a driver,
+decode its frames, open a pull request) follow
+[Bringing up a sensor with fpdev](bringing-up-a-sensor.md). The `fpdev` workbench drives
+every phase offline.
 
 ## The capture seam
 

@@ -2,24 +2,23 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The hardware-verification checklist: which device values a driver still asserts on faith.
+//! The hardware-verification checklist: which device values a driver asserts without a sensor.
 //!
-//! A native driver's device constants — VID/PID, endpoints, frame geometry, init/deinit sequences —
-//! are interoperability facts that can be confirmed only against a physical sensor. Until then each
-//! carries a marker in its doc-comment, and this task collects the unresolved ones so a bring-up can
-//! see at a glance what is left to confirm.
+//! A native driver's device constants (VID/PID, endpoints, frame geometry, init/deinit sequences)
+//! are interoperability facts confirmable only against a physical sensor. Until then each carries a
+//! marker in its doc-comment, and this task collects the unresolved ones so a bring-up sees what is
+//! left to confirm.
 //!
 //! ## The marker convention
 //!
 //! A device value's state lives in a `// HW-verified:` marker on its declaration:
 //!
 //! * `// HW-verified: required` — **PENDING**. The value is a placeholder or an unconfirmed fact; no
-//!   physical sensor has vouched for it. This is the state the scaffold emits.
+//!   physical sensor has vouched for it. The scaffold emits this state.
 //! * `// HW-verified: confirmed <evidence>` — **RESOLVED**. The value has been checked against
 //!   hardware, and `<evidence>` records how (a capture, a descriptor dump, a datasheet reference).
 //!
-//! The two are one axis with two positions: a marker is either pending or resolved, and the word
-//! after the colon is which. Nothing else changes an existing marker's meaning — a bare
+//! A marker is either pending or resolved; the word after the colon is which. A bare
 //! `HW-verified: required` stays pending until someone confirms it and writes the evidence in.
 
 use std::collections::BTreeMap;
@@ -115,8 +114,8 @@ fn collect(root: &Path, filter: Option<&str>) -> Result<Vec<DriverReport>, Strin
 /// The driver a file belongs to, or `None` when the file is not driver source.
 ///
 /// A driver is a `usb/drivers/<name>/` subtree; its files map to `<name>`. The worked example is the
-/// backend's `usb/*.rs`, whose files map to `vfs5011`. Everything else — the toolkit's live-USB seam,
-/// scaffolding templates, golden fixtures — is not a driver and maps to `None`.
+/// backend's `usb/*.rs`, whose files map to `vfs5011`. Everything else (the toolkit's live-USB seam,
+/// scaffolding templates, golden fixtures) is not a driver and maps to `None`.
 fn driver_of(path: &Path) -> Option<String> {
     let comps: Vec<String> = path
         .components()

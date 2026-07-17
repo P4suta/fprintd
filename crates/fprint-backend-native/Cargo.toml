@@ -17,8 +17,8 @@ publish = false
 # `nusb`-backed transport (`NusbTransport`); the protocol, driver, and mock-driven tests are always
 # built and need no feature.
 #
-# NOTE: `usb` gates the *experimental*, hardware-unverified capture seam — an open invitation, not a
-# project goal (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
+# NOTE: `usb` gates the *experimental*, hardware-unverified capture seam — a non-goal
+# (see the `usb` module docs, ARCHITECTURE.md §Non-goals, docs/adding-a-driver.md).
 default = []
 usb = ["dep:nusb"]
 # Off by default: derives `Serialize`/`Deserialize` on the wire model (`UsbTransfer`/`UsbId`/`Session`)

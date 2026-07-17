@@ -1,20 +1,13 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
-# The checks that answer a question no pull request asks.
+# Weekly checks that a pull request does not trigger.
 #
-#  * `advisories` — a new advisory lands against unchanged code. A push-triggered CI never sees
-#                   one, and on an authentication path a red `main` with no commit behind it is
-#                   correct rather than a nuisance.
+#  * `advisories` — new advisories against unchanged code, which push-triggered CI never sees.
 #  * `beta`       — the frozen NBIS goldens against the next toolchain. `docs/mindtct-algorithm.md`
-#                   names libm `cos`/`sin` ULP as the main cross-platform hazard, and Rust lowers
-#                   those to the *system* libm — so CI's OS matrix is already a differential libm
-#                   test, and the best instrument this project has on that axis. Pinning a
-#                   toolchain would not protect it, only delay the news. Running it against `beta`
-#                   instead moves the canary ahead of the release train: drift is found with six
-#                   weeks of warning, rather than by reddening a stranger's pull request.
-#
-# Neither costs anything on the pull-request path.
+#                   names libm `cos`/`sin` ULP as the main cross-platform hazard; Rust lowers those
+#                   to the *system* libm, so CI's OS matrix is a differential libm test. Running on
+#                   `beta` finds drift six weeks ahead of the release train.
 
 name: scheduled
 
@@ -45,14 +38,14 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     env:
-      # rust-toolchain.toml pins stable for a bare `cargo`, which would run this canary on stable
-      # and quietly defeat it. RUSTUP_TOOLCHAIN outranks the file, so the beta toolchain is used.
+      # rust-toolchain.toml pins stable for a bare `cargo`. RUSTUP_TOOLCHAIN outranks the file, so
+      # the beta toolchain is used.
       RUSTUP_TOOLCHAIN: beta
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@beta
       - uses: Swatinem/rust-cache@v2
-      # `RUSTFLAGS: -D warnings` is deliberately absent, unlike ci.yml: a new lint firing on beta
-      # is not a bit-exactness signal, and must not be able to mask one.
+      # `RUSTFLAGS: -D warnings` is absent, unlike ci.yml: a new lint firing on beta is not a
+      # bit-exactness signal and must not mask one.
       - name: Goldens against the next toolchain
         run: cargo test --workspace --all-features

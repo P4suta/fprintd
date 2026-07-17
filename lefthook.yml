@@ -3,18 +3,17 @@
 #
 # Git hooks. Install with `mise run hooks`.
 #
-# Everything here is also a CI job, so a hook is a faster failure, never the only one.
+# Everything here is also a CI job; a hook is a faster failure, not the only one.
 #
-# `pre-commit` is the only hook declared, and that is deliberate: `lefthook install` syncs the
-# hooks this file names and leaves the rest alone. `.git/hooks/post-commit` and `pre-push`
-# enforce commit signing and are not lefthook-managed — naming either of them here would
-# replace it.
+# Only `commit-msg` and `pre-commit` are declared. `lefthook install` syncs the hooks this file
+# names and leaves the rest alone. `.git/hooks/post-commit` and `pre-push` enforce commit signing
+# and are not lefthook-managed; naming either here would replace it.
 
 assert_lefthook_installed: true
 
 # The commit message is the changelog's raw material: release-plz derives the version bump and
-# git-cliff writes CHANGELOG.md from Conventional Commits, so a malformed subject degrades both.
-# `commit-msg` is distinct from the signing `post-commit`/`pre-push`, so naming it here is safe.
+# git-cliff writes CHANGELOG.md from Conventional Commits. `commit-msg` is distinct from the signing
+# `post-commit`/`pre-push`, so naming it here is safe.
 commit-msg:
   commands:
     conventional:
@@ -47,8 +46,8 @@ pre-commit:
       glob: "*.rs"
       run: cargo clippy --workspace --all-targets -- -D warnings
 
-    # The Linux-only crates (fprintd, fprint-backend-libfprint) compile to nothing off Linux,
-    # so their lints and docs are the `linux` CI job's, not this hook's.
+    # The Linux-only crates (fprintd, fprint-backend-libfprint) compile to nothing off Linux, so
+    # their lints and docs are the `linux` CI job's, not this hook's.
     rustdoc:
       tags: lint
       glob: "*.rs"

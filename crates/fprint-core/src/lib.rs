@@ -8,8 +8,8 @@
 //! (fingers, device capabilities, prints/templates) plus the [`Backend`]/[`Device`] traits
 //! that a concrete backend implements.
 //!
-//! It contains **no** device drivers, **no** USB code, and **no** matching algorithms —
-//! those live in downstream crates:
+//! It contains no device drivers, USB code, or matching algorithms; those live in downstream
+//! crates:
 //!
 //! * `fprint-backend-libfprint` implements [`Backend`] by wrapping the C libfprint, and
 //! * `fprint-backend-native` implements the same trait with pure-Rust drivers + transport.
@@ -27,8 +27,8 @@
 //! # Implementing a backend
 //!
 //! A backend is a type that hands out [`Device`]s. Both traits are native `async fn` traits with
-//! no `dyn` and no runtime, so **a whole backend is a struct and two impl blocks** — this one is
-//! compiled and run as a doctest, depending on nothing but `std`.
+//! no `dyn` and no runtime: a backend is a struct and two impl blocks. The example below is
+//! compiled as a doctest, depending on nothing but `std`.
 //!
 //! ```
 //! # use std::future::Future;

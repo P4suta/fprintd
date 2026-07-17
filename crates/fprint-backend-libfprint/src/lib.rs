@@ -23,8 +23,8 @@
 //! thread and hands the device off to a dedicated **worker thread** that owns the `FpDevice` and
 //! runs every `*_sync` there. [`LibfprintDevice`] is thus a `Send` handle — a channel to its
 //! worker — while the sensor it drives never leaves that one thread. `fprint-core` never requires
-//! `Send` (principle 7), so either shape is expressible; the worker is what makes cancellation
-//! real.
+//! `Send` (principle 7), so either shape is expressible; cancellation runs through the worker
+//! thread.
 //!
 //! ## Cancellation
 //!
@@ -35,8 +35,7 @@
 //! that await fires the cancellable — which is `Send` — from the caller thread if the future is
 //! dropped, waking the parked `*_sync` cross-thread (libfprint's own `g_cancellable_cancel` path).
 //! The worker's call returns `Cancelled` and it moves on to the next job, releasing the sensor
-//! without the caller ever waiting. Like `fprint-backend-native`, the shim is fully
-//! drop-cancellable.
+//! without the caller ever waiting.
 
 // The pure crates all set this; the shim is the one published crate that may not
 // `#![forbid(unsafe_code)]` (it is the FFI quarantine), but it holds the same documentation bar.

@@ -27,6 +27,11 @@
 # Upstream references cloned for reading/measurement (populate via `mise run clone-ref`)
 /reference/
 
+# mdBook output, and the empty stub mdbook regenerates for the root ARCHITECTURE.md that
+# docs/SUMMARY.md links (the canonical file lives at the repo root).
+/docs/book/
+/docs/ARCHITECTURE.md
+
 # mise local overrides
 /mise.local.toml
 /.mise.local.toml

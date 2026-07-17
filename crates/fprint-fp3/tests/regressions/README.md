@@ -1,6 +1,6 @@
 # Frozen fuzz findings
 
-One file per input that once broke `fprint-fp3`. `tests/regressions.rs` walks this directory and
+One file per input that panicked or failed to round-trip `fprint-fp3`. `tests/regressions.rs` walks this directory and
 asserts that none panics the decoder, and that each one which decodes is a fixed point of
 decode∘encode.
 
@@ -12,7 +12,7 @@ This directory is not `tests/fixtures/`. Those are frozen goldens, regenerated f
 counterexamples, added one at a time when `cargo xtask fuzz` finds one.
 
 **The directory is empty of inputs when no campaign has found anything.** That is a fact about the
-codec, and `tests/regressions.rs` passes on it. It is not an invitation to invent one.
+codec, and `tests/regressions.rs` passes on it. Do not invent inputs to fill it.
 
 Adding a finding:
 

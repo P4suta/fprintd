@@ -4,7 +4,7 @@
 
 # fprint-pipeline
 
-The host-image fingerprint pipeline in a few lines. It joins the three published leaves —
+The host-image fingerprint pipeline. It joins the three published leaves —
 `fprint-mindtct` (minutiae detection), `fprint-bozorth3` (minutiae matching) and `fprint-core`
 (the domain `Print`/`Template`/`Minutia`) — into the one path a host-image sensor walks:
 **image → minutiae → template → match**.

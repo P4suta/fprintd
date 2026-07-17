@@ -11,18 +11,14 @@
 //!
 //! ## Provenance
 //!
-//! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is a **faithful
-//! port** of the **stock upstream NBIS** algorithm (`reference/nbis-stock/mindtct/`, see
-//! `docs/mindtct-algorithm.md`), verified black-box against the stock C tool — reproducing its xyt
-//! output bit-for-bit requires following its arithmetic *and its ordering* closely, which public
-//! domain permits. It is deliberately **not** derived from libfprint's patched `nbis/mindtct/` copy,
-//! whose changes carry LGPL terms.
+//! MINDTCT is public-domain U.S. Government software (title 17 §105). This crate is a faithful
+//! port of stock upstream NBIS (`reference/nbis-stock/mindtct/`, see `docs/mindtct-algorithm.md`),
+//! verified black-box against the stock C tool; reproducing its `xyt` output bit-for-bit requires
+//! following its arithmetic and its ordering closely, which public domain permits. It is not
+//! derived from libfprint's patched `nbis/mindtct/` copy, whose changes carry LGPL terms. The
+//! crate carries `MIT OR Apache-2.0`. See `ARCHITECTURE.md` §Provenance & licensing.
 //!
-//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain imposes no
-//! conditions, so it constrains neither the port nor the licence we put on it. The NBIS lineage is
-//! provenance, not a licence. See `ARCHITECTURE.md` §Provenance & licensing.
-//!
-//! ## Shape
+//! ## Types
 //!
 //! The crate takes its own [`GrayImage`] and returns its own [`Minutia`] — the `xyt` triple is an
 //! interoperability fact, so the detector stays a self-contained image-processing kernel with no
@@ -67,8 +63,8 @@ pub struct Minutia {
 
 impl Minutia {
     /// The `(x, y, theta)` triple, dropping `quality` — the interoperability fact a matcher
-    /// (BOZORTH3) or the domain model names. There is no `from_xyt`: a bare triple cannot say how
-    /// reliable the detection was, and this detector is the thing that decides `quality`.
+    /// (BOZORTH3) or the domain model consumes. There is no `from_xyt`: a bare triple carries no
+    /// reliability, and `quality` is decided here.
     #[must_use]
     pub const fn as_xyt(&self) -> (i32, i32, i32) {
         (self.x, self.y, self.theta)

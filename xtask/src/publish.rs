@@ -2,29 +2,26 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Checking that the crates we publish can be published.
+//! Checking the published crates against the registry's rules.
 //!
-//! `reuse lint` and crates.io are different oracles: REUSE accepts a custom `LicenseRef-*`
-//! identifier and crates.io rejects it, so a green lint says nothing about whether a crate can
-//! leave the workspace. `cargo publish --dry-run` is the oracle that answers that, and it answers
-//! several questions at once — the licence expression is one the registry takes, every dependency
-//! resolves without a bare `path`, and the packaged tarball builds on its own.
+//! `reuse lint` and crates.io differ: REUSE accepts a custom `LicenseRef-*` identifier and
+//! crates.io rejects it, so a green lint does not prove a crate can be published. `cargo publish
+//! --dry-run` checks the registry's rules at once: the licence expression is one the registry
+//! takes, every dependency resolves without a bare `path`, and the packaged tarball builds on its
+//! own.
 //!
-//! It runs over the whole workspace in one invocation rather than crate by crate. That is not a
-//! shortcut: none of these crates is on the registry yet, so a per-crate run cannot resolve
-//! `fprint-core` for `fprint-fp3` and fails on a chicken-and-egg rather than on anything real.
-//! `--workspace` resolves the members against each other, skips every `publish = false` member on
-//! its own, and is the operation a release actually performs.
+//! The check runs over the whole workspace in one invocation. None of these crates is on the
+//! registry yet, so a per-crate run cannot resolve `fprint-core` for `fprint-fp3`. `--workspace`
+//! resolves the members against each other, skips every `publish = false` member, and matches the
+//! operation a release performs.
 //!
-//! Two further facts are checked against the packaged output rather than the source tree, because
-//! the source tree does not state them:
+//! Two facts are checked against the packaged output rather than the source tree:
 //!
 //! * **What Cargo strips.** A dev-dependency reaches the published manifest unless its entry omits
-//!   `version`. That is a Cargo behaviour, not something any manifest here declares, and the whole
-//!   "invisible to the published crates" argument rests on it.
+//!   `version`. This is Cargo behaviour, not declared in any manifest here.
 //! * **What the fixtures promise.** `crates/fprint-bozorth3/REUSE.toml` and its `fprint-mindtct`
-//!   sibling say the goldens ship "so the golden suite is runnable straight from the published
-//!   crate". `cargo package`'s include/exclude rules decide whether that is true.
+//!   sibling ship the goldens so the golden suite runs from the published crate. `cargo package`'s
+//!   include/exclude rules decide whether that holds.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -32,9 +29,8 @@ use std::process::Command;
 
 use cargo_metadata::MetadataCommand;
 
-/// Crates whose `REUSE.toml` promises the golden fixtures travel with the tarball, and the file
-/// each one's golden suite reads first. A tarball missing these still compiles and still passes
-/// `cargo publish`; only the promise breaks.
+/// Crates whose `REUSE.toml` ships the golden fixtures in the tarball, and the file each one's
+/// golden suite reads first. A tarball missing these still compiles and passes `cargo publish`.
 const SHIPS_FIXTURES: &[(&str, &str)] = &[
     ("fprint-bozorth3", "tests/fixtures/expected.tsv"),
     ("fprint-mindtct", "tests/fixtures/manifest.txt"),
@@ -64,12 +60,10 @@ pub fn check(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Package and verify every publishable member exactly as `cargo publish` would, without
-/// uploading.
+/// Package and verify every publishable member as `cargo publish` would, without uploading.
 ///
-/// `--locked` so the check is against the graph the lockfile pins, matching the `msrv` job.
-/// `--allow-dirty` because this runs on a working tree, and it is the packaged content that is
-/// under test, not the git status.
+/// `--locked` checks against the graph the lockfile pins, matching the `msrv` job. `--allow-dirty`
+/// because this runs on a working tree; the packaged content is under test, not the git status.
 fn dry_run(root: &Path) -> Result<(), String> {
     let out = Command::new("cargo")
         .current_dir(root)
@@ -91,8 +85,8 @@ fn dry_run(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The workspace members that carry `publish = false`, from the resolved metadata rather than a
-/// hardcoded list, so a new `publish = false` crate is covered the moment it exists.
+/// The workspace members carrying `publish = false`, from the resolved metadata rather than a
+/// hardcoded list, so a new `publish = false` crate is covered automatically.
 ///
 /// `cargo_metadata` reports `publish = false` as `Some(vec![])` — an empty allow-list of registries.
 fn publish_false_members(root: &Path) -> Result<Vec<String>, String> {
@@ -111,9 +105,8 @@ fn publish_false_members(root: &Path) -> Result<Vec<String>, String> {
 
 /// release-plz must mark exactly the `publish = false` members `release = false`, and no others.
 ///
-/// The two configs answer the same question — which crates leave the workspace — from different
-/// files. If they disagree, a release either skips a publishable crate or tries to publish one that
-/// cannot go, and both fail late. This makes them agree as a checked fact.
+/// The two configs state which crates leave the workspace in different files. If they disagree, a
+/// release skips a publishable crate or tries to publish one that cannot go. This checks they agree.
 fn release_parity(root: &Path, publish_false: &[String]) -> Result<(), String> {
     let path = root.join("release-plz.toml");
     let text =
@@ -148,9 +141,9 @@ fn release_parity(root: &Path, publish_false: &[String]) -> Result<(), String> {
 
 /// The first crate in `never` that `manifest` declares as a dependency, if any.
 ///
-/// Reads dependency table headers rather than searching the text, so a crate merely *named* in a
-/// string — a `description`, a `keywords` entry — is not a finding. Cargo's generated manifest
-/// gives each dependency its own `[…dependencies.<name>]` table, which is what this matches.
+/// Reads dependency table headers rather than searching the text, so a crate named only in a
+/// string (a `description`, a `keywords` entry) is not a finding. Cargo's generated manifest gives
+/// each dependency its own `[…dependencies.<name>]` table, which this matches.
 fn names_unpublished(manifest: &str, never: &[String]) -> Option<String> {
     manifest
         .lines()
@@ -165,9 +158,9 @@ fn names_unpublished(manifest: &str, never: &[String]) -> Option<String> {
 
 /// No packaged manifest may name a `publish = false` crate.
 ///
-/// Reads what [`dry_run`] just generated under `target/package`, which is the manifest a consumer
-/// resolves against — not the one in the source tree. Every packaged crate is checked by walking
-/// the directory, so nothing here has to be kept in step with the workspace membership.
+/// Reads what [`dry_run`] generated under `target/package`, the manifest a consumer resolves
+/// against, not the source tree. Every packaged crate is checked by walking the directory, so this
+/// stays in step with the workspace membership.
 fn stripped_deps_are_absent(root: &Path, never: &[String]) -> Result<(), String> {
     let dir = root.join("target/package");
     let entries = std::fs::read_dir(&dir).map_err(|e| format!("read {}: {e}", dir.display()))?;

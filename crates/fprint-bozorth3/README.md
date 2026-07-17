@@ -14,9 +14,9 @@ triple is an interoperability fact — so it has no dependency on the domain mod
 ## Provenance
 
 BOZORTH3 is public-domain U.S. Government software (17 USC §105). This crate is a faithful
-port of the stock upstream NBIS algorithm, verified black-box against the stock C tool, and
-deliberately not derived from libfprint's patched `nbis/` copy. The NBIS lineage is
-provenance, not a licence; the crate carries `MIT OR Apache-2.0` like the rest of the project.
+port of stock upstream NBIS, verified black-box against the stock C tool, not derived from
+libfprint's patched `nbis/` copy. It carries `MIT OR Apache-2.0`; see `ARCHITECTURE.md`
+§Provenance & licensing.
 
 ## Quickstart
 

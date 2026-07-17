@@ -70,14 +70,13 @@ pub use usb::{
 #[cfg(feature = "usb")]
 pub use usb::{list_usb_devices, NusbTransport, UsbDeviceInfo};
 
-/// The types a caller reaches for first: build a device, script it, drive it.
+/// The crate's entry points: build a device, script it, drive it.
 ///
-/// A glob-friendly re-export of the crate's entry points, so `use
-/// fprint_backend_native::prelude::*;` brings in what the top-level example uses — the
-/// [`VirtualBackend`] itself, the [`VirtualDeviceBuilder`] that shapes a device, and the
-/// [`Scenario`]/[`EnrollScript`]/[`FingerId`] trio that scripts its captures. The `fprint-core`
-/// traits ([`Backend`](fprint_core::Backend)/[`Device`](fprint_core::Device)) whose methods you then
-/// call are imported from `fprint_core` directly.
+/// A glob-friendly re-export, so `use fprint_backend_native::prelude::*;` brings in what the
+/// top-level example uses: [`VirtualBackend`], the [`VirtualDeviceBuilder`] that shapes a device,
+/// and the [`Scenario`]/[`EnrollScript`]/[`FingerId`] trio that scripts its captures. The
+/// `fprint-core` traits ([`Backend`](fprint_core::Backend)/[`Device`](fprint_core::Device)) are
+/// imported from `fprint_core` directly.
 pub mod prelude {
     pub use crate::{EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder};
 }

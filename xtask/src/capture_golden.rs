@@ -2,20 +2,20 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Freezing a driver's captured recording as a golden the pipeline regresses forever.
+//! Freezing a driver's captured recording as a golden for the pipeline.
 //!
 //! A bring-up records a live USB session (or imports a trace) into a `.cassette`, or captures a raw
 //! frame as a `.pgm`. Once that recording decodes to a matching frame it is the driver's ground
 //! truth. This task lifts the recording into `fprint-backend-native`'s fixtures in a serde-free
 //! form, generates an ordinary `#[test]` that replays it through the detect -> match pipeline, and
-//! freezes the derived facts — the assembled-frame hash, the xyt dump, the minutiae count, and the
-//! self-verify score — as goldens beside it.
+//! freezes the derived facts (the assembled-frame hash, the xyt dump, the minutiae count, and the
+//! self-verify score) as goldens beside it.
 //!
-//! The split is the same discipline the NBIS oracles and the fuzz survivors follow. Regeneration is
-//! **deliberate**: this task drives the generated test under `CAPTURE_GOLDEN_BLESS` to overwrite the
-//! goldens, then runs it plain to confirm they hold. Plain CI runs only the frozen test, which needs
-//! no hardware, no nightly toolchain and no container — it reads the committed recording, replays
-//! it, and asserts the committed facts.
+//! The split follows the NBIS oracles and the fuzz survivors. Regeneration is **deliberate**: this
+//! task drives the generated test under `CAPTURE_GOLDEN_BLESS` to overwrite the goldens, then runs
+//! it plain to confirm they hold. Plain CI runs only the frozen test, which needs no hardware, no
+//! nightly toolchain and no container: it reads the committed recording, replays it, and asserts
+//! the committed facts.
 //!
 //! Two recording shapes, matching the two capture seams:
 //!

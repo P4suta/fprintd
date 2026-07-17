@@ -10,15 +10,14 @@ already supports. The LGPL library is linked dynamically — an interoperability
 explicitly permits — and this crate's own source stays MIT/Apache. Linux only: on every other
 target a crate-level `#![cfg]` empties the crate so the cross-platform workspace still builds.
 
-## Two things worth knowing
+## Notes
 
 - `!Send` backend, worker-thread device — libfprint's objects are glib `GObject`s bound to their
   creating thread, so `LibfprintBackend` (which holds the `FpContext`) is `!Send`. Each device is
   driven on its own worker thread that owns the `FpDevice`, so `LibfprintDevice` is a `Send` handle
   to it. `fprint-core` never requires `Send`.
 - Drop-cancellable — the worker parks inside each blocking `*_sync`, so the operation future yields
-  and dropping it fires a `Send` `gio::Cancellable` cross-thread to cancel the call. The shim is
-  fully drop-cancellable, like `fprint-backend-native`.
+  and dropping it fires a `Send` `gio::Cancellable` cross-thread to cancel the call.
 
 ## Quickstart
 

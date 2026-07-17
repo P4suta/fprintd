@@ -4,17 +4,17 @@
 
 //! Regenerating the native backend's device database from the libfprint driver id-tables.
 //!
-//! The generated table is a set of interoperability facts — which `(vid, pid)` pairs a given
+//! The generated table is a set of interoperability facts: which `(vid, pid)` pairs a given
 //! libfprint driver claims, and whether that driver produces host-side images or matches on the
-//! chip. Those facts let `fpdev probe` tell a user, before they write a line of driver code,
-//! whether their sensor is reachable by the host-image `FrameSource` seam.
+//! chip. Those facts let `fpdev probe` tell a user whether their sensor is reachable by the
+//! host-image `FrameSource` seam before they start on a driver.
 //!
 //! Only facts cross the boundary. The vid/pid numbers, the owning driver name, and each driver's
 //! archetype are extracted from the reference tree; no C code or expression is copied, and the
 //! emitted Rust is original under this crate's license.
 //!
-//! Regeneration is deliberate: it overwrites a committed file whose whole point is to be stable
-//! between runs. On a clean tree, running it must leave no diff.
+//! Regeneration is deliberate: it overwrites a committed file that is stable between runs. On a
+//! clean tree, running it must leave no diff.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -77,9 +77,9 @@ const HOST_IMAGE: &[&str] = &[
 
 /// A driver's archetype, decided by its position in the two lists above.
 ///
-/// Anything in neither list is `Other`: a driver we will not silently pin to a seam it may not
-/// serve. Today that is `realtek`, which derives from `FP_TYPE_DEVICE` and does its own on-chip
-/// enroll/identify but is not in the enumerated match-on-chip set.
+/// Anything in neither list is `Other`: not pinned to a seam it may not serve. That is `realtek`,
+/// which derives from `FP_TYPE_DEVICE` and does its own on-chip enroll/identify but is not in the
+/// enumerated match-on-chip set.
 fn family_of(driver: &str) -> &'static str {
     if MATCH_ON_CHIP.contains(&driver) {
         "MatchOnChip"

@@ -9,38 +9,32 @@
 //! two prints as lists of minutiae, it returns an integer match score reproducing the stock NBIS
 //! tool's output; higher means more corresponding ridge structure.
 //!
-//! The two tolerances are not the same strength, and `tests/properties.rs` holds each to its own
-//! claim:
+//! The two tolerances differ in strength, and `tests/properties.rs` holds each to its claim:
 //!
 //! * **Translation is exact.** Shifting a print by any whole number of pixels does not move the
-//!   score at all — stage 1 reads only `dx`/`dy`, and the one absolute-coordinate reader (the
-//!   cluster centroid) enters the score only as a difference between two centroids of the same
-//!   print. The centroid divides with truncation, so this holds while coordinate sums stay
-//!   non-negative, which every real print satisfies.
-//! * **Rotation is a threshold.** Rotating a print runs its coordinates through trig and rounds them
-//!   back to integers, which changes the `(x, y)` sort order and so the rows stage 1 emits. A
-//!   rotated impression therefore does *not* reproduce the score; it keeps enough of it to
-//!   out-score an unrelated print, which is what a matcher is for.
+//!   score: stage 1 reads only `dx`/`dy`, and the one absolute-coordinate reader (the cluster
+//!   centroid) enters the score only as a difference between two centroids of the same print.
+//!   The centroid divides with truncation, so this holds while coordinate sums stay non-negative,
+//!   which every real print satisfies.
+//! * **Rotation is a threshold.** Rotating a print runs its coordinates through trig and rounds
+//!   them back to integers, changing the `(x, y)` sort order and so the rows stage 1 emits. A
+//!   rotated impression does not reproduce the score; it keeps enough of it to out-score an
+//!   unrelated print.
 //!
 //! ## Provenance
 //!
-//! BOZORTH3 is public-domain U.S. Government software (title 17 §105). This crate is a **faithful
-//! port** of the **stock upstream NBIS** algorithm (see `docs/bozorth3-algorithm.md`), verified
-//! black-box against the stock C tool — score-exactness requires following its arithmetic closely,
-//! which public domain permits. It is deliberately **not** derived from libfprint's patched `nbis/`
-//! copy, whose changes carry LGPL terms.
+//! BOZORTH3 is public-domain U.S. Government software (title 17 §105). This crate is a faithful
+//! port of stock upstream NBIS (see `docs/bozorth3-algorithm.md`), verified black-box against the
+//! stock C tool; score-exactness requires following its arithmetic closely, which public domain
+//! permits. It is not derived from libfprint's patched `nbis/` copy, whose changes carry LGPL
+//! terms. The crate carries `MIT OR Apache-2.0`. See `ARCHITECTURE.md` §Provenance & licensing.
 //!
-//! The crate carries `MIT OR Apache-2.0` like the rest of the project: public domain imposes no
-//! conditions, so it constrains neither the port nor the licence we put on it. The NBIS lineage is
-//! provenance, not a licence. See `ARCHITECTURE.md` §Provenance & licensing.
+//! ## Types
 //!
-//! ## Shape
-//!
-//! The crate takes its own [`Minutia`] (`{ x, y, theta }`) — the `xyt` triple is an interoperability
-//! fact, so the matcher stays a self-contained arithmetic kernel with no dependency on the domain
-//! model. A consumer (e.g. `fprint-backend-native`) converts its `fprint_core::Minutia` at the boundary.
-//!
-//! That conversion is the whole boundary — one `map` from whatever the caller calls a minutia:
+//! The crate takes its own [`Minutia`] (`{ x, y, theta }`) — the `xyt` triple is an
+//! interoperability fact, so the matcher stays a self-contained arithmetic kernel with no
+//! dependency on the domain model. A consumer (e.g. `fprint-backend-native`) converts its
+//! `fprint_core::Minutia` at the boundary — one `map` into [`Minutia`]:
 //!
 //! ```
 //! use fprint_bozorth3::{match_score, Minutia, MIN_COMPUTABLE_BOZORTH_MINUTIAE};
@@ -91,11 +85,11 @@ pub struct Minutia {
     /// expects. Only canonical input is normalized: `720` becomes `360` and `-270` stays `-270`,
     /// both outside that range.
     ///
-    /// **Give this canonical input.** A full turn is not the identity here — `theta` and
-    /// `theta - 360` are one direction and two different scores. A `theta` far outside the canonical
-    /// range still scores (the relative-angle square is computed in i64), but the reference's
-    /// single conditional subtract leaves it unfolded, so it is a different input, not the same
-    /// angle. Non-canonical input is not rejected; it is the reference's arithmetic, reproduced.
+    /// Give canonical input. A full turn is not the identity: `theta` and `theta - 360` are one
+    /// direction but two different scores. A `theta` far outside the canonical range still scores
+    /// (the relative-angle square is computed in i64), but the single conditional subtract leaves
+    /// it unfolded, so it is a different input, not the same angle. Non-canonical input is the
+    /// reference's arithmetic reproduced, not an error.
     pub theta: i32,
 }
 

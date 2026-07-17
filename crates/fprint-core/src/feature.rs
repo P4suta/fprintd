@@ -27,8 +27,8 @@ impl DeviceFeature {
     /// `FP_DEVICE_FEATURE_VERIFY`: the device can match one scan against one print
     /// ([`Device::verify`](crate::Device::verify)).
     pub const VERIFY: DeviceFeature = DeviceFeature(1 << 2);
-    /// `FP_DEVICE_FEATURE_STORAGE`: the device keeps templates on the sensor. This is what makes
-    /// a device match-on-chip — see [`DeviceFeature::is_match_on_chip`].
+    /// `FP_DEVICE_FEATURE_STORAGE`: the device keeps templates on the sensor, which marks it
+    /// match-on-chip — see [`DeviceFeature::is_match_on_chip`].
     pub const STORAGE: DeviceFeature = DeviceFeature(1 << 3);
     /// `FP_DEVICE_FEATURE_STORAGE_LIST`: on-sensor storage can be enumerated
     /// ([`Device::list_prints`](crate::Device::list_prints)).

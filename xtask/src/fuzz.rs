@@ -2,25 +2,24 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Running the fuzz targets, from a dev box that cannot run them.
+//! Running the fuzz targets from a dev box that cannot run them directly.
 //!
 //! libFuzzer needs nightly and does not work on windows-msvc, so the toolchain lives in a
-//! container (`docker/Dockerfile.fuzz`) and the repository is bind-mounted into it. The harness
-//! itself is a separate workspace under `fuzz/`, which is what keeps `libfuzzer-sys` and
-//! `arbitrary` out of the root lockfile — see `fuzz/Cargo.toml`.
+//! container (`docker/Dockerfile.fuzz`) and the repository is bind-mounted into it. The harness is
+//! a separate workspace under `fuzz/`, which keeps `libfuzzer-sys` and `arbitrary` out of the root
+//! lockfile — see `fuzz/Cargo.toml`.
 //!
-//! Fuzzing is a **deliberate act**, like the NBIS oracles: it is a nightly toolchain, a network
-//! fetch and a wall-clock budget, none of which belong on a CI schedule. What survives a campaign
-//! is frozen as an ordinary `#[test]` (`crates/fprint-fp3/tests/regressions.rs`), which needs none
-//! of the three.
+//! Fuzzing is **deliberate**, like the NBIS oracles: it needs a nightly toolchain, a network fetch
+//! and a wall-clock budget, none of which belong on a CI schedule. What survives a campaign is
+//! frozen as an ordinary `#[test]` (`crates/fprint-fp3/tests/regressions.rs`), which needs none of
+//! the three.
 
 use std::path::Path;
 use std::process::Command;
 
 use crate::docker::{container_path, relative_to, Run};
 
-/// The image built from `docker/Dockerfile.fuzz`. Local: it is this repository's tool, not
-/// something to publish.
+/// The image built from `docker/Dockerfile.fuzz`. Local to this repository, not published.
 const IMAGE: &str = "fprintd-fuzz";
 
 /// A fuzz target, and the corpus it is worth seeding from.
@@ -29,7 +28,7 @@ struct Target {
     /// A repository directory of **valid inputs**, handed to libFuzzer as a second, read-only
     /// corpus. [`None`] where no such directory exists: the generator-driven targets read their
     /// input as an `Unstructured` byte stream, and a `.xyt` or an image fixture is not an encoding
-    /// of that stream — seeding them with one would feed the generator noise dressed as a fixture.
+    /// of that stream, so seeding them with one would feed the generator noise.
     seeds: Option<&'static str>,
 }
 
@@ -82,8 +81,8 @@ pub fn run(root: &Path, name: &str, seconds: u64) -> Result<(), String> {
 
     if let Some(seeds) = target.seeds {
         // A second corpus directory is **read-only**: libFuzzer takes its units as input and writes
-        // new ones only to the first. That is what lets the frozen fixtures seed a campaign without
-        // being copied into it, and without a run ever writing to them.
+        // new ones only to the first. The frozen fixtures seed a campaign without being copied into
+        // it, and without a run ever writing to them.
         run = run.arg(container_path(Path::new(seeds)));
     }
 
@@ -126,7 +125,7 @@ fn build_image(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// The target list, for an error message that answers the question it raises.
+/// The target list, for the error message.
 fn targets() -> String {
     let mut msg = String::from("targets:\n");
     for t in TARGETS {

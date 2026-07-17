@@ -10,11 +10,10 @@ the per-stage detail is filled in alongside the code.
 > `mindtct/src/lib/mindtct/*.c`). This spec, and `fprint-mindtct`, are written from the **stock upstream
 > NBIS** source (`reference/nbis-stock/mindtct/`, git-ignored), **not** from libfprint's patched
 > `nbis/mindtct/` copy — whose modifications carry libfprint's LGPL-2.1+ terms. Because NBIS is
-> public domain, `fprint-mindtct` **does** follow the reference arithmetic — and its scan/removal
-> *ordering* — faithfully, a deliberate choice since bit-exact xyt output demanded it, and it carries
-> the workspace's `MIT OR Apache-2.0`: a public-domain source carries no copyright, so it restricts
-> neither the port nor the licence on the result. It grants without demanding; there is nothing to
-> quarantine against. The NBIS lineage is provenance — this note — not a licence. See
+> public domain, `fprint-mindtct` follows the reference arithmetic and its scan/removal *ordering*
+> faithfully, because bit-exact xyt output requires it, and it carries the workspace's
+> `MIT OR Apache-2.0`: a public-domain source carries no copyright, so it restricts neither the port
+> nor the licence on the result. The NBIS lineage is provenance recorded in docs. See
 > `ARCHITECTURE.md` §Provenance & licensing.
 
 Source of fact: NBIS `mindtct/src/lib/mindtct/{detect.c,maps.c,dft.c,binar.c,detect,contour.c,

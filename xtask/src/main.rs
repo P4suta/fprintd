@@ -2,14 +2,13 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Developer tasks that are programs rather than shell.
+//! Developer tasks written as Rust programs.
 //!
-//! `mise.toml` holds tasks that are genuinely one command. Anything longer lives here: shell
-//! quoted inside TOML is read by no compiler, linter or formatter, and it runs under whatever
-//! shell the task runner picked — `cmd.exe` on a Windows dev box, `sh` in CI — which are not the
-//! same language.
+//! `mise.toml` holds single-command tasks. Longer tasks live here: shell quoted inside TOML is
+//! unchecked by any compiler, linter or formatter, and runs under whatever shell the task runner
+//! selects (`cmd.exe` on Windows, `sh` in CI).
 //!
-//! Run with `cargo xtask <task>` (see `.cargo/config.toml` for the alias).
+//! Run with `cargo xtask <task>` (alias in `.cargo/config.toml`).
 
 #![forbid(unsafe_code)]
 
@@ -35,8 +34,7 @@ use std::process::ExitCode;
 
 use oracle::Oracle;
 
-/// Default fuzzing budget, in seconds. Long enough to be a campaign, short enough to be a command
-/// someone runs while waiting.
+/// Default fuzzing budget, in seconds.
 const FUZZ_SECONDS: u64 = 60;
 
 fn main() -> ExitCode {
@@ -74,7 +72,7 @@ fn main() -> ExitCode {
     }
 }
 
-/// `fuzz <target> [seconds]`: the one task that takes arguments.
+/// `fuzz <target> [seconds]`.
 fn fuzz_task(root: &Path, mut args: impl Iterator<Item = String>) -> Result<(), String> {
     let target = args
         .next()
@@ -112,7 +110,7 @@ fn capture_golden_task(root: &Path, mut args: impl Iterator<Item = String>) -> R
     capture_golden::run(root, &driver, Path::new(&recording))
 }
 
-/// The lone optional positional `[driver]` some tasks take.
+/// The optional positional `[driver]` argument.
 fn driver_arg(mut args: impl Iterator<Item = String>) -> Option<String> {
     args.next()
 }
@@ -142,7 +140,7 @@ fn usage() -> String {
     .join("\n")
 }
 
-/// The repository root: this crate's directory, minus the crate.
+/// The repository root: this crate's parent directory.
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

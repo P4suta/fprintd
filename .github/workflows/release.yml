@@ -1,14 +1,12 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
-# Release automation. On every push to main, release-plz reconciles the tree with the registry:
-# it opens or updates the Release PR from the Conventional Commits since the last tag, and when a
-# Release PR merges it publishes the changed crates in dependency order, then tags and cuts the
-# GitHub release. Config lives in release-plz.toml and cliff.toml.
+# Release automation. On every push to main, release-plz opens or updates the Release PR from the
+# Conventional Commits since the last tag; on merge it publishes the changed crates in dependency
+# order, then tags and cuts the GitHub release. Config: release-plz.toml, cliff.toml.
 #
-# RELEASE_PLZ_TOKEN is a PAT rather than the built-in GITHUB_TOKEN so the Release PR it opens
-# retriggers CI (a PR opened by GITHUB_TOKEN does not). CARGO_REGISTRY_TOKEN authenticates the
-# publish to crates.io.
+# RELEASE_PLZ_TOKEN is a PAT, not GITHUB_TOKEN, so the Release PR it opens retriggers CI (a PR
+# opened by GITHUB_TOKEN does not). CARGO_REGISTRY_TOKEN authenticates the publish to crates.io.
 
 name: release
 
@@ -16,8 +14,7 @@ on:
   push:
     branches: [main]
 
-# Serialize releases: a second push must not race a publish in flight. cancel-in-progress is false
-# so an in-flight publish runs to completion rather than being interrupted mid-registry.
+# Serialize releases. cancel-in-progress is false so an in-flight publish runs to completion.
 concurrency:
   group: release
   cancel-in-progress: false

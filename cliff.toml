@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # git-cliff config. release-plz calls it to render each crate's CHANGELOG from Conventional
-# Commits. The generated CHANGELOG.md is the one file allowed to narrate history (see the
-# no_narration exception in xtask/src/lint.rs).
+# Commits. CHANGELOG.md is the one file exempt from the no_narration rule (xtask/src/lint.rs).
 
 [changelog]
 header = """
@@ -29,11 +28,10 @@ footer = ""
 
 [git]
 conventional_commits = true
-# Drop commits that do not parse as Conventional Commits: the changelog carries changes described
-# in the shared vocabulary and nothing else.
+# Drop commits that do not parse as Conventional Commits.
 filter_unconventional = true
 split_commits = false
-# Group by commit type. Order here is the order sections appear under each version.
+# Group by commit type. This order is the section order under each version.
 commit_parsers = [
   { message = "^feat", group = "Features" },
   { message = "^fix", group = "Bug Fixes" },

@@ -4,7 +4,7 @@
 
 //! The M0 ground-truth measurement: how much C there is, by subsystem.
 //!
-//! What sizes the shim-vs-native decision is `drivers/` — see `docs/M0-ground-truth.md` and
+//! `drivers/` sizes the shim-vs-native decision — see `docs/M0-ground-truth.md` and
 //! ARCHITECTURE.md §Non-goals, where "an unbounded, device-dependent axis" is this number.
 
 use std::path::Path;

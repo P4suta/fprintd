@@ -126,16 +126,15 @@ fn oversized_dimension_is_rejected_by_construction() {
 
 /// A well-formed image of pure noise terminates.
 ///
-/// Not a benchmark: nothing here asserts a duration. It is a **regression guard on a non-terminating
-/// input**. `remove_or_adjust_side_minutiae_v2`'s two relocate arms used to leave a removed minutia
-/// in the list without advancing the index, so the loop re-processed it forever; the reference
-/// removes it there and says so ("no need to advance because the next minutia has slid into
-/// position"). Noise reaches that arm where the 13 fingerprints of the golden corpus never do —
-/// `tests/corpus_adequacy.rs` records that blindness — so this input, and not the corpus, is what
-/// holds the fix in place.
+/// A regression guard on a non-terminating input, not a benchmark: nothing here asserts a
+/// duration. In `remove_or_adjust_side_minutiae_v2`, the two relocate arms remove a minutia and
+/// do not advance the index, because the next minutia slides into the freed slot (matching the
+/// reference: "no need to advance because the next minutia has slid into position"). Pure noise
+/// reaches that arm; the 13 fingerprints of the golden corpus do not, and
+/// `tests/corpus_adequacy.rs` records that gap, so this input guards the arm the corpus cannot.
 ///
-/// The seed and size are the ones that reproduced it. `cargo test` has no timeout, so a regression
-/// shows up as a hang rather than a failure; that is still infinitely better than silence.
+/// The seed and size are the ones that reach it. `cargo test` has no timeout, so a regression in
+/// that arm shows up as a hang rather than a failure.
 #[test]
 fn noise_terminates() {
     let mut lcg = Lcg::new(3);

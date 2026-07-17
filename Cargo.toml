@@ -1,10 +1,9 @@
 ## Virtual workspace manifest for the fprintd-compatible pure-Rust fingerprint stack.
 ##
-## Naming follows the ripgrep shape: the tool is `fprintd` (this repo, and the daemon
-## crate), the libraries under it are the domain family `fprint-*` — they are fingerprint
-## libraries, not daemon parts, and `fprint-core` knows nothing about the daemon.
-## `libfprint-sys` on crates.io is the C FFI binding we *depend on* as the shim backend,
-## not this project; we speak fprintd's D-Bus contract, not libfprint's C ABI.
+## Naming: the tool is `fprintd` (this repo and the daemon crate); the libraries under it are the
+## `fprint-*` family (fingerprint libraries, not daemon parts). `libfprint-sys` on crates.io is the
+## C FFI binding this project depends on for the shim backend. This project speaks fprintd's D-Bus
+## contract, not libfprint's C ABI.
 
 [workspace]
 resolver = "2"
@@ -16,31 +15,31 @@ members = [
   "crates/fprint-mindtct",        # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
   "crates/fprint-pipeline",       # host-image glue: image -> minutiae -> template -> match (published front door)
   "crates/fprint-backend-native", # pure-Rust virtual device: the first fprint-core Backend/Device implementor
-  "crates/fprint-cli",            # demo tool (`fprint`): clone-and-run enroll/verify over the virtual device
-  "crates/fprint-driverkit",      # driver-author workbench (`fpdev`): probe/capture/iterate a new native sensor
+  "crates/fprint-cli",            # demo tool (`fprint`): enroll/verify over the virtual device
+  "crates/fprint-driverkit",      # driver-author workbench (`fpdev`): probe/capture/iterate a native sensor
   "crates/fprint-integration",    # CompositeBackend / CompositeDevice (native-only off Linux)
-  # Linux-only crates: their deps are gated under cfg(target_os = "linux"), so on Windows
-  # they resolve and compile to (near-)empty crates; they are exercised in the Docker stage.
-  "crates/fprint-backend-libfprint", # M1 shim owning the C libfprint FFI directly via libfprint-sys
+  # Linux-only crates: deps gated under cfg(target_os = "linux"), so on Windows they compile to
+  # (near-)empty crates; exercised in the Docker stage.
+  "crates/fprint-backend-libfprint", # M1 shim owning the C libfprint FFI via libfprint-sys
   "crates/fprintd",                  # M1 zbus daemon speaking net.reactivated.Fprint
-  # Not part of the stack: developer tasks (`cargo xtask <task>`). A member so that fmt, clippy
-  # and the workspace test run hold the tooling to the same bar as the code it checks.
+  # Developer tasks (`cargo xtask <task>`). A member so fmt, clippy and the workspace test run cover
+  # the tooling too.
   "xtask",
 ]
-# The fuzz harness is its own workspace root (`fuzz/Cargo.toml` holds an empty `[workspace]`), and
-# this makes the exclusion mutual. libfuzzer-sys and arbitrary are nightly-only and instrument
-# everything they touch; this lockfile is the graph every published crate resolves against, so
-# they stay out of it. See `fuzz/Cargo.toml` and `cargo xtask fuzz`.
+# The fuzz harness is its own workspace root (`fuzz/Cargo.toml` holds an empty `[workspace]`); this
+# makes the exclusion mutual. libfuzzer-sys and arbitrary are nightly-only and instrument what they
+# touch, so they stay out of this lockfile (the graph every published crate resolves against).
+# See `fuzz/Cargo.toml` and `cargo xtask fuzz`.
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.1.0" # first shape worth showing the world; all crates inherit via `version.workspace = true`
+version = "0.1.0" # all crates inherit via `version.workspace = true`
 edition = "2021"
-# The floor for the published pure crates (fprint-core, fprint-fp3, fprint-bozorth3,
-# fprint-mindtct), verified by CI's `msrv` job. The three crates that link the C libfprint stack
-# need more and declare it themselves.
+# MSRV floor for the published pure crates (fprint-core, fprint-fp3, fprint-bozorth3,
+# fprint-mindtct), verified by CI's `msrv` job. The three C-linking crates need more and declare it
+# themselves.
 rust-version = "1.82"
-license = "MIT OR Apache-2.0"                                 # one licence for the whole tree; the NBIS ports are faithful ports of a public-domain source, which grants without demanding
+license = "MIT OR Apache-2.0"                                 # one licence for the whole tree; the NBIS ports are faithful ports of a public-domain source
 authors = ["Yasunobu Sakashita <crates.tank733@slmails.com>"]
 repository = "https://github.com/P4suta/fprintd"
 homepage = "https://github.com/P4suta/fprintd"
@@ -53,38 +52,30 @@ fprint-fp3 = { path = "crates/fprint-fp3", version = "0.1.0" }
 fprint-bozorth3 = { path = "crates/fprint-bozorth3", version = "0.1.0" }
 fprint-mindtct = { path = "crates/fprint-mindtct", version = "0.1.0" }
 fprint-pipeline = { path = "crates/fprint-pipeline", version = "0.1.0" }
-# Deliberately version-less: this crate is `publish = false`, and it is a *dev*-dependency of
-# the published `fprint-fp3`. Cargo includes only dev-dependencies that specify a version, so
-# leaving it out is what lets it be stripped from the published tarball. Adding a `version`
-# here would drag an unpublished crate into fprint-fp3's manifest and break `cargo publish`.
+# Version-less: `publish = false`, and a dev-dependency of the published `fprint-fp3`. Cargo keeps
+# only versioned dev-dependencies in the tarball, so omitting the version strips this crate. Adding
+# a version would drag an unpublished crate into fprint-fp3's manifest and break `cargo publish`.
 fprint-backend-native = { path = "crates/fprint-backend-native" }
-# Version-less for the same reason, and it is load-bearing for every published crate rather than
-# just one: the testkit is a dev-dependency of the whole tree. `cargo xtask publish-check` reads
-# the packaged manifests and refuses to find it there, so the reasoning above is a checked fact.
+# Version-less for the same reason; the testkit is a dev-dependency of the whole tree. `cargo xtask
+# publish-check` reads the packaged manifests and confirms it is absent.
 fprint-testkit = { path = "crates/fprint-testkit" }
 fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version = "0.1.0" }
 
 [profile.release]
 lto = "thin"
 
-# The kernels are compute, and the tests run them on their worst input deliberately: BOZORTH3 on ten
+# The kernels are compute-bound and the tests run them on worst-case inputs: BOZORTH3 on ten
 # minutiae stacked at one pixel (`tests/totality.rs`), MINDTCT over the whole image corpus.
-# Unoptimized, that is 41s of `cargo test` for the four pure crates and 4s optimized — the work is
-# the same and the codegen is the whole difference. Three CI runners and every `mise run mutants`
-# mutant pay it.
+# `opt-level = 2` cuts the four pure crates' `cargo test` from 41s to 4s.
 #
-# `opt-level` alone: this profile changes nothing else. `debug_assertions` and `overflow-checks` keep
-# their test defaults (on) — a cheap correctness net with no reason to disable. The matcher squares its
-# coordinate and angle deltas in `i64`, so no test relies on a checked overflow. Debuginfo stays too —
-# trimming it measured slower, not faster, and a test failure wants the backtrace. `[profile.dev]` is
-# untouched: `cargo build` and a debugger want the opposite trade, and nothing here reaches them.
+# `opt-level` only: `debug_assertions` and `overflow-checks` keep their test defaults (on) as a
+# correctness net. `[profile.dev]` is untouched.
 [profile.test]
 opt-level = 2
 
-# One strict lint policy for the whole workspace; every crate opts in with
-# `[lints] workspace = true`. Clippy warnings are hard errors, so a plain `cargo clippy`
-# (or `cargo build`) is as strict as CI. Crate-specific needs are handled tightly and
-# locally: `#![forbid(unsafe_code)]` in the pure crates, and a single scoped
-# `#[allow(async_fn_in_trait)]` on the two core traits — not blanket per-crate allows.
+# One strict lint policy for the whole workspace; every crate opts in with `[lints] workspace =
+# true`. Clippy warnings are hard errors, so a plain `cargo clippy` is as strict as CI.
+# Crate-specific needs are scoped locally: `#![forbid(unsafe_code)]` in the pure crates, and a
+# single scoped `#[allow(async_fn_in_trait)]` on the two core traits.
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }

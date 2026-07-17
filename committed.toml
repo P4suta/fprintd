@@ -1,10 +1,9 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
-# committed checks the one thing release-plz and git-cliff need from a commit — a Conventional
-# Commits type prefix (feat/fix/build/ci/test/docs/refactor) — and nothing that would fight this
-# project's expressive subject style. The length and capitalization rules are off on purpose: the
-# subjects here are prose, longer than 72 and lower-case by convention, and that is deliberate.
+# committed checks the one thing release-plz and git-cliff need from a commit: a Conventional
+# Commits type prefix (feat/fix/build/ci/test/docs/refactor). Length and capitalization rules are
+# off: subjects here are prose, longer than 72, and lower-case by convention.
 
 style = "conventional"
 subject_length = 0

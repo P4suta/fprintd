@@ -9,12 +9,10 @@ scores **exactly**.
 > `bozorth3/src/lib/bozorth3/bozorth3.c`). This spec, and `fprint-bozorth3`, are written from the
 > **stock upstream NBIS** source (cloned to `reference/nbis-stock/`, git-ignored), **not** from
 > libfprint's patched `nbis/` copy — whose modifications carry libfprint's LGPL-2.1+ terms. Because
-> NBIS is public domain, `fprint-bozorth3` **does** follow the reference arithmetic faithfully — a
-> deliberate choice, since score-exactness demanded it — and it carries the workspace's
-> `MIT OR Apache-2.0`: a public-domain source carries no copyright, so it restricts neither the port
-> nor the licence on the result. It grants without demanding; there is nothing to quarantine against.
-> The NBIS lineage is provenance — this note — not a licence. See `ARCHITECTURE.md` §Provenance &
-> licensing.
+> NBIS is public domain, `fprint-bozorth3` follows the reference arithmetic faithfully, as
+> score-exactness requires, and carries the workspace's `MIT OR Apache-2.0`: a public-domain source
+> carries no copyright, so it restricts neither the port nor the licence on the result. The NBIS
+> lineage is provenance, not a licence. See `ARCHITECTURE.md` §Provenance & licensing.
 
 Source of fact: NBIS `bozorth3/src/lib/bozorth3/{bozorth3.c,bz_sort.c,bz_io.c}`,
 `bozorth3/include/{bozorth.h,bz_array.h}`, and the CLI driver `bozorth3/src/bin/bozorth3/`.
@@ -172,26 +170,25 @@ The returned integer is the BOZORTH3 match score — a raw count of correspondin
 normalization. The CLI compares it against a caller-chosen threshold (no built-in accept/reject
 constant; `DEFAULT_MAX_MATCH_SCORE = 400` only caps the *printed* value).
 
-### Reproduction guarantee & the ±1 residual (a reference-side UB, proven)
+### Reproduction guarantee & the ±1 residual (reference-side UB)
 
 `crates/fprint-bozorth3` reproduces stock NBIS scores, verified pair-for-pair against the C tool
 (`tests/golden.rs`, corpus in `tests/fixtures/`, oracle via `mise run bozorth3-oracle`):
 
-- **Stages 1–2 are bit-identical** — the `(probe_web_len, gallery_web_len, num_edges)` triple matches
-  the reference exactly on every pair tested, including the near-boundary ones. So the compatibility
-  tables — and the edge angles from f32 `atanf` — reproduce the reference exactly.
+- **Stages 1–2 are bit-identical.** The `(probe_web_len, gallery_web_len, num_edges)` triple matches
+  the reference exactly on every pair tested, including near-boundary ones. The compatibility tables,
+  and the edge angles from f32 `atanf`, reproduce the reference exactly.
 - **The score is exact on every non-trivial match**, up to the largest, most cluster-heavy cases.
-- **A few tiny near-tolerance pairs differ by ±1 — because the *reference itself* is not
-  deterministic there.** This was traced to a genuine **undefined behaviour in the stock C**: in a
-  rare boundary path `bz_match_score` reads uninitialized stack locals (`avv[]` / `rr[]`, flagged as
-  not-re-zeroed in the stage-3 spec above), so its score depends on build layout. Concretely, the
-  same source, same compiler and flags, scores `jit_10s2` as **10** when the object files are linked
-  in the reference `Makefile`'s order and as **9** when linked alphabetically — an unambiguous link
-  order dependence. `fprint-bozorth3` is deterministic (it zero-initializes and never reads an unwritten
-  slot); its value equals one valid C build and differs by ≤1 from the other. The golden fixtures pin
-  the `mise run bozorth3-oracle` (reference-order) build, and the ≤1-divergent pairs are enumerated
-  in the golden test. On a sub-20-minutia print, where match thresholds are ~40, ±1 is operationally
-  irrelevant — and here it is not even a well-defined reference value to match.
+- **A few near-tolerance pairs differ by ±1, because the reference is non-deterministic there.** The
+  NBIS boundary path in `bz_match_score` reads uninitialized stack locals (`avv[]` / `rr[]`, flagged
+  as not-re-zeroed in the stage-3 spec above); this is undefined behaviour, so the score depends on
+  object-file link order. Same source, compiler, and flags score `jit_10s2` as **10** in the
+  reference `Makefile`'s link order and **9** when linked alphabetically. `fprint-bozorth3`
+  zero-initializes and never reads an unwritten slot, so it is deterministic: its value equals one
+  valid C build and differs by ≤1 from the other. The golden fixtures pin the `mise run
+  bozorth3-oracle` (reference-order) build, and the ≤1-divergent pairs are enumerated in the golden
+  test. On a sub-20-minutia print, match thresholds are ~40, so ±1 is operationally irrelevant and
+  has no well-defined reference value.
 
 ---
 

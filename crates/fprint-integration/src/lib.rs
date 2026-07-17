@@ -4,25 +4,24 @@
 
 //! # fprint-integration
 //!
-//! The one crate that knows every backend. `ARCHITECTURE.md`'s rule is that dependency arrows
+//! The one crate that names every backend. `ARCHITECTURE.md`'s rule is that dependency arrows
 //! point only toward the leaves: `fprint-core` cannot name a backend, and a backend cannot name
 //! its siblings. Serving one device from the native Rust backend and another from the libfprint
-//! shim under a single [`Backend`](fprint_core::Backend) therefore has to happen above the core,
-//! in one place. This crate depends on the backends, never the reverse.
+//! shim under a single [`Backend`](fprint_core::Backend) therefore happens above the core, in one
+//! place. This crate depends on the backends, never the reverse.
 //!
 //! [`CompositeBackend`] holds the concrete backends; its associated device is the enum
-//! [`CompositeDevice`], one variant per backend. Enumeration concatenates the backends'
-//! devices; its `open` tries native first and falls through to the shim.
+//! [`CompositeDevice`], one variant per backend. Enumeration concatenates the backends' devices;
+//! its `open` tries native first and falls through to the shim.
 //!
-//! ## The coexistence seam, kept ready
+//! ## The coexistence seam
 //!
-//! This is the seam that lets one daemon serve pure-Rust native readers alongside libfprint-shim
-//! readers, presenting both as a single [`Backend`](fprint_core::Backend). The shipped `fprintd`
-//! binary does **not** wire it in: the only native reader that exists today is a virtual test
-//! device, and offering that to real users is wrong (`ARCHITECTURE.md`). So the daemon drives the
-//! shim directly and this crate stays out of its graph — a finished, test-exercised seam that the
-//! first real native driver plugs into, not scaffolding. It carries no `unsafe` and its delegation
-//! is covered by the crate's own tests.
+//! This seam lets one daemon serve pure-Rust native readers alongside libfprint-shim readers,
+//! presenting both as a single [`Backend`](fprint_core::Backend). The shipped `fprintd` binary
+//! does **not** wire it in: the only native reader is a virtual test device, which is not offered
+//! to real users (`ARCHITECTURE.md`). The daemon drives the shim directly and this crate stays out
+//! of its graph. The seam carries no `unsafe` and its delegation is covered by the crate's own
+//! tests.
 //!
 //! ## Why hand-written `match`, not `enum_dispatch`
 //!

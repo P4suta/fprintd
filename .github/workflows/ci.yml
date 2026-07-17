@@ -1,39 +1,29 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
-# CI: strict lints + tests everywhere the code is meant to run.
+# CI: strict lints + tests on every platform the code runs on.
 #
-#  * `check`  — the pure-Rust crates on Windows and macOS. There the Linux-only shim and daemon
-#               compile to (near-)empty crates, so a full `--workspace` build needs no libfprint;
-#               this run covers fprint-core, fprint-fp3, fprint-bozorth3 and fprint-mindtct (BOZORTH3/MINDTCT golden
-#               + M2 FP3 fixture, all Docker-free), fprint-backend-native and fprint-integration, and builds
-#               on a non-Linux dev box (the project's actual development environment). It also runs a
-#               strict rustdoc build over the cross-platform library crates (warnings are errors).
-#  * `linux`  — the authoritative Linux verification inside the pinned libfprint container: the shim
-#               against the real `virtual_device` driver (incl. the M2 byte-identity assertion) and
-#               the fprintd D-Bus daemon end-to-end. This is where the Linux-only crates are lint
-#               and test gated. It is also the only job with a dependency graph worth caching — 109
-#               third-party crates against 0 on Windows — and the runner shares no volume with the
-#               last run, so it caches sccache's 167 MiB rather than a 2.5 GB target tree. See
-#               docker/docker-compose.ci.yml.
-#  * `unit`   — the systemd unit, against real systemd: it parses, and `Alias=` takes the seat from
-#               upstream's unit. The coexistence design rests on that symlink. See xtask/src/unit.rs.
-#  * `msrv`   — the published pure crates on the declared 1.82. Every other job runs latest stable,
-#               so without this a broken MSRV goes unnoticed. The three crates that link the C
-#               libfprint stack declare 1.85 themselves (the pinned FFI binding is
-#               `edition = "2024"`) and are covered by `linux`. `--locked`, so the check is not
-#               against a moving dependency graph.
-#  * `publish`— the published crates against the registry's own rules. `reuse lint` accepts a
-#               custom LicenseRef-* identifier and crates.io does not, so a green REUSE run is no
-#               evidence a crate can leave the workspace. See xtask/src/publish.rs.
-#  * `deny`   — supply chain: advisories, the licence boundary, wildcard pins, source registries.
-#               Reads Cargo.lock via `cargo metadata`, so it needs neither Linux nor Docker.
+#  * `check`  — pure-Rust crates on Windows and macOS, where the Linux-only shim and daemon compile
+#               to (near-)empty crates so `--workspace` needs no libfprint. Covers fprint-core,
+#               fprint-fp3, fprint-bozorth3, fprint-mindtct, fprint-backend-native, fprint-integration.
+#               Also runs strict rustdoc over the cross-platform library crates.
+#  * `linux`  — Linux verification inside the pinned libfprint container: the shim against the real
+#               `virtual_device` driver (incl. the M2 byte-identity assertion) and the fprintd D-Bus
+#               daemon end-to-end. Lint/test gate for the Linux-only crates. Caches sccache (167 MiB)
+#               rather than the target tree. See docker/docker-compose.ci.yml.
+#  * `unit`   — the systemd unit against real systemd: it parses, and `Alias=` takes the seat from
+#               upstream's unit. See xtask/src/unit.rs.
+#  * `msrv`   — the published pure crates on the declared 1.82 (every other job runs latest stable).
+#               `--locked`. The three C-linking crates declare 1.85 (the FFI binding is
+#               `edition = "2024"`) and are covered by `linux`.
+#  * `publish`— the published crates against crates.io's rules. `reuse lint` accepts a custom
+#               LicenseRef-* identifier and crates.io does not. See xtask/src/publish.rs.
+#  * `deny`   — supply chain: advisories, licence boundary, wildcard pins, source registries.
+#               Reads Cargo.lock via `cargo metadata`; needs neither Linux nor Docker.
 #  * `reuse`  — SPDX/REUSE license compliance.
-#  * `mutants`— which of the lines this pull request changed the tests would not have noticed. The
-#               one job here that **reports rather than gates**: a surviving mutant is untested
-#               code, not broken code, and a check that fires on correct code gets switched off. It
-#               says so on the diff, as an annotation on the line, and lets the merge through. The
-#               whole-tree run is `mise run mutants` — hours, and deliberate. See xtask/src/mutants.rs.
+#  * `mutants`— which changed lines the tests do not defend. Reports, never gates: a surviving
+#               mutant is untested code, not broken code. Lands as an annotation on the diff. The
+#               whole-tree run is `mise run mutants`. See xtask/src/mutants.rs.
 
 name: CI
 
@@ -70,19 +60,18 @@ jobs:
           tool: cargo-nextest
       - name: Rustfmt
         run: cargo fmt --all --check
-      # `--all-features` covers the feature axis here: fprint-backend-native's `usb`/nusb seam, the
-      # fp3 GVariant oracle, mindtct's `unstable-diagnostics`. fprintd compiles to nothing off Linux,
-      # so nothing pulls the D-Bus `zvariant` that upstream miscompiles beside the oracle's `gvariant`
-      # — the whole workspace builds here. The `linux` job cannot, and excludes fp3 there.
+      # `--all-features` covers the feature axis: fprint-backend-native's `usb`/nusb seam, the fp3
+      # GVariant oracle, mindtct's `unstable-diagnostics`. fprintd compiles to nothing off Linux, so
+      # nothing pulls the D-Bus `zvariant` that conflicts with the oracle's `gvariant`; the whole
+      # workspace builds here. The `linux` job excludes fp3.
       - name: Clippy (workspace, all targets, all features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      # One clippy run over again on Windows only, turned into inline PR annotations. Windows because
-      # the workspace builds there without libfprint (the shim is a stub), and once so the diff is
-      # not annotated twice. The gate is the step above; this is the message on the line.
+      # Windows-only re-run of clippy as inline PR annotations (the workspace builds there without
+      # libfprint). The gate is the step above; this only annotates.
       - name: Annotate clippy findings on the PR
         if: matrix.os == 'windows-latest'
         run: cargo xtask ci-annotate
-      # nextest for the unit/integration tests (junit for the summary below); doctests run separately
+      # nextest for unit/integration tests (junit for the summary below); doctests run separately
       # because nextest does not carry them.
       - name: Test (workspace, all features)
         run: cargo nextest run --profile ci --workspace --all-features
@@ -94,8 +83,8 @@ jobs:
         with:
           report_paths: target/nextest/ci/junit.xml
           annotate_only: true
-      # Strict rustdoc for the cross-platform library surface (the public face). The two Linux-only
-      # crates document in the `linux` job, where their cfg-gated modules and deps compile.
+      # Strict rustdoc for the cross-platform library surface. The two Linux-only crates document in
+      # the `linux` job, where their cfg-gated modules and deps compile.
       - name: Rustdoc (library crates, warnings are errors)
         run: cargo doc --no-deps -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native -p fprint-integration -p fprint-driverkit
         env:
@@ -106,10 +95,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # The image builds libfprint v1.94.10 from source. Without an exported cache that happens on
-      # every run, because runners share nothing — several minutes to rebuild a byte-identical
-      # pinned image. docker-compose.yml already names `fprintd-dev`, so every `run` below picks this
-      # up with no further change.
+      # The image builds libfprint v1.94.10 from source; the gha cache avoids rebuilding it every
+      # run. docker-compose.yml names `fprintd-dev`, so every `run` below picks this up.
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
@@ -119,11 +106,9 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The image cache above holds the libfprint build and nothing Rust. This job's `fprintd-target`
-      # volume is created empty on every run, so without this the 109 third-party crates behind the
-      # libfprint-sys bindgen spine compile from scratch every time. sccache's cache is what carries
-      # between runs — 167 MiB measured, so restoring it costs seconds. Keyed on the lockfile and
-      # the image: either one moving is what invalidates the compilations.
+      # The image cache above holds the libfprint build, nothing Rust. This job's `fprintd-target`
+      # volume is empty each run, so sccache (167 MiB) carries the 109 third-party crate compilations
+      # between runs. Keyed on the lockfile and the image; either moving invalidates the cache.
       # See docker/docker-compose.ci.yml.
       - uses: actions/cache@v4
         with:
@@ -132,10 +117,8 @@ jobs:
           restore-keys: sccache-linux-
       # `--exclude fprint-fp3`: its dev-only GVariant oracle pulls `zvariant/gvariant`, which upstream
       # zvariant 5.13.0 miscompiles once the daemon's `zvariant` D-Bus features unify onto the same
-      # build — a combination that only arises here, where fprintd is real. fp3 is a pure,
-      # platform-independent crate fully covered by the check job, so excluding it keeps the conflict
-      # out while the rest of the workspace still builds with every feature.
-      # Separate steps, so a failure names itself.
+      # build (only arises here, where fprintd is real). fp3 is pure and fully covered by the check
+      # job. Separate steps, so a failure names itself.
       - name: Clippy the whole workspace (incl. shim & daemon)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
@@ -144,24 +127,22 @@ jobs:
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
           cargo test --workspace --all-features --exclude fprint-fp3
-      # The `check` job documents everything that builds off Linux. These two only build here,
-      # so this is the only place their intra-doc links can be checked at all.
+      # These two crates only build on Linux, so this is the only place their intra-doc links are
+      # checked.
       - name: Rustdoc (Linux-only crates, warnings are errors)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm
           -e RUSTDOCFLAGS=-D\ warnings dev
           cargo doc --no-deps --all-features -p fprintd -p fprint-backend-libfprint
-      # Already covered by --all-features above; named separately because these two are the M2
-      # FP3 byte-identity proof against the real C library — Raw via virtual_device, NBIS via
-      # virtual_image — and a silent loss of either would matter.
+      # Covered by --all-features above; named separately as the M2 FP3 byte-identity proof against
+      # the real C library: Raw via virtual_device, NBIS via virtual_image.
       - name: Shim vs. real libfprint virtual drivers (M2 FP3 byte-identity)
         run: |
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev \
             cargo test -p fprint-backend-libfprint --features virtual \
               --test virtual --test virtual_image
-      # The hit rate is the whole case for the cache above, so it is printed rather than assumed.
-      # Dependencies should hit and the workspace's own ten crates should miss; a run that misses
-      # everything means the key is churning, and the cache is then cost without benefit.
+      # Prints the cache hit rate. Dependencies should hit and the workspace's own ten crates should
+      # miss; a run that misses everything means the key is churning.
       - name: sccache hit rate
         if: always()
         run: >
@@ -182,15 +163,15 @@ jobs:
     name: msrv (1.82, published pure crates)
     runs-on: ubuntu-latest
     env:
-      # rust-toolchain.toml pins stable for a bare `cargo`, which would run this on stable and check
-      # nothing. RUSTUP_TOOLCHAIN outranks the file, so the 1.82 floor is the one under test.
+      # rust-toolchain.toml pins stable for a bare `cargo`. RUSTUP_TOOLCHAIN outranks the file, so
+      # the 1.82 floor is the one under test.
       RUSTUP_TOOLCHAIN: "1.82"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.82
       - uses: Swatinem/rust-cache@v2
-      # The Linux-only crates are deliberately absent: they declare 1.85 and would fail here by
-      # design. Their floor is enforced by cargo itself (`rust-version`), and exercised by `linux`.
+      # The Linux-only crates are absent: they declare 1.85 and would fail here. Their floor is
+      # enforced by cargo's `rust-version` and exercised by `linux`.
       - name: Check the pure crates on the declared MSRV
         run: >
           cargo check --locked
@@ -224,11 +205,10 @@ jobs:
 
   mutants:
     name: mutants (the diff)
-    # A push has no base ref, so the question this job asks does not exist there.
+    # A push has no base ref to diff against.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # Bounded so a pull request that rewrites a whole module reports nothing rather than holding a
-    # runner. The finding is advisory; the wait for it must not be.
+    # Bounded: a large diff reports nothing rather than holding a runner. The finding is advisory.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -240,15 +220,14 @@ jobs:
         with:
           tool: cargo-mutants
       - name: Which of the changed lines the tests do not defend
-        # Reports, never gates. The survivors land as annotations on the diff.
+        # Reports, never gates. Survivors land as annotations on the diff.
         continue-on-error: true
         run: cargo xtask mutants origin/${{ github.base_ref }}
 
   coverage:
     name: coverage (pure crates, advisory)
-    # Reports, never gates — like mutants. Coverage says which lines run, not which are defended, so
-    # a gate on it would fire on correct code. The pure crates only: on Linux the shim links the C
-    # libfprint, which this job does not carry.
+    # Reports, never gates, like mutants: coverage says which lines run, not which are defended.
+    # Pure crates only; the shim links the C libfprint, which this job does not carry.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:

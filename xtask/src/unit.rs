@@ -25,8 +25,8 @@ const TEST_MODE_FLAG: &str = "--test-mode";
 
 /// The first `@PLACEHOLDER@` left in `s`, if any.
 ///
-/// Matches the autotools convention the template follows — `@`, then upper-case, digits or
-/// underscores, then `@`. Not "contains an `@`": systemd's own syntax is full of them
+/// Matches the autotools convention the template follows: `@`, then upper-case, digits or
+/// underscores, then `@`. A bare `@` does not match, since systemd syntax uses them
 /// (`SystemCallFilter=@system-service`).
 fn unsubstituted_placeholder(s: &str) -> Option<String> {
     let mut from = 0;
@@ -55,21 +55,21 @@ fn exec_starts(unit: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Check the systemd unit by giving it to systemd. Neither claim can be checked any other way:
+/// Check the systemd unit by giving it to systemd. These claims can be checked no other way:
 ///
 /// 1. `systemd-analyze verify` — the unit is well-formed and `systemctl enable` will accept it.
 /// 2. `systemctl enable fprintd-rs` creates `/etc/systemd/system/fprintd.service` pointing at it.
-///    That symlink *is* the coexistence design (ARCHITECTURE.md §Coexistence): it outranks
+///    That symlink implements the coexistence design (ARCHITECTURE.md §Coexistence): it outranks
 ///    upstream's unit in `/usr/lib`, so D-Bus activation reaches us, and `disable` hands the seat
 ///    back.
 ///
-/// The third claim is checked here rather than by systemd, because systemd has no opinion about
-/// it: the unit must not start the daemon with [`TEST_MODE_FLAG`].
+/// The third claim is checked here rather than by systemd, since systemd has no opinion about it:
+/// the unit must not start the daemon with [`TEST_MODE_FLAG`].
 pub fn verify(root: &Path) -> Result<(), String> {
     let template = root.join("crates/fprintd/dbus/fprintd-rs.service.in");
 
-    // The `@LIBEXECDIR@` substitution packaging will do. This is the only place that knows the
-    // template needs substituting at all.
+    // The `@LIBEXECDIR@` substitution packaging will do. This is the only place that substitutes
+    // the template.
     let unit = std::fs::read_to_string(&template)
         .map_err(|e| format!("read {}: {e}", template.display()))?
         .replace("@LIBEXECDIR@", LIBEXECDIR);
@@ -81,9 +81,9 @@ pub fn verify(root: &Path) -> Result<(), String> {
         ));
     }
 
-    // PolicyKit is what stands between a local caller and someone else's enrolled fingers. The
-    // flag that disables it is a bring-up convenience, and packaging is the only way it could
-    // reach a real machine.
+    // PolicyKit stands between a local caller and someone else's enrolled fingers. The flag that
+    // disables it is a bring-up convenience, and packaging is the only way it could reach a real
+    // machine.
     for exec in exec_starts(&unit) {
         if exec.split_whitespace().any(|arg| arg == TEST_MODE_FLAG) {
             return Err(format!(
@@ -160,11 +160,11 @@ mod tests {
         );
     }
 
-    /// The false positives are the point: this check runs on every green build, and one that fires
-    /// on a correct unit is a check on its way to being switched off.
+    /// This check runs on every green build, so it must not fire on a correct unit. The cases below
+    /// are the systemd syntax it must accept.
     #[test]
     fn systemd_syntax_is_not_a_placeholder() {
-        // The reason the check is not "contains an @".
+        // Why the check is not "contains an @".
         assert_eq!(
             unsubstituted_placeholder("SystemCallFilter=@system-service"),
             None

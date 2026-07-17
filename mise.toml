@@ -1,7 +1,6 @@
 # mise-managed toolchain for this project.
-# Extends the global config at ~/.config/mise/config.toml (global tools stay available:
-# rust, just, taplo, typos, lefthook, gh, ripgrep, fd, ...). This file only adds/pins
-# what THIS project needs so the dev environment is reproducible.
+# Extends the global config at ~/.config/mise/config.toml (global tools stay available: rust, just,
+# taplo, typos, lefthook, gh, ripgrep, fd, ...). This file pins what this project needs.
 
 [tools]
 rust = "stable"          # matches the global `rust = "stable"` symlink
@@ -46,14 +45,14 @@ run = "cargo xtask ci-annotate"
 
 [tasks.reuse]
 description = "Check REUSE/SPDX license compliance"
-# `--with charset-normalizer` gives reuse a pure-Python encoding detector, so it
-# needs no native libmagic (required on Windows; harmless on Linux with `file`).
+# `--with charset-normalizer` gives reuse a pure-Python encoding detector, so it needs no native
+# libmagic (required on Windows; harmless on Linux).
 run = "uvx --with charset-normalizer reuse lint"
 
 # --- Docker: build + verify the Linux-only crates (shim, daemon) -------------
-# The repo runs on Windows; the shim (C libfprint FFI) and daemon (system D-Bus)
-# are Linux-only, so they are built and verified inside a container that has
-# libfprint (with virtual drivers) compiled from source. See docker/.
+# The repo runs on Windows; the shim (C libfprint FFI) and daemon (system D-Bus) are Linux-only, so
+# they are built and verified in a container with libfprint (with virtual drivers) built from
+# source. See docker/.
 
 [tasks.docker-build]
 description = "Build the Linux dev/verify image (pinned libfprint w/ virtual drivers)"
@@ -63,7 +62,7 @@ run = "docker compose -f docker/docker-compose.yml build"
 description = "Run the whole workspace test suite (incl. Linux-only crates) in the container"
 # `--exclude fprint-fp3`: its dev-only GVariant oracle pulls `zvariant/gvariant`, which upstream
 # zvariant miscompiles once the daemon's `zvariant` D-Bus features unify onto the same build (only on
-# Linux, where fprintd is real). fp3 is pure and fully covered by the Windows/macOS `check` job.
+# Linux). fp3 is pure and fully covered by the Windows/macOS `check` job.
 run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test --workspace --all-features --exclude fprint-fp3"
 
 [tasks.docker-shell]
@@ -74,27 +73,27 @@ run = "docker compose -f docker/docker-compose.yml run --rm dev bash"
 description = "Hardware-free enroll+verify against fprintd over its D-Bus contract"
 # The integration test stands up the real daemon on a private bus (its own dbus-daemon) with a
 # virtual backend and drives Claim -> EnrollStart -> enroll-completed -> VerifyStart ->
-# verify-match -> Release exactly as a client would — the hardware-free daemon verification.
+# verify-match -> Release as a client would.
 run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fprintd --test dbus_integration -- --nocapture"
 
 [tasks.unit-verify]
 description = "Check the systemd unit against real systemd: it parses, and Alias= takes the seat"
 run = "cargo xtask unit-verify"
 
-# Supply chain: advisories, the licence boundary ARCHITECTURE.md argues in prose, wildcard pins,
-# and source registries. Adds no dependency — cargo-deny is a CLI that reads Cargo.lock.
+# Supply chain: advisories, the licence boundary, wildcard pins, source registries. cargo-deny is a
+# CLI that reads Cargo.lock; adds no dependency.
 [tasks.deny]
 description = "Check the dependency graph: advisories, licences, wildcard pins, sources"
 run = "cargo deny check"
 
-# `reuse lint` accepts a custom LicenseRef-* identifier and crates.io does not, so a green lint is
-# no evidence a crate can leave the workspace. This asks the registry's own rules.
+# `reuse lint` accepts a custom LicenseRef-* identifier and crates.io does not. This checks the
+# registry's own rules.
 [tasks.publish-check]
 description = "Check the published crates against the registry's rules: licence, deps, contents"
 run = "cargo xtask publish-check"
 
-# --- NBIS oracles: the stock C tools as the ground truth our ports are checked against --------
-# Both are DELIBERATE regeneration of frozen goldens, and need reference/nbis-stock + Docker.
+# --- NBIS oracles: the stock C tools as the ground truth the ports are checked against --------
+# Both DELIBERATELY regenerate frozen goldens; need reference/nbis-stock + Docker.
 # See xtask/src/oracle.rs.
 
 [tasks.clone-ref-nbis]
@@ -110,10 +109,9 @@ description = "DELIBERATE: regenerate the MINDTCT golden corpus + minutiae/maps 
 run = "cargo xtask mindtct-oracle"
 
 # --- Fuzzing: coverage-guided search behind the seeded sweeps -------------------------------
-# DELIBERATE, and for the same reason as the oracles: it needs a nightly toolchain and Docker, and
-# a nightly toolchain in CI is a moving dependency that reds the build on rustc's schedule. What a
-# campaign finds is frozen as an ordinary test (crates/fprint-fp3/tests/regressions.rs) that needs
-# neither. Pass a target and an optional budget: `mise run fuzz fp3_from_bytes 300`.
+# DELIBERATE: needs a nightly toolchain and Docker, kept out of CI (nightly is a moving dependency).
+# What a campaign finds is frozen as an ordinary test (crates/fprint-fp3/tests/regressions.rs).
+# Pass a target and optional budget: `mise run fuzz fp3_from_bytes 300`.
 # See fuzz/Cargo.toml for the wall that keeps libfuzzer-sys out of the published crates.
 
 [tasks.fuzz]
@@ -121,10 +119,9 @@ description = "DELIBERATE: fuzz one target in the nightly container (`fuzz <targ
 run = "cargo xtask fuzz"
 
 # --- Mutation testing: which lines the tests do not defend ----------------------------------
-# DELIBERATE because of its size, not its dependencies: it is 5,784 mutants over the published
-# crates, and each one is a build and a test run. Nothing else about it is exotic — no container, no
-# nightly, no network. A pull request gets the same question asked of its own diff, which is minutes
-# rather than hours; see the `mutants` job in .github/workflows/ci.yml.
+# DELIBERATE because of its size: 5,784 mutants over the published crates, each a build and a test
+# run. No container, nightly, or network. A pull request gets the same question asked of its own
+# diff (minutes, not hours); see the `mutants` job in .github/workflows/ci.yml.
 # Scope it down while working: `cargo mutants -f 'crates/fprint-bozorth3/src/cluster.rs'`.
 
 [tasks.mutants]

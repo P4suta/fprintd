@@ -3,34 +3,25 @@
 #
 # Supply-chain rules, checked by `cargo deny check` (mise run deny, and a CI job).
 #
-# This adds no dependency: cargo-deny is a CLI that reads Cargo.lock. What it buys, in order:
-#
-#  1. The licence boundary. ARCHITECTURE.md §Provenance spends real effort on staying clear of
-#     libfprint's LGPL terms, and nothing stopped a *new* copyleft crate entering the graph. The
-#     allow-list below makes that boundary one file a machine re-reads, instead of an argument
-#     distributed through prose.
-#  2. The `=` pins. `[bans] wildcards = "deny"` enforces by machine a discipline already practised
-#     by hand.
-#  3. Advisories. The pure crates have no dependencies to audit, so the whole value here is
-#     fprintd's zbus/tokio graph and the shim's glib/gio — which is the authentication path.
+# cargo-deny adds no dependency; it is a CLI that reads Cargo.lock. It enforces:
+#  1. The licence boundary (allow-list below): keep new copyleft crates out of the graph.
+#  2. The `=` pins: `[bans] wildcards = "deny"`.
+#  3. Advisories over fprintd's zbus/tokio graph and the shim's glib/gio (the pure crates have no
+#     dependencies to audit).
 
 [graph]
-# Every optional dependency and every target, so the Linux-only shim and daemon are in scope from
-# any host. cargo-deny resolves from `cargo metadata`, so this needs neither Linux nor Docker.
+# All features and all targets, so the Linux-only shim and daemon are in scope from any host.
+# cargo-deny resolves from `cargo metadata`, so this needs neither Linux nor Docker.
 all-features = true
 
 [advisories]
 version = 2
-# `warn`, not `deny`. The shim's `libfprint-sys` is a thin FFI dep over the system libfprint; a
-# yank we cannot immediately act on must be visible rather than red: a build that fails for
-# something no commit can fix is a check on its way to being switched off.
+# `warn`, not `deny`: the shim's `libfprint-sys` is a thin FFI dep over the system libfprint, and a
+# yank no commit can act on must be visible rather than fail the build.
 yanked = "warn"
-# Each entry, when one is needed, carries a `reason` pointing at docs/known-issues.md. An advisory
-# is exactly the moment a human decides, and this is where that decision lives so the tool re-reads
-# it every run.
-# Both entries are *unmaintained* advisories (informational — not vulnerabilities), and both reach
-# the graph only through `fprint-driverkit`'s (publish = false) diagnostic imaging (`image` /
-# `imageproc`). Nothing shipped or published reaches either. See docs/known-issues.md §Supply chain.
+# Both entries are *unmaintained* advisories (informational, not vulnerabilities), reachable only
+# through `fprint-driverkit`'s (publish = false) diagnostic imaging (`image` / `imageproc`). Nothing
+# shipped or published reaches either. Each carries a `reason`. See docs/known-issues.md §Supply chain.
 ignore = [
   # `ttf-parser` (unmaintained): imageproc -> ab_glyph -> owned_ttf_parser -> ttf-parser, reached
   # only via imageproc's glyph/text-drawing path, which this repo never uses (the overlay draws
@@ -43,7 +34,7 @@ ignore = [
 
 [licenses]
 version = 2
-# Resolved from the actual graph rather than guessed. Every entry is reachable today:
+# Every entry is reachable in the current graph:
 #   Apache-2.0 WITH LLVM-exception — target-lexicon offers nothing else
 #   BSD-3-Clause                   — bindgen (the shim's FFI generator)
 #   ISC                            — libloading
@@ -52,14 +43,12 @@ version = 2
 #
 # Two more are reachable through `fprint-driverkit`'s (publish = false) diagnostic imaging:
 #   Zlib — the `image` crate's PNG deflate codec (`miniz_oxide`, `zune-inflate`, `bytemuck`, …),
-#          unavoidable for the `fpdev` overlay's PNG save/open, and permissive
+#          for the `fpdev` overlay's PNG save/open; permissive
 #   NCSA — `libfuzzer-sys`, the fuzz harness's runtime (University of Illinois/NCSA, permissive)
 #
-# There is no `[[licenses.exceptions]]`, and that is the finding rather than an omission: the LGPL
-# boundary ARCHITECTURE.md argues is about the C libfprint `.so` we dynamically link. The Rust
-# binding crate is not it — `libfprint-sys` is MIT. The one crate in the graph that offers LGPL at
-# all (`r-efi`) offers MIT beside it, so nothing here takes copyleft terms. Every allowed license is
-# permissive; the policy polices exactly one boundary, LGPL, and nothing here crosses it.
+# No `[[licenses.exceptions]]`. The LGPL boundary is the C libfprint `.so` we dynamically link; the
+# Rust binding `libfprint-sys` is MIT. The one crate offering LGPL (`r-efi`) offers MIT beside it.
+# Every allowed license is permissive; the policy polices one boundary, LGPL, and nothing crosses it.
 allow = [
   "Apache-2.0",
   "Apache-2.0 WITH LLVM-exception",
@@ -74,18 +63,14 @@ allow = [
 ]
 
 [bans]
-# `*` is what this rejects, not `=`. The exact pins are the strictest requirement expressible and
-# no check here objects to them.
+# Reject `*` requirements; the exact `=` pins are allowed.
 wildcards = "deny"
-# A version-less path dependency *is* a `*` requirement, and this workspace has several on purpose:
-# omitting the version is exactly what makes `cargo publish` strip a dev-dependency from a
-# published tarball, which is how `fprint-testkit` and `fprint-backend-native` stay out of the
-# crates that ship (`cargo xtask publish-check` proves it of the packaged manifests). Without this,
-# the rule would fire on the design it is supposed to protect — and a check that fires on correct
-# code gets switched off. Registry wildcards, which are the actual risk, are still refused.
+# A version-less path dependency is a `*` requirement, used on purpose: omitting the version is what
+# makes `cargo publish` strip a dev-dependency from the tarball, keeping `fprint-testkit` and
+# `fprint-backend-native` out of the shipped crates (`cargo xtask publish-check` verifies the
+# packaged manifests). Registry wildcards, the actual risk, are still refused.
 allow-wildcard-paths = true
-# `warn`: the glib/gio/zbus graph carries duplicates this project does not control. Denying them
-# would be a treadmill, and a treadmill is how a security check gets switched off.
+# `warn`: the glib/gio/zbus graph carries duplicates this project does not control.
 multiple-versions = "warn"
 
 [sources]

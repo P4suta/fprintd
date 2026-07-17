@@ -9,8 +9,8 @@ The FP3 fingerprint-template codec: the edge translator between libfprint/fprint
 `"FP3"` followed by a little-endian, normal-form GVariant value of type `(issbymsmsia{sv}v)`.
 Everything wire-specific — the magic, the GVariant signature, the Julian-day dates with their
 `G_MININT32` sentinel, the maybe-strings, the NBIS payload — lives here and never leaks up into
-`fprint-core`. It depends only on `fprint-core`. The public surface is two verbs, `to_bytes`
-and `from_bytes`.
+`fprint-core`. It depends only on `fprint-core`. The public surface is `to_bytes` and
+`from_bytes`.
 
 ## Quickstart
 

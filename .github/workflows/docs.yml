@@ -3,9 +3,8 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # Docs site: build the mdBook and the workspace rustdoc, publish both to GitHub Pages.
-# The book lands at the site root; the API reference at /api. The book's SUMMARY links
-# ARCHITECTURE.md, which lives at the repo root, so it is staged into docs/ (the book src)
-# before the build — the one file the book borrows from outside its own directory.
+# The book lands at the site root; the API reference at /api. ARCHITECTURE.md lives at the repo
+# root and is staged into docs/ (the book src) before the build.
 
 name: Docs
 
@@ -20,7 +19,7 @@ permissions:
   pages: write
   id-token: write
 
-# One deployment at a time; a newer commit waits rather than cancels a publish mid-flight.
+# One deployment at a time; a newer commit waits rather than cancelling a publish in flight.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -40,15 +39,14 @@ jobs:
         with:
           tool: mdbook
       - uses: actions/configure-pages@v5
-      # `cargo doc --workspace` documents the two C-linking crates as well (fprintd,
-      # fprint-backend-libfprint), so the distro libfprint headers and libclang must be present
-      # for the libfprint-sys bindgen spine to compile.
+      # `cargo doc --workspace` documents the two C-linking crates (fprintd, fprint-backend-libfprint),
+      # so the distro libfprint headers and libclang must be present for libfprint-sys bindgen.
       - name: Refresh the package index
         run: sudo apt-get update
       - name: Install libfprint headers and libclang for the shim's bindgen
         run: sudo apt-get install -y libfprint-2-dev libclang-dev pkg-config
-      # ARCHITECTURE.md is the "Concepts / Architecture & provenance" chapter but lives at the
-      # repo root; stage it into the book source so mdBook renders it under the output tree.
+      # ARCHITECTURE.md is the "Concepts / Architecture & provenance" chapter but lives at the repo
+      # root; stage it into the book source so mdBook renders it.
       - name: Stage ARCHITECTURE.md into the book source
         run: cp ARCHITECTURE.md docs/ARCHITECTURE.md
       - name: Build the book

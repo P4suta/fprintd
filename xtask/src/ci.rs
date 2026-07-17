@@ -4,12 +4,12 @@
 
 //! Turning clippy's findings into inline PR annotations, in Rust rather than a shell pipe.
 //!
-//! GitHub renders a `::warning file=…,line=…::message` line on the workflow's own output as an
+//! GitHub renders a `::warning file=…,line=…::message` line on the workflow's output as an
 //! annotation on the diff. Producing those from clippy usually means piping `--message-format=json`
-//! through `jq` or `clippy-sarif` — the kind of shell logic this repo keeps out of its workflows.
-//! Here the pipe is a program: `cargo clippy --message-format=json` is parsed with the same
-//! `cargo_metadata` message reader the tooling already depends on, and the annotations are printed
-//! directly. clippy's own exit status is preserved, so the CI step still fails on a warning.
+//! through `jq` or `clippy-sarif`, the shell logic this repo keeps out of its workflows. Here it is
+//! a program: `cargo clippy --message-format=json` is parsed with the same `cargo_metadata` message
+//! reader the tooling already depends on, and the annotations are printed directly. clippy's exit
+//! status is preserved, so the CI step still fails on a warning.
 
 use std::io::BufReader;
 use std::path::Path;

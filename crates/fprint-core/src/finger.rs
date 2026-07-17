@@ -12,7 +12,7 @@
 /// A finger, matching libfprint's `FpFinger` enum ordering (see `fp-print.h`).
 ///
 /// The discriminant is meaningful: it is the value stored in the FP3 template `finger`
-/// byte and used to name per-finger files under `/var/lib/fprint/<user>/<driver>/`.
+/// byte, and it names the per-finger files under `/var/lib/fprint/<user>/<driver>/`.
 /// `Unknown = 0`; real fingers are `1..=10`.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

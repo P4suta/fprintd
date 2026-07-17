@@ -4,15 +4,15 @@
 
 //! # fprint-pipeline
 //!
-//! The host-image fingerprint pipeline, in a few lines. It joins the three published leaves —
+//! The host-image fingerprint pipeline. It joins the three published leaves —
 //! [`fprint_mindtct`] (minutiae detection), [`fprint_bozorth3`] (minutiae matching) and
 //! [`fprint_core`] (the domain [`Print`](fprint_core::Print) / [`Template`](fprint_core::Template) /
 //! [`Minutia`](fprint_core::Minutia)) — into the one path a host-image sensor walks:
 //! **image → minutiae → template → match**.
 //!
-//! The two kernels are deliberately dependency-free and each defines its own `Minutia` (the `xyt`
-//! triple is an interoperability fact, not a shared type). This crate owns the small conversions
-//! between them and the domain model, so you do not have to write them:
+//! The two kernels are dependency-free and each defines its own `Minutia` (the `xyt` triple is an
+//! interoperability fact, not a shared type). This crate owns the small conversions between them
+//! and the domain model:
 //!
 //! - [`extract_minutiae`] / [`template_from_images`] — the front half, over [`fprint_mindtct`].
 //! - [`nbis_match_score`] (→ [`MatchScore`]) / [`nbis_verify`] / [`nbis_identify`] — the back half,
@@ -71,8 +71,8 @@
 //!
 //! This crate stops at the in-memory [`Template`](fprint_core::Template). To write an enrolled print
 //! to disk in the format libfprint reads and writes, add `fprint-fp3` and call its `to_bytes` /
-//! `from_bytes` on a [`Print`](fprint_core::Print) carrying the template — persistence is a separate,
-//! single-purpose crate on purpose.
+//! `from_bytes` on a [`Print`](fprint_core::Print) carrying the template — persistence is a
+//! separate, single-purpose crate.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]

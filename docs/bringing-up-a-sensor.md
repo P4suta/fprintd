@@ -1,32 +1,29 @@
 # Bringing up a sensor with `fpdev`
 
 `fpdev` (the `fprint-driverkit` crate, `publish = false`) is a workbench for writing a
-native driver for a fingerprint sensor libfprint does not support. It walks the whole
-journey — identify the device, scaffold a driver, decode its frames, match them, and open
-a pull request — with each step offline and deterministic. The only commands that touch a
-physical sensor are `record` and a live `shell`; everything else runs on recorded bytes,
-so a maintainer with no hardware reproduces a contributor's work exactly.
+native driver for a fingerprint sensor libfprint does not support. It covers identifying the
+device, scaffolding a driver, decoding its frames, matching them, and opening a pull request.
+Every step runs offline and deterministic on recorded bytes except `record` and a live
+`shell`, which touch a physical sensor. A maintainer with no hardware reproduces a
+contributor's work from the recording.
 
-This chapter is the walkthrough. The seam a driver plugs into — the `FrameSource` trait and
-the layers built on top of it — is the reference in
-[Adding a native driver](adding-a-driver.md); the capture formats `import` reads are in
+The seam a driver plugs into — the `FrameSource` trait and the layers on top of it — is in
+[Adding a native driver](adding-a-driver.md). The capture formats `import` reads are in
 [Re-capturing USB traffic](re-capture-formats.md).
 
-A native driver is an open invitation, never a requirement. Parity with libfprint's driver
-estate is a non-goal (see [`ARCHITECTURE.md`](ARCHITECTURE.md) §Non-goals); the C libfprint
-shim stays the main line for real hardware. `fpdev` exists to make contributing a native
-driver pleasant, and to turn one recorded session into a permanent, hardware-free
-regression test.
+Native drivers are a non-goal; see [ADR 0004](adr/0004-coexistence-shim-first.md). The C
+libfprint shim stays the main line for real hardware. `fpdev` turns one recorded session into
+a hardware-free regression test.
 
 Each subcommand takes `--help`. Hex ids accept a `0x` prefix or bare digits.
 
-## The journey
+## Pipeline
 
 ```
 probe → new-driver → shell → import / record → replay → frame → match → doctor → ship
 ```
 
-## 1. Probe: what is this device?
+## 1. Probe: classify the device
 
 ```console
 $ fpdev probe --vid 2808 --pid 9338
@@ -70,15 +67,15 @@ $ fpdev new-driver --name acme --vid 2808 --pid 9338 --from vfs5011
 ```
 
 This scaffolds a five-file host-image driver tree — `mod.rs`, `proto.rs`, `source.rs`,
-`<name>.rs`, and `mock_tests.rs` — modeled on the `vfs5011` worked example. The scaffold is
-not an empty stub: its `mock_tests.rs` scripts a reference finger through a scripted
-transport and drives an `ImageDevice` to enroll and self-verify, so a freshly generated
-driver passes its tests from the first build.
+`<name>.rs`, and `mock_tests.rs` — modeled on the `vfs5011` worked example. The scaffold's
+`mock_tests.rs` scripts a reference finger through a scripted transport and drives an
+`ImageDevice` to enroll and self-verify, so a freshly generated driver passes its tests from
+the first build.
 
 Every device value the scaffold emits — VID/PID, endpoints, frame geometry, init sequences —
-carries a `// HW-verified: required` marker, because the generated code states
-interoperability facts and never asserts a byte no hardware has confirmed. Resolving those
-markers against a physical sensor is the bring-up's real work.
+carries a `// HW-verified: required` marker: the generated code states interoperability facts
+and asserts no byte hardware has not confirmed. Resolving those markers against a physical
+sensor is the main bring-up work.
 
 - `--from <driver>` records which worked example the scaffold is modeled on (default
   `vfs5011`).
@@ -142,9 +139,9 @@ $ fpdev record --vid 2808 --pid 9338 -o acme.cassette
 ```
 
 `record` opens the device over USB, drives a capture through the same path `replay` reads,
-and saves the exchange. It needs the `usb` feature and hardware. This is the one step that
-must run against a physical sensor — a contributor with the hardware records it, and the
-resulting `.cassette` is what a maintainer replays in CI forever.
+and saves the exchange. It needs the `usb` feature and hardware. This step must run against a
+physical sensor. A contributor with the hardware records it; the resulting `.cassette` is what
+CI replays.
 
 ## 5. Replay: run the real driver, no hardware
 
@@ -165,9 +162,9 @@ frame 0  256x256  minutiae 17  mean-quality 97.8  self-score 52 (PASS >= 40)
 frames: 1 assembled, framing reproduced
 ```
 
-A clean replay proves the driver's framing reproduces the recorded pixels. A mismatch names
-the frame whose transfer diverged — a truncated payload, a wrong header — so a decoding bug
-points at itself. The `PASS`/`WEAK` verdict is the self-score against a threshold of 40.
+A clean replay confirms the driver's framing reproduces the recorded pixels. A mismatch names
+the frame whose transfer diverged (a truncated payload, a wrong header). The `PASS`/`WEAK`
+verdict is the self-score against a threshold of 40.
 `--json` emits the per-frame report as a structured object.
 
 ## 6. Frame: see the pixels
@@ -183,11 +180,10 @@ known, decode a headerless raw buffer with an explicit geometry, or let the dete
 $ fpdev frame --raw dump.bin --guess-width --out guess.png
 ```
 
-`--guess-width` is the bring-up's geometry oracle. It enumerates the divisors of the pixel
-count, assembles a frame at each candidate width, runs MINDTCT over it, and ranks the
-candidates by the total mass of reliable minutiae. The true geometry aligns the ridges into
-fewer, more reliable minutiae; a sheared width breaks them into many low-quality false ones,
-so the detector names the geometry for free:
+`--guess-width` finds the geometry. It enumerates the divisors of the pixel count, assembles a
+frame at each candidate width, runs MINDTCT over it, and ranks the candidates by the total
+mass of reliable minutiae. The true geometry aligns the ridges into fewer, more reliable
+minutiae; a sheared width breaks them into many low-quality false ones:
 
 ```
  rank  width  height  minutiae  mean-quality  quality-sum
@@ -254,7 +250,7 @@ $ fpdev ship --driver acme --check      # dry run: print the plan and a PR-body 
 $ fpdev ship --driver acme              # apply the plan
 ```
 
-`ship` gathers a bring-up's scattered files into the shape a pull request wants. By default it
+`ship` gathers a bring-up's files into pull-request shape. By default it
 integrates the driver into `fprint-backend-native` behind the `FrameSource` seam: it places
 the scaffold, registers the module, drops the scaffold's `dead_code` allow, notes the device
 DB entry to add, installs the capture fixture, and points at the acceptance gate. It closes by
@@ -278,7 +274,7 @@ verifies the packaging without writing.
 Three `xtask` tasks track a driver toward merge:
 
 - `cargo xtask hw-checklist [driver]` — the burndown of `HW-verified: required` markers, the
-  device values still asserted on faith. `--json` for a machine-readable list.
+  device values still unconfirmed. `--json` for a machine-readable list.
 - `cargo xtask driver-check [driver]` — the PR-ready scorecard: the `unsafe` quarantine,
   black-box verification, REUSE cleanliness, workspace lints, the dependency boundary, and
   (for an isolated crate) the registry's publish rules, run as one command. It is the

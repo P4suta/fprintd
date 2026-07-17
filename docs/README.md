@@ -19,7 +19,7 @@ basis for the original Rust implementations.
 ## Contributor guide
 
 - [`adding-a-driver.md`](adding-a-driver.md) — how to add a native sensor driver
-  through the capture seam (an open invitation, not a project goal).
+  through the capture seam (a non-goal; see [ADR 0004](adr/0004-coexistence-shim-first.md)).
 
 ## Development notes (internal record)
 

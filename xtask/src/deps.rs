@@ -5,10 +5,10 @@
 //! The one rule, and the crate-level invariants around it, checked against the resolved graph.
 //!
 //! ARCHITECTURE.md opens with "**dependencies flow only toward the leaves**". `cargo fmt` and
-//! `clippy` cannot see it; this can. The check reads `cargo metadata` — the resolver's own answer —
-//! rather than manifest text, because three of the things it must know are facts only the resolver
-//! holds: a `package = "..."` rename (which crate a dependency really is), a transitive third-party
-//! edge into a crate that claims zero dependencies, and the exact set of workspace members.
+//! `clippy` do not check it; this does. The check reads `cargo metadata`, the resolver's answer,
+//! rather than manifest text, because three things it must know are held only by the resolver: a
+//! `package = "..."` rename (which crate a dependency really is), a transitive third-party edge
+//! into a crate that claims zero dependencies, and the exact set of workspace members.
 //!
 //! The rules, keyed to the crate they defend:
 //!
@@ -17,11 +17,11 @@
 //! * **R2 — the charter's dependency-freedom.** A [`ZERO_DEP`] crate declares no normal dependency
 //!   of any kind (ARCHITECTURE.md principle 2).
 //! * **R3 — no dev cycle.** A dev-dependency ships in nothing, so the one rule does not reach it;
-//!   what it may not do is close a cycle, which would state the architecture backwards.
+//!   it may not close a cycle, which would state the architecture backwards.
 //! * **R4 — the unsafe quarantine.** Every crate but the FFI leaf forbids unsafe (principle 6).
 //! * **R5 — the testkit is dev-only.** It is `publish = false` and must reach no shipped artifact.
 //! * **R6 — the charter takes no third party.** A [`ZERO_DEP`] crate holds no third-party crate in
-//!   *any* table, dev included — the purity is transitive, so it is checked against the graph.
+//!   *any* table, dev included; the purity is transitive, so it is checked against the graph.
 //! * **R7 — total coverage.** Every workspace member has an [`ALLOWED`] row; a new crate cannot slip
 //!   past the graph check by being unlisted.
 //! * **no external tool is a dependency.** The tools the workspace invokes but never links
@@ -33,12 +33,11 @@ use cargo_metadata::{DependencyKind, MetadataCommand};
 
 use crate::lint::Finding;
 
-/// Which workspace crates each crate may name. **Transitively closed** — a single lookup then
-/// answers "may `from` name `to`, directly or through anything it names" (see [`reaches`]).
+/// Which workspace crates each crate may name. **Transitively closed**, so a single lookup answers
+/// "may `from` name `to`, directly or through anything it names" (see [`reaches`]).
 ///
-/// The rows are the shipped graph, which is the graph the rule is about. `fprintd` names the shim
-/// directly and does not consume `fprint-integration`; that is what the code does, and
-/// ARCHITECTURE.md's diagram says so.
+/// The rows are the shipped graph. `fprintd` names the shim directly and does not consume
+/// `fprint-integration`, matching the code and ARCHITECTURE.md's diagram.
 const ALLOWED: &[(&str, &[&str])] = &[
     ("fprint-core", &[]),
     ("fprint-testkit", &[]),
@@ -99,12 +98,12 @@ const ALLOWED: &[(&str, &[&str])] = &[
     ),
 ];
 
-/// The charter: crates whose dependency-freedom is architecture, not circumstance.
+/// The charter: crates whose dependency-freedom is a fixed architectural rule.
 ///
-/// `fprint-core` is ARCHITECTURE.md principle 2 — the beauty is concentrated there. The two kernels
-/// take their input as an interoperability fact (the xyt triple), so they need no domain model and
-/// carry the bit-exact NBIS port that *is* the product. These three take no third-party crate in any
-/// table; every other crate may take the dependencies it needs.
+/// `fprint-core` is ARCHITECTURE.md principle 2. The two kernels take their input as an
+/// interoperability fact (the xyt triple), so they need no domain model and carry the bit-exact
+/// NBIS port. These three take no third-party crate in any table; every other crate may take the
+/// dependencies it needs.
 const ZERO_DEP: &[&str] = &["fprint-core", "fprint-bozorth3", "fprint-mindtct"];
 
 /// The one crate that may omit `#![forbid(unsafe_code)]`: it is the FFI quarantine
@@ -115,7 +114,7 @@ const UNSAFE_QUARANTINE: &[&str] = &["fprint-backend-libfprint"];
 const DEV_ONLY: &[&str] = &["fprint-testkit"];
 
 /// Tools the workspace invokes as external programs and never links. They read the tree or the
-/// lockfile; a crate that named one as a dependency would have misunderstood what it is.
+/// lockfile; naming one as a dependency is an error.
 const NEVER_A_DEP: &[&str] = &[
     "cargo-nextest",
     "cargo-llvm-cov",
@@ -285,7 +284,7 @@ fn crate_dir(root: &Path, krate: &str) -> PathBuf {
     }
 }
 
-/// The 1-based line `dep` is declared on, for a message that points somewhere.
+/// The 1-based line `dep` is declared on, for the finding's location.
 fn line_of(manifest: &str, dep: &str) -> usize {
     manifest
         .lines()
@@ -344,8 +343,8 @@ mod tests {
 
     #[test]
     fn a_dev_dependency_is_a_cycle_only_when_the_target_can_reach_back() {
-        // The arrows that exist today, and why each is fine. A dev-dependency ships in nothing, so
-        // the one rule does not reach it; the only thing it may not do is close a cycle.
+        // The current arrows, and why each is fine. A dev-dependency ships in nothing, so the one
+        // rule does not reach it; it may not close a cycle.
         assert!(
             !reaches("fprint-bozorth3", "fprint-fp3"),
             "fp3 -> bozorth3 (dev)"

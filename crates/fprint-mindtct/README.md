@@ -14,10 +14,9 @@ domain model. A consumer converts to `fprint_core::Minutia` at the boundary.
 ## Provenance
 
 MINDTCT is public-domain U.S. Government software (17 USC §105). This crate is a faithful port
-of the stock upstream NBIS algorithm, verified black-box against the stock C tool — reproducing
-its `xyt` output bit-for-bit — and deliberately not derived from libfprint's patched
-`nbis/mindtct/` copy. The NBIS lineage is provenance, not a licence; the crate carries
-`MIT OR Apache-2.0` like the rest of the project.
+of stock upstream NBIS, verified black-box against the stock C tool (reproducing its `xyt`
+output bit-for-bit), not derived from libfprint's patched `nbis/mindtct/` copy. It carries
+`MIT OR Apache-2.0`; see `ARCHITECTURE.md` §Provenance & licensing.
 
 ## Quickstart
 

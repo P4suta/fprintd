@@ -8,13 +8,13 @@
 //! The acceptance criteria are prose a human runs by hand. This mechanizes them into one green/red
 //! scorecard: the `unsafe` quarantine, the black-box verification, REUSE cleanliness, the workspace
 //! lints, the dependency boundary, and — for a driver that lives in its own crate — the registry's
-//! publish rules. It answers "am I PR-ready?" before a contributor opens a bring-up.
+//! publish rules. It reports whether a driver is PR-ready before a contributor opens a bring-up.
 //!
-//! It **composes**, it does not re-derive. The `unsafe` quarantine and the dependency boundary are
-//! read straight from [`crate::deps::check`], the graph oracle CI runs; the tests, REUSE, lints and
-//! publish rules are the very commands CI and `mise` run, invoked as subprocesses. The gate cannot
-//! disagree with CI because it is the same checks. It closes by asking `hw-checklist` what device
-//! values still await a physical sensor — the remaining work no gate can pass on faith.
+//! It **composes** the existing checks rather than reimplementing them. The `unsafe` quarantine and
+//! the dependency boundary are read from [`crate::deps::check`], the graph oracle CI runs; the
+//! tests, REUSE, lints and publish rules are the commands CI and `mise` run, invoked as
+//! subprocesses. The gate runs the same checks as CI. It closes by asking `hw-checklist` what
+//! device values still await a physical sensor.
 
 use std::path::Path;
 use std::process::Command;

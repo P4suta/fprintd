@@ -1,18 +1,12 @@
 # fprintd
 
-A modern, GObject-free, **pure-Rust** fingerprint stack that speaks fprintd's
-D-Bus contract (`net.reactivated.Fprint`), so the existing Linux desktop / PAM
-login stack (pam_fprintd, GNOME/KDE settings) runs on it unchanged — plus a
-clean, embeddable `fprint-core` library underneath.
+A GObject-free, **pure-Rust** fingerprint stack that speaks fprintd's D-Bus contract
+(`net.reactivated.Fprint`), so the existing Linux desktop / PAM login stack (pam_fprintd,
+GNOME/KDE settings) runs on it unchanged, plus an embeddable `fprint-core` library underneath.
 
-> **North star: we coexist with the fprintd ecosystem.** This daemon does
-> reimplement fprintd, but it speaks the ecosystem's real contract instead of
-> replacing it, keeps the C **libfprint** underneath as a dynamically linked
-> shim, and depends on the fprintd package for pam_fprintd, the D-Bus policy and
-> the PolicyKit actions. On top of that it layers the simple, modern mechanism
-> today's Rust makes possible. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
-> full design and rationale — including the prime directive that *architectural
-> beauty is the supreme value of this project.*
+It keeps the C **libfprint** underneath as a dynamically linked shim and depends on the fprintd
+package for pam_fprintd, the D-Bus policy, and the PolicyKit actions. See
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for the design and decisions.
 
 ## Crates
 
@@ -46,12 +40,11 @@ What is verified, and what is not:
 |---|---|
 | **Core + arithmetic kernels + codec + pipeline** (`fprint-core`, `fprint-fp3`, `fprint-bozorth3`, `fprint-mindtct`, `fprint-pipeline`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint, the pipeline glue tested end-to-end (image → minutiae → match). All offline, no hardware. |
 | **Shim daemon** (`fprintd` + `fprint-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
-| **Native** (`fprint-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is an **experimental, hardware-unverified invitation** — see below. |
+| **Native** (`fprint-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is **experimental** and hardware-unverified — see below. |
 
-**Native drivers are an open invitation, not a goal.** Reaching parity with
-libfprint's driver estate is explicitly a non-goal ([`ARCHITECTURE.md`](ARCHITECTURE.md)
-§Non-goals). If you want to bring up a sensor natively, the capture seam is the
-place to plug in — see [`docs/adding-a-driver.md`](docs/adding-a-driver.md).
+Native drivers are a non-goal ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Non-goals). To bring up a
+sensor natively, plug into the capture seam — see
+[`docs/adding-a-driver.md`](docs/adding-a-driver.md).
 
 ## Build & test
 
@@ -82,16 +75,11 @@ Licensed under either of
 
 at your option.
 
-The repository follows the [REUSE](https://reuse.software) specification: every
-file declares its licensing via an SPDX header or `REUSE.toml`, and `reuse lint`
-is expected to pass. Provenance is kept clean by matching only *interoperability
-facts* (enum values, wire-format signatures, D-Bus names) and never
-transliterating LGPL implementation code. A backend that links the C
-**libfprint** (LGPL-2.1-or-later) does so by *dynamic linking* only. Every crate here
-is `MIT OR Apache-2.0`, the NBIS ports included: they are faithful ports of NBIS,
-which carries no copyright at all (17 USC §105) and so restricts neither the port nor
-the licence on the result. Only NIST's own golden test data stays marked public domain.
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
+The repository follows the [REUSE](https://reuse.software) specification: every file declares
+its licensing via an SPDX header or `REUSE.toml`, and `reuse lint` passes. Every crate is
+`MIT OR Apache-2.0`, the NBIS ports included; the shim links the C **libfprint**
+(LGPL-2.1-or-later) by dynamic linking only. Only NIST's golden test data stays marked public
+domain. See [`ARCHITECTURE.md`](ARCHITECTURE.md) §Provenance & licensing.
 
 ### Contribution
 
