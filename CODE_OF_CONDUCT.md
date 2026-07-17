@@ -30,8 +30,7 @@ official channel — and when an individual is representing the project in publi
 ## Enforcement
 
 If you experience or witness unacceptable behavior, please report it privately to
-the maintainers at **crates.tank733@slmails.com**. (Once this project is hosted
-publicly, GitHub's private reporting on the repository will also be available.)
+the maintainers through GitHub's private reporting on this repository.
 Reports will be reviewed and handled confidentially and in good faith. Maintainers
 may take any action they deem appropriate, from a private warning to a ban from
 project spaces, and are obligated to respect the privacy and safety of reporters.
