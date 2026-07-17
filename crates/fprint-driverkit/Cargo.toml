@@ -47,14 +47,14 @@ image = "0.25"
 # Drawing minutiae markers, orientation ticks, and glyphs onto a diagnostic overlay (`image` 0.25).
 imageproc = "0.27"
 # The optional text-UI for `fpdev doctor`: an in-terminal dashboard over the same diagnostics.
-ratatui = "0.29"
+ratatui = "0.30"
 # Terminal setup and input events behind the `doctor` TUI (the backend `ratatui` renders onto).
-crossterm = "0.28"
+crossterm = "0.29"
 # Reading little/big-endian scalars out of a raw capture buffer.
 byteorder = "1"
 # Drive the backend's `async` USB transport to completion in `fpdev shell` with no runtime, the same
 # minimal executor `fprint-cli` uses.
-pollster = "1.0"
+pollster = "1"
 
 [features]
 # Off by default: `fpdev shell` runs its offline dry-run backend with no USB stack. `usb` turns on
