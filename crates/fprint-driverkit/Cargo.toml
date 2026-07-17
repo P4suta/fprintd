@@ -49,7 +49,7 @@ imageproc = "0.27"
 # The optional text-UI for `fpdev doctor`: an in-terminal dashboard over the same diagnostics.
 ratatui = "0.29"
 # Terminal setup and input events behind the `doctor` TUI (the backend `ratatui` renders onto).
-crossterm = "0.28"
+crossterm = "0.29"
 # Reading little/big-endian scalars out of a raw capture buffer.
 byteorder = "1"
 # Drive the backend's `async` USB transport to completion in `fpdev shell` with no runtime, the same
