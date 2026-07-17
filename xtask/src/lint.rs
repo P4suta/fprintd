@@ -32,6 +32,22 @@ const NARRATION: [&str; 10] = [
     "no longer needed",
 ];
 
+/// Rhetoric that documentation and comments do without: slogans, metaphor, and defensive asides.
+/// Prose states what is true; design rationale goes in an ADR (`docs/adr/`). Each pattern matches
+/// nothing in the tree, so a hit is a style regression, not a false positive.
+const RHETORIC: [&str; 10] = [
+    "an open invitation",
+    "not scaffolding",
+    "grants without demanding",
+    "north star",
+    "prime directive",
+    "coexistence, not",
+    "rewrite war",
+    "rewrite race",
+    "not a gap",
+    "by design, not",
+];
+
 /// Shell constructs whose meaning changes with the shell that runs them: command substitution,
 /// bash-only `set -e`, and naming a shell that may be absent. Logic that branches or captures
 /// output belongs in this crate, where a compiler reads it — never in a task runner or a workflow.
@@ -187,6 +203,16 @@ fn no_narration(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> 
                         file: path.clone(),
                         line: i + 1,
                         rule: "narration — say what is true now; git holds the history",
+                        text: line.to_string(),
+                    });
+                }
+            }
+            for pat in RHETORIC {
+                if lower.contains(pat) {
+                    findings.push(Finding {
+                        file: path.clone(),
+                        line: i + 1,
+                        rule: "rhetoric — state what is true; put rationale in an ADR (docs/adr/)",
                         text: line.to_string(),
                     });
                 }

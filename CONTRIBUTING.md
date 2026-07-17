@@ -1,12 +1,10 @@
 # Contributing
 
-Thanks for your interest. This is a pure-Rust fingerprint stack that **coexists**
-with the existing Linux ecosystem — it speaks fprintd's D-Bus contract and keeps
-the C libfprint as a shim — rather than trying to replace it. Contributions that
-sharpen that idea are very welcome.
+This is a pure-Rust fingerprint stack that coexists with the existing Linux ecosystem: it speaks
+fprintd's D-Bus contract and keeps the C libfprint as a shim, rather than replacing it.
 
-Please also read [`ARCHITECTURE.md`](ARCHITECTURE.md); it is short and it explains
-the shape of everything.
+Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first; the decisions behind it are in
+[`docs/adr/`](docs/adr/).
 
 ## The one rule
 
@@ -43,10 +41,9 @@ mise run deny                                             # advisories, licences
 mise run publish-check                                    # the registry's rules for the published crates
 ```
 
-`--all-features` is not optional politeness: without it, `fprint-backend-native`'s `usb` seam
-(and its `nusb` dependency) compiles nowhere but Linux, so a contributor taking up the invitation
-in [`docs/adding-a-driver.md`](docs/adding-a-driver.md) on this project's own primary dev platform
-would be the first to find it broken.
+`--all-features` matters: without it, `fprint-backend-native`'s `usb` seam (and its `nusb`
+dependency) compiles only on Linux, so a driver author working from
+[`docs/adding-a-driver.md`](docs/adding-a-driver.md) off Linux would hit the gap first.
 
 The full shim + daemon path (real libfprint virtual drivers, the D-Bus daemon) runs
 in Docker, mirroring the CI `linux` job:
@@ -58,8 +55,8 @@ mise run docker-test
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
 Docker path on Linux, the systemd unit, the declared MSRV, the published crates against
 the registry's rules, the supply chain, and `reuse lint` — all must be green.
-`.github/workflows/scheduled.yml` runs weekly and answers what no pull request asks: a new
-advisory against unchanged code, and the frozen goldens against the *next* toolchain.
+`.github/workflows/scheduled.yml` runs weekly: a new advisory against unchanged code, and the
+frozen goldens against the next toolchain.
 
 **`reuse lint` passing does not mean a crate can be published**, and `mise run publish-check`
 is the only thing that says otherwise: REUSE accepts a custom `LicenseRef-*` identifier and
@@ -73,17 +70,17 @@ mise run bozorth3-oracle   # DELIBERATE: overwrites frozen goldens
 mise run mindtct-oracle
 ```
 
-A green test suite says the goldens pass, not that they would notice if the code stopped working.
-`mise run mutants` asks the second question of the published crates: it deletes a line and checks
-whether anything goes red. It is deliberate for its size alone — 5,784 mutants, each a build and a
-test run, so hours — and needs no container, toolchain or network. Scope it down while working:
+A green test suite says the goldens pass, not that they would catch a regression. `mise run
+mutants` checks the published crates: it deletes a line and sees whether a test goes red. It is
+large — 5,784 mutants, each a build and a test run, so hours — and needs no container, toolchain,
+or network. Scope it down while working:
 
 ```sh
 cargo mutants -f 'crates/fprint-bozorth3/src/cluster.rs'   # one file, minutes
 ```
 
-A surviving mutant is untested code, not broken code, so this gates nothing. A pull request gets the
-same question asked of its own diff, and the answers arrive as annotations on the changed lines.
+A surviving mutant is untested code, not broken code, so this gates nothing. A pull request gets
+the same check on its diff, reported as annotations on the changed lines.
 
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
 (`cargo xtask <task>`), where a compiler and clippy can see it. Shell that would branch,
@@ -92,9 +89,11 @@ picked — `cmd.exe` on Windows, `sh` in CI — so it lives in `xtask` instead. 
 chain two single commands with `&&`/`||` (they mean the same under every shell a runner
 provides), but `$(…)`, `set -e` and `bash -c` are banned everywhere. `mise run lint` enforces
 this across `mise.toml` and every `.github/workflows/*.yml`, along with the norms no compiler
-checks: no shell scripts; no comment that narrates a past or a future the reader cannot check —
-say what is true now, and let git hold the history (a generated `CHANGELOG.md` is the one
-exception); and **the one rule itself**. The phrases it rejects are in
+checks: no shell scripts; no comment or prose that narrates a past or a future the reader cannot
+check — say what is true now, and let git hold the history (a generated `CHANGELOG.md` is the one
+exception); and **the one rule itself**. The narration check covers `.rs` comments and every
+`.md`, so documentation follows the same rule: terse, present-tense, no rhetoric. Design rationale
+goes in an ADR ([`docs/adr/`](docs/adr/)), not narrative prose. The phrases it rejects are in
 [`xtask/src/lint.rs`](xtask/src/lint.rs), and the graph it holds you to is in
 [`xtask/src/deps.rs`](xtask/src/deps.rs) — which reads `cargo metadata` and pins the charter
 crates' dependency-freedom and the `#![forbid(unsafe_code)]` quarantine. Both are where to add
@@ -129,18 +128,17 @@ unless there is a real reason not to, and mind this trap if you ever break the r
 > **`reuse lint` passing does not mean the crate can be published.** REUSE accepts a
 > custom `LicenseRef-*` identifier; **crates.io does not** — it requires a name from the
 > [SPDX license list](https://doc.rust-lang.org/cargo/reference/manifest.html#the-license-and-license-file-fields),
-> or a `license-file`. This project shipped a bespoke `LicenseRef-NBIS-PD` for months with
-> a green lint, and it would have blocked publishing the two crates with the most to give.
+> or a `license-file`. `mise run publish-check` is the check that catches this.
 
-A public-domain source is not a reason to break it: PD grants without demanding, so it
-constrains neither a port nor the licence on the result. Only genuinely LGPL-derived code
-needs its own crate. Non-code files that are somebody else's (the NIST golden fixtures)
-are declared where they live — see the crate-local `REUSE.toml` files.
+A public-domain source is not a reason to break it: public domain imposes no conditions, so it
+constrains neither a port nor the licence on the result. Only genuinely LGPL-derived code needs
+its own crate. Non-code files that are somebody else's (the NIST golden fixtures) are declared
+where they live — see the crate-local `REUSE.toml` files.
 
 ## Adding a native driver
 
-Native sensor drivers are an open invitation, not a project goal. If you want to try,
-[`docs/adding-a-driver.md`](docs/adding-a-driver.md) walks through the capture seam,
+Native sensor drivers are a non-goal ([ADR 0004](docs/adr/0004-coexistence-shim-first.md)).
+To add one, [`docs/adding-a-driver.md`](docs/adding-a-driver.md) walks through the capture seam,
 the reference template, and the acceptance criteria.
 
 ## Conduct
