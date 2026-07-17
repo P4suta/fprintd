@@ -150,7 +150,7 @@ pub fn check(root: &Path, findings: &mut Vec<Finding>) -> Result<(), String> {
 
     // R7 — every member has a row, so a new crate cannot escape the graph check by being unlisted.
     for pkg in &members {
-        if !ALLOWED.iter().any(|(name, _)| *name == pkg.name) {
+        if !ALLOWED.iter().any(|(name, _)| pkg.name == *name) {
             findings.push(Finding {
                 file: pkg.manifest_path.clone().into_std_path_buf(),
                 line: 1,

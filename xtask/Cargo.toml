@@ -16,10 +16,10 @@ publish = false
 # a transitive third-party edge into a charter crate, and the exact workspace membership are facts
 # only the resolver holds. `cargo metadata` is the resolver's own answer. xtask ships in nothing, so
 # this reaches no published crate.
-cargo_metadata = "0.19"
+cargo_metadata = "0.23"
 # Reads release-plz.toml to check it against the resolved `publish = false` set. Parsing config is
 # not the linter's job to hand-roll.
-toml = "0.8"
+toml = "1"
 # Reads the JSON `cargo xtask hw-checklist --json` emits, so `driver-check` reports its pending count
 # rather than re-deriving it. Already in the graph behind cargo_metadata, so this pins no new version.
 serde_json = "1"
