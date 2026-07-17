@@ -33,6 +33,7 @@ mod device;
 mod error;
 mod manager;
 mod names;
+mod sleep;
 mod status;
 mod storage;
 
@@ -126,6 +127,9 @@ where
 
         let mut builder = builder;
         let mut paths: Vec<OwnedObjectPath> = Vec::with_capacity(infos.len());
+        // Cloned handles for the sleep watcher, which suspends/resumes every device on a logind
+        // `PrepareForSleep` — the one place besides the D-Bus objects that drives the actors.
+        let mut handles = Vec::with_capacity(infos.len());
 
         for (index, info) in infos.into_iter().enumerate() {
             let path = format!("{OBJECT_PREFIX}/Device/{index}");
@@ -134,6 +138,7 @@ where
                 .into();
 
             let handle = DeviceActor::spawn(self.factory.clone(), info.clone());
+            handles.push(handle.clone());
             let device = Device::new(info, handle, self.store.clone(), self.authz.clone());
             builder = builder.serve_at(opath.clone(), device)?;
             paths.push(opath);
@@ -144,7 +149,10 @@ where
             .map_err(|e| DaemonError::Internal(format!("bad object path: {e}")))?;
         builder = builder.serve_at(manager_path, manager)?;
 
-        Ok(builder.build().await?)
+        let connection = builder.build().await?;
+        // Arm logind sleep integration. A no-op where logind is absent (e.g. a private test bus).
+        sleep::install(connection.clone(), handles).await;
+        Ok(connection)
     }
 
     /// Attach to the system bus and request the `net.reactivated.Fprint` name.

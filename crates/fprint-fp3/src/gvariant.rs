@@ -373,9 +373,8 @@ pub(crate) fn split_variant(slice: &[u8]) -> Result<(&[u8], &[u8])> {
 pub(crate) fn read_i32(slice: &[u8]) -> Result<i32> {
     let bytes: [u8; 4] = slice
         .get(..4)
-        .ok_or(Fp3Error::Malformed("int32 too short"))?
-        .try_into()
-        .expect("slice of length 4 converts to [u8; 4]");
+        .and_then(|s| s.try_into().ok())
+        .ok_or(Fp3Error::Malformed("int32 too short"))?;
     Ok(i32::from_le_bytes(bytes))
 }
 
@@ -417,10 +416,15 @@ pub(crate) fn read_i32_array(slice: &[u8]) -> Result<Vec<i32>> {
     if slice.len() % 4 != 0 {
         return Err(Fp3Error::Malformed("int32 array size not a multiple of 4"));
     }
-    Ok(slice
+    slice
         .chunks_exact(4)
-        .map(|c| i32::from_le_bytes(c.try_into().expect("chunk of length 4")))
-        .collect())
+        .map(|c| {
+            let bytes: [u8; 4] = c
+                .try_into()
+                .map_err(|_| Fp3Error::Malformed("int32 array chunk not 4 bytes"))?;
+            Ok(i32::from_le_bytes(bytes))
+        })
+        .collect()
 }
 
 /// Read a GVariant `a T` for variable-width `T`, decoding each element slice with `f`.

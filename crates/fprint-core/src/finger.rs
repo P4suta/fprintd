@@ -88,6 +88,8 @@ impl Finger {
 }
 
 /// The error [`Finger::try_from`] returns for a byte outside the valid `0..=10` range.
+///
+/// Deliberately not `#[non_exhaustive]`: a fully-specified value error callers exhaustively match.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct InvalidFinger(
     /// The offending byte.

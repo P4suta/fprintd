@@ -58,4 +58,37 @@ pub enum DeviceCommand {
         cancel: oneshot::Receiver<()>,
         reply: oneshot::Sender<Result<IdentifyOutcome, Error>>,
     },
+    /// Enumerate the prints held in the reader's on-device storage.
+    ListPrints {
+        reply: oneshot::Sender<Result<Vec<Print>, Error>>,
+    },
+    /// Delete one `print` from the reader's on-device storage.
+    DeletePrint {
+        print: Print,
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
+    /// Wipe the reader's on-device storage.
+    ClearStorage {
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
+}
+
+/// A **priority** command, delivered on a channel separate from [`DeviceCommand`].
+///
+/// System suspend must preempt an in-flight streaming op, not queue behind it: the actor services
+/// one [`DeviceCommand`] at a time, so a verify/enroll parked on a finger would hold the actor
+/// until the user acts, and a `Suspend` sitting behind it in the FIFO would miss logind's inhibitor
+/// deadline. Instead the actor `select!`s this channel both in its idle loop and inside every
+/// streaming op, so a `Suspend` arriving mid-op cancels that op (dropping its future) and then runs.
+/// Delivering it out-of-band — consumed exactly once by whichever `select!` reaches it — is why no
+/// preempt can be lost or misapplied to a later op.
+pub enum PrioCommand {
+    /// Prepare the reader for system suspend.
+    Suspend {
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
+    /// Resume the reader after system suspend.
+    Resume {
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
 }

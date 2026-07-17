@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [package]
 name = "fprint-core"
 description = "Modern, GObject-free Rust core for fingerprint readers: device/print domain model and backend traits, shared by a libfprint (FFI) shim backend and native Rust drivers."
@@ -9,6 +13,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
+documentation = "https://docs.rs/fprint-core"
 keywords = ["fingerprint", "biometrics", "fprintd", "libfprint", "async"]
 categories = ["authentication", "hardware-support"]
 

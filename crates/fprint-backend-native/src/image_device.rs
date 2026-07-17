@@ -120,7 +120,7 @@ impl<S: FrameSource> Device for ImageDevice<S> {
 
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
-        template: Print,
+        print: Print,
         mut on_progress: F,
     ) -> Result<Print> {
         self.guard_open()?;
@@ -153,7 +153,7 @@ impl<S: FrameSource> Device for ImageDevice<S> {
         // Fixed, deterministic date so enrolled prints are reproducible (as VirtualDevice does).
         Ok(Print::builder()
             .template(detected)
-            .finger(template.finger)
+            .finger(print.finger)
             .driver(self.info.driver.clone())
             .device_id(self.info.id.clone())
             .device_stored(false)

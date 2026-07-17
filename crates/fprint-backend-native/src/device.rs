@@ -55,6 +55,10 @@ pub struct VirtualDevice {
     enroll_template: Option<Template>,
     /// Real minutiae presented as the live scan (a distinct capture from the enrolled one).
     presented_template: Option<Template>,
+    /// Test hook: when set, `verify` reports the finger present and then hangs (awaits a future that
+    /// never resolves), so a caller can exercise cancellation or suspend-preemption of an in-flight
+    /// operation. Set via [`Scenario::hang`].
+    hang: bool,
 }
 
 impl VirtualDevice {
@@ -64,7 +68,7 @@ impl VirtualDevice {
         settles_to: Option<DeviceShape>,
         kind: TemplateKind,
         surfaces_scan: bool,
-        capacity: Option<usize>,
+        store: PrintStore,
         scenario: Scenario,
         match_threshold: Option<u32>,
     ) -> Self {
@@ -77,11 +81,12 @@ impl VirtualDevice {
             suspended: false,
             presented: scenario.presented,
             enroll: scenario.enroll,
-            store: PrintStore::new(capacity),
+            store,
             force_data_full: scenario.force_data_full,
             match_threshold,
             enroll_template: scenario.enroll_template,
             presented_template: scenario.presented_template,
+            hang: scenario.hang,
         }
     }
 
@@ -103,8 +108,8 @@ impl VirtualDevice {
     }
 
     /// The prints currently held in on-device storage (empty for host sensors).
-    pub fn stored_prints(&self) -> &[Print] {
-        self.store.as_slice()
+    pub fn stored_prints(&self) -> Vec<Print> {
+        self.store.snapshot()
     }
 
     /// Whether [`Device::open`] has been called (and not yet [`Device::close`]d).
@@ -204,7 +209,7 @@ impl Device for VirtualDevice {
 
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
-        template: Print,
+        print: Print,
         mut on_progress: F,
     ) -> Result<Print> {
         self.guard_open()?;
@@ -248,7 +253,11 @@ impl Device for VirtualDevice {
         // FP3 date round-trip (Gregorian <-> Julian day) is exercised end-to-end.
         let finished = Print::builder()
             .template(want)
-            .finger(template.finger)
+            .finger(print.finger)
+            // Preserve the owner on the stored slot, mirroring a real match-on-chip sensor (and the
+            // libfprint shim, which recovers it from the FP3 blob): the daemon attributes on-sensor
+            // slots to users by this, so a shared reader never frees another user's slot.
+            .username(print.username)
             .driver(self.info.driver.clone())
             .device_id(self.info.id.clone())
             .device_stored(is_moc)
@@ -276,6 +285,11 @@ impl Device for VirtualDevice {
         // The scripted device models a finger being presented: report it when a scan is available.
         if scanned.is_some() {
             on_status(FingerStatus::PRESENT);
+        }
+        if self.hang {
+            // Finger reported, then never resolve: the caller can now cancel (drop the future) or
+            // preempt (suspend) this in-flight operation. Used only by the suspend-preemption test.
+            std::future::pending::<()>().await;
         }
         let matched = scanned
             .as_ref()
@@ -324,7 +338,7 @@ impl Device for VirtualDevice {
     async fn list_prints(&mut self) -> Result<Vec<Print>> {
         self.guard_open()?;
         self.need(DeviceFeature::STORAGE_LIST)?;
-        Ok(self.store.as_slice().to_vec())
+        Ok(self.store.snapshot())
     }
 
     async fn delete_print(&mut self, print: &Print) -> Result<()> {

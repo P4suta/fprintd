@@ -14,11 +14,52 @@
 //! `&self`, so one builder can mint many fresh devices (a [`crate::VirtualBackend`] holds a
 //! `Vec` of them and builds on demand).
 
-use fprint_core::{DeviceFeature, DeviceId, DeviceInfo, DriverId, ScanType};
+use fprint_core::{DeviceFeature, DeviceId, DeviceInfo, DriverId, Finger, Print, ScanType};
 
 use crate::device::VirtualDevice;
 use crate::scenario::Scenario;
+use crate::store::PrintStore;
 use crate::synth::TemplateKind;
+
+/// A test-side view of a device's shared on-chip storage: the slots the "sensor" holds after a
+/// sequence of daemon operations. Obtained from [`VirtualDeviceBuilder::storage_handle`] on a
+/// builder configured with [`shared_storage`](VirtualDeviceBuilder::shared_storage), so a test can
+/// assert what a `Claim`/enroll/delete sequence left on the sensor — the one thing the D-Bus
+/// surface never exposes directly.
+#[derive(Clone)]
+pub struct SharedStorage {
+    store: PrintStore,
+}
+
+impl SharedStorage {
+    /// The prints currently on the sensor, in insertion order.
+    #[must_use]
+    pub fn prints(&self) -> Vec<Print> {
+        self.store.snapshot()
+    }
+
+    /// How many slots are occupied.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.store.snapshot().len()
+    }
+
+    /// Whether the sensor holds no prints.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.store.snapshot().is_empty()
+    }
+
+    /// The fingers currently enrolled on the sensor (slots that name a real finger).
+    #[must_use]
+    pub fn fingers(&self) -> Vec<Finger> {
+        self.store
+            .snapshot()
+            .into_iter()
+            .filter_map(|p| p.finger)
+            .collect()
+    }
+}
 
 /// The fields of a `DeviceInfo` a driver may still change after enumeration.
 ///
@@ -60,6 +101,10 @@ pub struct VirtualDeviceBuilder {
     /// `Some` ⇒ enumeration advertises this instead, and `open` settles to the real shape.
     /// `None` ⇒ the device is what it says it is from the start (most tests want this).
     probed: Option<DeviceShape>,
+    /// `Some` ⇒ every device this builder mints shares this one on-chip store, so slots persist
+    /// across the open/close cycles the daemon drives on each `Claim` (a real sensor keeps them).
+    /// `None` ⇒ each device gets its own fresh store. Set via [`VirtualDeviceBuilder::shared_storage`].
+    shared: Option<PrintStore>,
 }
 
 impl VirtualDeviceBuilder {
@@ -81,6 +126,7 @@ impl VirtualDeviceBuilder {
             scenario: Scenario::new(),
             match_threshold: None,
             probed: None,
+            shared: None,
         }
     }
 
@@ -109,6 +155,7 @@ impl VirtualDeviceBuilder {
             scenario: Scenario::new(),
             match_threshold: None,
             probed: None,
+            shared: None,
         }
     }
 
@@ -158,6 +205,25 @@ impl VirtualDeviceBuilder {
         self
     }
 
+    /// Persist on-chip storage across the devices this builder mints, at the builder's current
+    /// capacity. Every [`build`](Self::build) then shares one store, so slots enrolled through one
+    /// device handle are still there on the next — modelling a real match-on-chip sensor whose
+    /// memory survives the open/close the daemon drives on each `Claim`. Call it *after* setting the
+    /// capacity (the presets already have). Test-only; the default (fresh store per build) is right
+    /// for host sensors and for tests that want an independent device each time.
+    pub fn shared_storage(mut self) -> Self {
+        self.shared = Some(PrintStore::new(self.capacity));
+        self
+    }
+
+    /// A test-side [`SharedStorage`] view of this builder's shared on-chip store, or `None` if
+    /// [`shared_storage`](Self::shared_storage) was not set. Clone the builder into the daemon's
+    /// backend factory and keep this handle to assert what the sensor holds after a run.
+    #[must_use]
+    pub fn storage_handle(&self) -> Option<SharedStorage> {
+        self.shared.clone().map(|store| SharedStorage { store })
+    }
+
     /// Attach the [`Scenario`] the built device will act out.
     pub fn scenario(mut self, scenario: Scenario) -> Self {
         self.scenario = scenario;
@@ -201,12 +267,18 @@ impl VirtualDeviceBuilder {
             advertised.features,
             advertised.enroll_stages,
         );
+        // A shared store persists across builds (a real on-chip sensor); otherwise each device gets
+        // its own fresh store at this builder's capacity.
+        let store = self
+            .shared
+            .clone()
+            .unwrap_or_else(|| PrintStore::new(self.capacity));
         VirtualDevice::from_parts(
             info,
             settles_to,
             self.kind,
             self.surfaces_scan,
-            self.capacity,
+            store,
             self.scenario.clone(),
             self.match_threshold,
         )

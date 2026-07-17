@@ -18,8 +18,15 @@ pub struct LibfprintBackend {
     ctx: FpContext,
 }
 
+impl core::fmt::Debug for LibfprintBackend {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("LibfprintBackend").finish_non_exhaustive()
+    }
+}
+
 impl LibfprintBackend {
     /// Create a backend with a fresh libfprint `FpContext`.
+    #[must_use]
     pub fn new() -> Self {
         LibfprintBackend {
             ctx: FpContext::new(),
@@ -40,12 +47,11 @@ impl Backend for LibfprintBackend {
         // Read each device's static getters on this thread, hand the resulting `DeviceInfo` to a
         // worker (which re-finds the device in its own context), and drop the caller-thread
         // `FpDevice`s as this Vec goes out of scope — the sensor is owned only by its worker.
-        Ok(self
-            .ctx
+        self.ctx
             .devices()
             .into_iter()
             .map(|dev| LibfprintDevice::spawn(convert::device_info(&dev)))
-            .collect())
+            .collect::<Result<Vec<_>>>()
     }
 
     /// Locate a reader by id (convenience over `enumerate` + find); the returned device is not
@@ -62,7 +68,7 @@ impl Backend for LibfprintBackend {
                 device_id == id.as_str()
             };
             if hit {
-                return Ok(LibfprintDevice::spawn(convert::device_info(&dev)));
+                return LibfprintDevice::spawn(convert::device_info(&dev));
             }
         }
         Err(Error::NotFound)

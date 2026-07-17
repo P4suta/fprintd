@@ -14,6 +14,16 @@
 //! [`CompositeDevice`], one variant per backend. Enumeration concatenates the backends'
 //! devices; its `open` tries native first and falls through to the shim.
 //!
+//! ## The coexistence seam, kept ready
+//!
+//! This is the seam that lets one daemon serve pure-Rust native readers alongside libfprint-shim
+//! readers, presenting both as a single [`Backend`](fprint_core::Backend). The shipped `fprintd`
+//! binary does **not** wire it in: the only native reader that exists today is a virtual test
+//! device, and offering that to real users is wrong (`ARCHITECTURE.md`). So the daemon drives the
+//! shim directly and this crate stays out of its graph — a finished, test-exercised seam that the
+//! first real native driver plugs into, not scaffolding. It carries no `unsafe` and its delegation
+//! is covered by the crate's own tests.
+//!
 //! ## Why hand-written `match`, not `enum_dispatch`
 //!
 //! `CompositeDevice`'s [`Device`](fprint_core::Device) impl is delegated by hand — an explicit

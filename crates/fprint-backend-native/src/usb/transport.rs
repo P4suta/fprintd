@@ -23,7 +23,7 @@ use fprint_core::Result;
 /// [`crate::FrameSource`]: the driver is generic over a concrete transport (static dispatch), so no
 /// caller ever needs a `+ Send` bound and the desugared return type never has to be named. The
 /// `async_fn_in_trait` lint's `Send`-bound caveat therefore does not apply here.
-#[allow(async_fn_in_trait)] // Static dispatch (no `+ Send` needed), same rationale as `fprint_core::Device`.
+#[expect(async_fn_in_trait)] // Static dispatch (no `+ Send` needed), same rationale as `fprint_core::Device`.
 pub trait UsbTransport {
     /// Write `data` to bulk-out endpoint `ep`.
     async fn bulk_out(&mut self, ep: u8, data: &[u8]) -> Result<()>;

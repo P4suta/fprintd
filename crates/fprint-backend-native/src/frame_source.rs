@@ -33,7 +33,7 @@ pub enum Capture {
 ///
 /// `async fn` in a public trait mirrors [`fprint_core::Device`]: static dispatch, so callers never add a
 /// `+ Send` bound and the `async_fn_in_trait` lint is intentionally allowed here.
-#[allow(async_fn_in_trait)] // Static dispatch (no `+ Send` needed), same rationale as `fprint_core::Device`.
+#[expect(async_fn_in_trait)] // Static dispatch (no `+ Send` needed), same rationale as `fprint_core::Device`.
 pub trait FrameSource {
     /// Wait for and return the next capture (or a retry). This is the operation's poll boundary.
     async fn capture(&mut self) -> fprint_core::Result<Capture>;

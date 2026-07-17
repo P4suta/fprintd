@@ -53,8 +53,11 @@ impl From<(i32, i32, i32)> for Minutia {
 
 /// Enrollment date (libfprint serializes this as a Julian-day int32; `None` ⇒ the
 /// `G_MININT32` "unset" sentinel).
+///
+/// Deliberately not `#[non_exhaustive]`: a fully-specified value type — three public fields, a
+/// checked [`try_new`](EnrollDate::try_new) and an unchecked [`new`](EnrollDate::new) — that
+/// callers construct and exhaustively match, matching its sibling [`InvalidEnrollDate`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
 pub struct EnrollDate {
     /// Gregorian year.
     pub year: i32,
@@ -88,6 +91,8 @@ impl EnrollDate {
 
 /// The error [`EnrollDate::try_new`] returns for a month outside `1..=12` or a day outside
 /// `1..=31`, naming the offending field and value.
+///
+/// Deliberately not `#[non_exhaustive]`: a fully-specified value error callers exhaustively match.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum InvalidEnrollDate {
     /// The month was not in `1..=12`.

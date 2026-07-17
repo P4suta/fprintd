@@ -12,24 +12,32 @@
 //! channel; the caller's future delivers the reports to the user closure.
 
 use std::os::raw::{c_int, c_void};
+use std::sync::{Arc, Mutex};
 
-use fprint_core::{EnrollProgress, FingerStatus};
+use fprint_core::{EnrollProgress, FingerStatus, Temperature};
 use futures_channel::mpsc::UnboundedSender;
 use glib::translate::{from_glib_borrow, FromGlibPtrNone};
 
 use crate::convert;
 use crate::ffi::FpDevice;
 
-/// Ferries enroll progress from the worker to the caller's future: the progress sender plus the
-/// device's total stage count (needed to shape each [`EnrollProgress`]).
+/// Ferries enroll progress from the worker to the caller's future: the progress sender, the
+/// device's total stage count (needed to shape each [`EnrollProgress`]), and the handle's live
+/// temperature cell (republished on every callback so [`Device::temperature`] tracks a warming
+/// sensor *during* a long enroll, not only at job boundaries).
+///
+/// [`Device::temperature`]: fprint_core::Device::temperature
 pub(crate) struct EnrollSink {
     pub(crate) tx: UnboundedSender<EnrollProgress>,
     pub(crate) total: u32,
+    pub(crate) temperature: Arc<Mutex<Option<Temperature>>>,
 }
 
-/// Ferries verify/identify finger-presence status from the worker to the caller's future.
+/// Ferries verify/identify finger-presence status from the worker to the caller's future, and
+/// republishes the live temperature on each callback (see [`EnrollSink`]).
 pub(crate) struct StatusSink {
     pub(crate) tx: UnboundedSender<FingerStatus>,
+    pub(crate) temperature: Arc<Mutex<Option<Temperature>>>,
 }
 
 /// libfprint's per-capture enroll callback (`FpEnrollProgress`). A failed capture arrives as a
@@ -57,6 +65,10 @@ pub(crate) unsafe extern "C" fn on_enroll_progress(
     // invocation means the shared borrow cannot race.
     let sink = unsafe { &*(user_data as *const EnrollSink) };
     let dev = unsafe { from_glib_borrow::<_, FpDevice>(device) };
+
+    // Republish the live temperature mid-enroll, so the handle's getter tracks a warming sensor
+    // across a multi-stage enrollment rather than only between jobs.
+    *sink.temperature.lock().unwrap() = convert::temperature(&dev);
 
     let retry = if error.is_null() {
         None
@@ -97,5 +109,7 @@ pub(crate) unsafe extern "C" fn on_match_status(
     // (borrowed, no ref taken).
     let sink = unsafe { &*(user_data as *const StatusSink) };
     let dev = unsafe { from_glib_borrow::<_, FpDevice>(device) };
+    // Republish the live temperature mid-verify/identify (see `on_enroll_progress`).
+    *sink.temperature.lock().unwrap() = convert::temperature(&dev);
     let _ = sink.tx.unbounded_send(convert::finger_status(&dev));
 }

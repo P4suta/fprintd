@@ -68,18 +68,18 @@
 //!
 //!     async fn enroll<F: FnMut(EnrollProgress)>(
 //!         &mut self,
-//!         mut template: Print,
+//!         mut print: Print,
 //!         mut on_progress: F,
 //!     ) -> Result<Print> {
 //!         let total_stages = self.info.enroll_stages;
 //!         for completed_stages in 1..=total_stages {
 //!             on_progress(EnrollProgress::new(completed_stages, total_stages));
 //!         }
-//!         template.template = Template::Raw(b"on-sensor handle".to_vec());
-//!         template.driver = Some(self.info.driver.clone());
-//!         template.device_stored = true;
-//!         self.stored = Some(template.clone());
-//!         Ok(template)
+//!         print.template = Template::Raw(b"on-sensor handle".to_vec());
+//!         print.driver = Some(self.info.driver.clone());
+//!         print.device_stored = true;
+//!         self.stored = Some(print.clone());
+//!         Ok(print)
 //!     }
 //!
 //!     async fn verify_with_status<F: FnMut(FingerStatus)>(
@@ -180,7 +180,7 @@ pub use print::{EnrollDate, InvalidEnrollDate, Minutia, Print, PrintBuilder, Tem
 pub mod prelude {
     pub use crate::{
         Backend, Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, EnrollProgress, Error,
-        Finger, IdentifyOutcome, Minutia, Print, PrintBuilder, Result, ScanType, Template,
-        VerifyOutcome,
+        Finger, FingerStatus, IdentifyOutcome, Minutia, Print, PrintBuilder, Result, RetryReason,
+        ScanType, Template, VerifyOutcome,
     };
 }

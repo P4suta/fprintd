@@ -42,6 +42,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # futures-util, and its SignalStream is a bare `futures_core::Stream` with no inherent `next()`;
 # naming it here adds nothing to the graph and keeps the watcher readable.
 futures-util = { version = "0.3", default-features = false }
+# NSS-backed uid -> username resolution (`getpwuid_r`), so LDAP/SSSD/systemd-homed accounts resolve
+# and not just the local passwd file — a hand-parse of `/etc/passwd` sees only local users. This is
+# what upstream fprintd does (`getpwuid`), and the daemon is `publish = false`, so the dependency is
+# free to add.
+uzers = "0.12"
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 fprint-backend-native = { workspace = true }

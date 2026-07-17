@@ -101,7 +101,7 @@ pub const MIN_DETECTABLE_DIM: usize = {
 /// carry a block-map window ([`MIN_DETECTABLE_DIM`]), too large for its `i32` pixel arithmetic, or a
 /// buffer shorter than `width * height`. The fields are private, so a value can only exist around a
 /// detectable image; a *longer* `data` is accepted and its trailing bytes are ignored.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct GrayImage<'a> {
     /// The pixels, row-major, one byte each (0 = black, 255 = white).
     data: &'a [u8],
@@ -111,6 +111,17 @@ pub struct GrayImage<'a> {
     height: usize,
     /// Scan resolution in pixels-per-inch.
     ppi: u16,
+}
+
+impl core::fmt::Debug for GrayImage<'_> {
+    /// Print geometry, not the pixel buffer.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "GrayImage {{ {}x{} @ {}ppi }}",
+            self.width, self.height, self.ppi
+        )
+    }
 }
 
 impl<'a> GrayImage<'a> {
@@ -136,6 +147,12 @@ impl<'a> GrayImage<'a> {
         ppi: u16,
     ) -> Result<GrayImage<'a>, ImageError> {
         if width > i32::MAX as usize || height > i32::MAX as usize {
+            return Err(ImageError::TooLarge { width, height });
+        }
+        if width
+            .checked_mul(height)
+            .is_none_or(|area| area > i32::MAX as usize)
+        {
             return Err(ImageError::TooLarge { width, height });
         }
         if width < MIN_DETECTABLE_DIM || height < MIN_DETECTABLE_DIM {
@@ -228,7 +245,8 @@ pub enum ImageError {
         /// The smallest dimension MINDTCT can process ([`MIN_DETECTABLE_DIM`]).
         min: usize,
     },
-    /// A dimension exceeds `i32::MAX`, the range MINDTCT's internal pixel arithmetic addresses.
+    /// A dimension, or the product `width * height`, exceeds `i32::MAX` — the range MINDTCT's
+    /// internal pixel arithmetic addresses.
     TooLarge {
         /// Stated image width in pixels.
         width: usize,

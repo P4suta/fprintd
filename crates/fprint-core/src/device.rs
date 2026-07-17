@@ -55,6 +55,7 @@ pub struct DeviceId(String);
 
 impl DeviceId {
     /// Wrap a backend-assigned identifier.
+    #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
@@ -91,6 +92,7 @@ pub struct DriverId(String);
 
 impl DriverId {
     /// Wrap a driver identifier.
+    #[must_use]
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
     }
@@ -136,12 +138,13 @@ pub struct DeviceInfo {
     pub features: DeviceFeature,
     /// Number of finger presentations a full enrollment needs.
     pub enroll_stages: u32,
-    /// Sensor thermal state, when the device reports it; `None` when it is not reported.
-    pub temperature: Option<Temperature>,
 }
 
 impl DeviceInfo {
-    /// Describe a device with no reported thermal state (`temperature` is `None`).
+    /// Describe a device from its discovered static metadata.
+    ///
+    /// The sensor's *thermal* state is deliberately not here: it changes as the device runs, so it
+    /// is a live reading via [`Device::temperature`], not a field frozen into this static shape.
     #[must_use]
     pub fn new(
         id: DeviceId,
@@ -158,15 +161,7 @@ impl DeviceInfo {
             scan_type,
             features,
             enroll_stages,
-            temperature: None,
         }
-    }
-
-    /// Set the reported thermal state.
-    #[must_use]
-    pub fn with_temperature(mut self, t: Temperature) -> Self {
-        self.temperature = Some(t);
-        self
     }
 }
 
@@ -273,20 +268,29 @@ pub trait Device {
         self.info().features.contains(feature)
     }
 
+    /// The sensor's current thermal state, or `None` when the device does not report one.
+    ///
+    /// Unlike [`info`](Device::info), this is a **live** reading: a sensor warms as it runs and
+    /// cools when idle, so a caller driving a long capture loop re-reads it rather than caching a
+    /// value. The default is `None`; a backend whose hardware reports temperature overrides it.
+    fn temperature(&self) -> Option<Temperature> {
+        None
+    }
+
     /// Open the device for use. Must be called before any operation below.
     async fn open(&mut self) -> Result<()>;
 
     /// Close the device, releasing the sensor.
     async fn close(&mut self) -> Result<()>;
 
-    /// Enroll `finger` into `template` (a [`Print::new_for_enroll`]), reporting each
-    /// capture via `on_progress`. Returns the completed print.
+    /// Enroll a finger into `print` (a blank [`Print::new_for_enroll`] tagged with the target
+    /// finger), reporting each capture via `on_progress`. Returns the completed print.
     ///
     /// `on_progress` is a generic `FnMut`, not a trait object: progress is pushed to the
     /// caller, and static dispatch keeps the core free of `dyn`.
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
-        template: Print,
+        print: Print,
         on_progress: F,
     ) -> Result<Print>;
 

@@ -86,6 +86,9 @@ pub struct Scenario {
     /// Real minutiae presented as the live scan for verify/identify (a distinct capture from the
     /// enrolled one). Set with [`Scenario::present_real`].
     pub(crate) presented_template: Option<Template>,
+    /// Test hook: make the next verify hang after reporting the finger present, so a caller can
+    /// exercise cancellation / suspend-preemption of an in-flight operation. Set with [`Scenario::hang`].
+    pub(crate) hang: bool,
 }
 
 impl Scenario {
@@ -123,6 +126,16 @@ impl Scenario {
     /// Present this **real** template as the live scan for the next verify/identify.
     pub fn present_real(mut self, template: Template) -> Self {
         self.presented_template = Some(template);
+        self
+    }
+
+    /// Make the next `verify` hang after reporting the finger present: it reports
+    /// [`FingerStatus::PRESENT`](fprint_core::FingerStatus::PRESENT) and then awaits a future that
+    /// never resolves, modelling a sensor parked waiting on a finger. A caller can then cancel the
+    /// operation (drop its future) or have it preempted by a suspend. Pair with [`Scenario::present`]
+    /// so a finger is reported. Test-only.
+    pub fn hang(mut self) -> Self {
+        self.hang = true;
         self
     }
 }

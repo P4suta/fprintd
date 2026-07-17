@@ -171,8 +171,10 @@ pub(crate) fn features(dev: &FpDevice) -> DeviceFeature {
 }
 
 /// Read the device's sensor temperature (`FpTemperature`) as a core [`Temperature`], or `None`
-/// for an unrecognised value.
-fn temperature(dev: &FpDevice) -> Option<Temperature> {
+/// for an unrecognised value. The worker publishes this after each job to the device handle's
+/// shared cell, which the live [`Device::temperature`](fprint_core::Device::temperature) getter
+/// reads without a round-trip to the `!Send` device.
+pub(crate) fn temperature(dev: &FpDevice) -> Option<Temperature> {
     match dev.temperature() {
         libfprint_sys::FpTemperature_FP_TEMPERATURE_COLD => Some(Temperature::Cold),
         libfprint_sys::FpTemperature_FP_TEMPERATURE_WARM => Some(Temperature::Warm),
@@ -199,7 +201,9 @@ pub(crate) fn finger_status(dev: &FpDevice) -> FingerStatus {
 ///
 /// The virtual (and some real) devices report an empty `device_id`; we fall back to the
 /// driver id so the identifier is still stable and non-empty for [`crate::LibfprintBackend`]'s
-/// open-by-id lookup. The sensor temperature is attached when the device reports a known value.
+/// open-by-id lookup. Thermal state is *not* part of this static shape — it is a live reading via
+/// [`Device::temperature`](fprint_core::Device::temperature), published from the worker by
+/// [`temperature`].
 pub(crate) fn device_info(dev: &FpDevice) -> DeviceInfo {
     let driver = dev.driver();
     let device_id = dev.device_id();
@@ -208,16 +212,12 @@ pub(crate) fn device_info(dev: &FpDevice) -> DeviceInfo {
     } else {
         device_id
     };
-    let info = DeviceInfo::new(
+    DeviceInfo::new(
         DeviceId::new(id),
         DriverId::new(driver.clone()),
         dev.name().unwrap_or(driver),
         scan_type(dev),
         features(dev),
         dev.nr_enroll_stages().max(0) as u32,
-    );
-    match temperature(dev) {
-        Some(t) => info.with_temperature(t),
-        None => info,
-    }
+    )
 }

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [package]
 name = "fprint-bozorth3"
 description = "Pure-Rust BOZORTH3 minutiae matcher: a faithful, dependency-free port of NIST NBIS's public-domain fingerprint matching algorithm, score-exact against the stock C tool."
@@ -13,6 +17,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
+documentation = "https://docs.rs/fprint-bozorth3"
 keywords = ["fingerprint", "biometrics", "bozorth3", "nbis", "matcher"]
 categories = ["algorithms", "science"]
 # These integration tests use the `publish = false` fprint-testkit dev-dep, which goes version-less

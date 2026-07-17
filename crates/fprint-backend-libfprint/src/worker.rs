@@ -16,10 +16,11 @@
 
 use std::os::raw::c_void;
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex};
 
 use fprint_core::{
     DeviceId, DeviceInfo, EnrollProgress, Error, FingerStatus, IdentifyOutcome, Print, Result,
-    VerifyOutcome,
+    Temperature, VerifyOutcome,
 };
 use futures_channel::mpsc::UnboundedSender;
 use futures_channel::oneshot;
@@ -88,7 +89,11 @@ pub(crate) enum Job {
 /// cannot borrow the caller's), re-finds the device by id, then services one [`Job`] at a time
 /// until told to shut down or the handle drops its sender. The sensor is closed here, on this
 /// thread, before it returns.
-pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>) {
+///
+/// `temperature` is the cell the handle's live [`Device::temperature`](fprint_core::Device::temperature)
+/// getter reads: after each job that has an open device, the worker samples the sensor's thermal
+/// state and publishes it here, so the `Send` handle can answer the getter without a round-trip.
+pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>, temperature: Arc<Mutex<Option<Temperature>>>) {
     let ctx = FpContext::new();
     let device = find_device(&ctx, &id);
     let dev = device.as_ref();
@@ -119,6 +124,7 @@ pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>) {
                     let sink = EnrollSink {
                         tx: progress,
                         total: d.nr_enroll_stages().max(0) as u32,
+                        temperature: temperature.clone(),
                     };
                     let enrolled = d
                         .enroll_sync(
@@ -139,7 +145,10 @@ pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>) {
             } => {
                 let _ = reply.send(with(dev, |d| {
                     let fp = print::core_to_fp_for_match(&enrolled)?;
-                    let sink = StatusSink { tx: status };
+                    let sink = StatusSink {
+                        tx: status,
+                        temperature: temperature.clone(),
+                    };
                     let (matched, scanned) = d
                         .verify_sync(
                             &fp,
@@ -168,7 +177,10 @@ pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>) {
                         .iter()
                         .map(print::core_to_fp_for_match)
                         .collect::<Result<Vec<FpPrint>>>()?;
-                    let sink = StatusSink { tx: status };
+                    let sink = StatusSink {
+                        tx: status,
+                        temperature: temperature.clone(),
+                    };
                     let (matched, scanned) = d
                         .identify_sync(
                             &fps,
@@ -230,6 +242,14 @@ pub(crate) fn run(id: DeviceId, jobs: Receiver<Job>) {
                 let _ = reply.send(with(dev, |d| {
                     d.resume_sync(Some(&cancel)).map_err(convert::from_gerror)
                 }));
+            }
+        }
+
+        // Publish the sensor's live thermal state for the handle's `Device::temperature` getter.
+        // Only an open device reports it; before `open` the cell stays `None` (unknown).
+        if let Some(d) = dev {
+            if d.is_open() {
+                *temperature.lock().unwrap() = convert::temperature(d);
             }
         }
     }

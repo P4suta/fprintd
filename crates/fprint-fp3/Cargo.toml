@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
 [package]
 name = "fprint-fp3"
 description = "FP3 fingerprint-template (de)serialization: fprintd/libfprint's \"FP3\" GVariant on-disk format <-> fprint-core's Print domain model."
@@ -9,6 +13,7 @@ repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
+documentation = "https://docs.rs/fprint-fp3"
 keywords = ["fingerprint", "fprintd", "gvariant", "fp3", "serialization"]
 categories = ["encoding", "parser-implementations"]
 # These integration tests use `publish = false` dev-deps that go version-less in the packaged

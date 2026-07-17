@@ -566,6 +566,7 @@ dependencies = [
  "fprint-bozorth3",
  "fprint-core",
  "fprint-mindtct",
+ "fprint-pipeline",
  "serde",
 ]
 
@@ -622,6 +623,15 @@ dependencies = [
 [[package]]
 name = "fprint-mindtct"
 version = "0.1.0"
+
+[[package]]
+name = "fprint-pipeline"
+version = "0.1.0"
+dependencies = [
+ "fprint-bozorth3",
+ "fprint-core",
+ "fprint-mindtct",
+]
 
 [[package]]
 name = "fprint-testkit"

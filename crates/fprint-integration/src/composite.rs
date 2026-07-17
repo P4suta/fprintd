@@ -10,7 +10,7 @@
 
 use fprint_core::{
     Backend, Device, DeviceId, DeviceInfo, EnrollProgress, FingerStatus, IdentifyOutcome, Print,
-    Result, VerifyOutcome,
+    Result, Temperature, VerifyOutcome,
 };
 
 use fprint_backend_native::{VirtualBackend, VirtualDevice};
@@ -41,6 +41,14 @@ impl Device for CompositeDevice {
         }
     }
 
+    fn temperature(&self) -> Option<Temperature> {
+        match self {
+            CompositeDevice::Native(d) => d.temperature(),
+            #[cfg(target_os = "linux")]
+            CompositeDevice::Shim(d) => d.temperature(),
+        }
+    }
+
     async fn open(&mut self) -> Result<()> {
         match self {
             CompositeDevice::Native(d) => d.open().await,
@@ -59,13 +67,13 @@ impl Device for CompositeDevice {
 
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
-        template: Print,
+        print: Print,
         on_progress: F,
     ) -> Result<Print> {
         match self {
-            CompositeDevice::Native(d) => d.enroll(template, on_progress).await,
+            CompositeDevice::Native(d) => d.enroll(print, on_progress).await,
             #[cfg(target_os = "linux")]
-            CompositeDevice::Shim(d) => d.enroll(template, on_progress).await,
+            CompositeDevice::Shim(d) => d.enroll(print, on_progress).await,
         }
     }
 

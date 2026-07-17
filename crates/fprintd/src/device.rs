@@ -206,8 +206,21 @@ impl Device {
 
     // --- active-operation bookkeeping -------------------------------------------------
 
-    /// Refuse if a pump is still running (`AlreadyInUse`), else clear any finished one.
-    fn ensure_idle(&self) -> Result<(), DaemonError> {
+    /// Atomically claim the single-in-flight slot: if no op is live, invoke `spawn` to start the
+    /// pump and record the resulting [`ActiveOp`] — **all under one lock**. `spawn` is the only
+    /// place the pump is created, so the check and the store cannot be split by a concurrent caller.
+    ///
+    /// zbus dispatches `&self` interface methods concurrently across the runtime's worker threads
+    /// (it does *not* serialise per object), so a two-step "check idle, then store" would let two
+    /// `verify_start`/`enroll_start` calls both pass the check and both spawn a pump — the second
+    /// overwriting the first's `ActiveOp` and orphaning a pump that `verify_stop` can no longer
+    /// reach. Holding the lock across the spawn closes that window; `spawn` does no `.await`, so the
+    /// guard is never held across a suspension point.
+    fn begin_op(
+        &self,
+        kind: OpKind,
+        spawn: impl FnOnce() -> (oneshot::Sender<()>, tokio::task::JoinHandle<()>),
+    ) -> Result<(), DaemonError> {
         let mut guard = self.active.lock().unwrap();
         if let Some(op) = guard.as_ref() {
             if !op.task.is_finished() {
@@ -216,13 +229,9 @@ impl Device {
                 ));
             }
         }
-        *guard = None;
+        let (stop, task) = spawn();
+        *guard = Some(ActiveOp { kind, stop, task });
         Ok(())
-    }
-
-    /// Record the pump task for the just-started operation.
-    fn set_active(&self, op: ActiveOp) {
-        *self.active.lock().unwrap() = Some(op);
     }
 
     /// Stop the active operation of kind `expected` (fprintd's `*_stop`). A completed pump is
@@ -324,6 +333,12 @@ impl Device {
     }
 
     /// Delete every enrolled finger for `username` (legacy, auto-claim form).
+    ///
+    /// This path is not claimed, so it touches only host records and never the sensor. On a
+    /// match-on-chip reader with per-template deletion (`STORAGE_DELETE`), the on-sensor slots those
+    /// records backed are freed at the next `Claim`, which reconciles the sensor against the host in
+    /// both directions; driving the sensor here, outside a claim, would violate the session model. A
+    /// reader that can only wipe its whole store (`STORAGE_CLEAR`) keeps those slots until a clear.
     async fn delete_enrolled_fingers(
         &self,
         username: &str,
@@ -333,7 +348,7 @@ impl Device {
         let sender = sender_of(&hdr)?;
         self.authz.check(&sender, PolkitAction::Enroll).await?;
         let user = resolve_user(conn, &sender, username, &self.authz).await?;
-        self.delete_all(&user)
+        self.delete_all_host(&user)
     }
 
     /// Delete every enrolled finger for the claiming user.
@@ -344,7 +359,7 @@ impl Device {
         let sender = sender_of(&hdr)?;
         let user = self.require_claimed(&sender)?;
         self.authz.check(&sender, PolkitAction::Enroll).await?;
-        self.delete_all(&user)
+        self.delete_all(&user).await
     }
 
     /// Delete one enrolled finger for the claiming user.
@@ -368,7 +383,26 @@ impl Device {
                 "Fingerprint for finger {finger_name} is not enrolled"
             )));
         }
-        self.store.delete(&user, &info.driver, &info.id, finger)
+
+        // On a match-on-chip reader the template also occupies a slot on the sensor. Capture the
+        // stored print before the host record is gone so the slot can be freed once the host
+        // delete succeeds.
+        let device_print = if info.features.contains(DeviceFeature::STORAGE_DELETE) {
+            self.store.load(&user, &info.driver, &info.id, finger)
+        } else {
+            None
+        };
+
+        self.store.delete(&user, &info.driver, &info.id, finger)?;
+
+        // The host record is the desktop's source of truth; freeing the sensor slot is best-effort,
+        // so a device-side failure must not fail a delete that already succeeded on the host.
+        if let Some(print) = device_print {
+            if let Err(e) = self.handle.delete_device_print(print).await {
+                tracing::warn!("failed to delete on-device print for {finger_name}: {e:?}");
+            }
+        }
+        Ok(())
     }
 
     // --- claim / release --------------------------------------------------------------
@@ -397,7 +431,7 @@ impl Device {
         // and aborts the watcher with it. A `JoinHandle` dropped on its own detaches instead.
         let session = Session {
             sender: sender.clone(),
-            username: user,
+            username: user.clone(),
             watcher: Self::spawn_name_watcher(
                 conn,
                 &sender,
@@ -432,7 +466,12 @@ impl Device {
             Ok(Ok(settled)) => {
                 // The sensor is open, so its shape is now known. Everything published from here
                 // reads this, not the enumerated info.
+                let features = settled.features;
                 *self.info.lock().unwrap() = Arc::new(settled);
+                // Now that the sensor is open, drop any host record it has no backing for.
+                if features.contains(DeviceFeature::STORAGE_LIST) {
+                    self.reconcile_host_with_device(&user).await;
+                }
                 Ok(())
             }
             Ok(Err(e)) => {
@@ -472,7 +511,6 @@ impl Device {
         let sender = sender_of(&hdr)?;
         let user = self.require_claimed(&sender)?;
         self.authz.check(&sender, PolkitAction::Verify).await?;
-        self.ensure_idle()?;
 
         let info = self.info();
         let driver = &info.driver;
@@ -520,20 +558,19 @@ impl Device {
             VerifyOp::Identify { .. } => "any",
         };
 
-        // Spawn the pump, then tell the client which finger we selected.
-        let (stop_tx, stop_rx) = oneshot::channel();
+        // Claim the single-in-flight slot and spawn the pump atomically (one lock, no double-spawn
+        // under concurrent zbus dispatch), then tell the client which finger we selected.
         let handle = self.handle.clone();
         let owned = emitter.to_owned();
         let pump_emitter = owned.clone();
         let finger_status = self.finger_status.clone();
-        let task = tokio::spawn(async move {
-            run_verify(handle, pump_emitter, op, finger_status, stop_rx).await;
-        });
-        self.set_active(ActiveOp {
-            kind: OpKind::Verify,
-            stop: stop_tx,
-            task,
-        });
+        self.begin_op(OpKind::Verify, move || {
+            let (stop_tx, stop_rx) = oneshot::channel();
+            let task = tokio::spawn(async move {
+                run_verify(handle, pump_emitter, op, finger_status, stop_rx).await;
+            });
+            (stop_tx, task)
+        })?;
 
         let _ = Device::verify_finger_selected(&owned, selected).await;
         Ok(())
@@ -562,7 +599,6 @@ impl Device {
         let user = self.require_claimed(&sender)?;
         self.authz.check(&sender, PolkitAction::Enroll).await?;
         let finger = real_finger(finger_name)?;
-        self.ensure_idle()?;
 
         // Build the enrollment template with the metadata storage needs.
         let mut template = Print::new_for_enroll(finger);
@@ -571,33 +607,32 @@ impl Device {
         template.driver = Some(info.driver.clone());
         template.device_id = Some(info.id.clone());
 
-        let (stop_tx, stop_rx) = oneshot::channel();
         let handle = self.handle.clone();
         let emitter = emitter.to_owned();
         let store = self.store.clone();
         let driver = info.driver.clone();
         let device_id = info.id.clone();
         let finger_status = self.finger_status.clone();
-        let task = tokio::spawn(async move {
-            run_enroll(EnrollPump {
-                handle,
-                emitter,
-                template,
-                finger,
-                store,
-                user,
-                driver,
-                device_id,
-                finger_status,
-                stop_rx,
-            })
-            .await;
-        });
-        self.set_active(ActiveOp {
-            kind: OpKind::Enroll,
-            stop: stop_tx,
-            task,
-        });
+        // Claim the single-in-flight slot and spawn the pump atomically (see `begin_op`).
+        self.begin_op(OpKind::Enroll, move || {
+            let (stop_tx, stop_rx) = oneshot::channel();
+            let task = tokio::spawn(async move {
+                run_enroll(EnrollPump {
+                    handle,
+                    emitter,
+                    template,
+                    finger,
+                    store,
+                    user,
+                    driver,
+                    device_id,
+                    finger_status,
+                    stop_rx,
+                })
+                .await;
+            });
+            (stop_tx, task)
+        })?;
         Ok(())
     }
 
@@ -641,9 +676,9 @@ impl Device {
 }
 
 impl Device {
-    /// Delete all of a user's prints, erroring `NoEnrolledPrints` if there were none — the
-    /// behaviour of fprintd's `delete_enrolled_fingers(FP_FINGER_UNKNOWN)`.
-    fn delete_all(&self, user: &str) -> Result<(), DaemonError> {
+    /// Delete all of a user's host records, erroring `NoEnrolledPrints` if there were none — the
+    /// host half of fprintd's `delete_enrolled_fingers(FP_FINGER_UNKNOWN)`. No device I/O.
+    fn delete_all_host(&self, user: &str) -> Result<(), DaemonError> {
         let info = self.info();
         let fingers = self.store.list_fingers(user, &info.driver, &info.id);
         if fingers.is_empty() {
@@ -655,6 +690,124 @@ impl Device {
             self.store.delete(user, &info.driver, &info.id, finger)?;
         }
         Ok(())
+    }
+
+    /// Delete all of a user's prints on a claimed (open) device, freeing on-sensor slots too when
+    /// the reader advertises them. `NoEnrolledPrints` if there were none.
+    ///
+    /// Per-template `STORAGE_DELETE` is preferred: each of *this* user's slots is freed individually
+    /// (its template captured before the host record is removed), so a multi-user match-on-chip
+    /// reader keeps every other user's on-sensor templates. Only a reader that lacks it falls back
+    /// to `STORAGE_CLEAR`, which can wipe just the whole sensor. The host record is the source of
+    /// truth, so any device-side failure is logged and does not fail the call.
+    async fn delete_all(&self, user: &str) -> Result<(), DaemonError> {
+        let info = self.info();
+        let fingers = self.store.list_fingers(user, &info.driver, &info.id);
+        if fingers.is_empty() {
+            return Err(DaemonError::NoEnrolledPrints(
+                "No fingerprint enrolled".into(),
+            ));
+        }
+
+        if info.features.contains(DeviceFeature::STORAGE_DELETE) {
+            // Free each of this user's slots individually, so a multi-user match-on-chip reader
+            // keeps every other user's on-sensor templates untouched.
+            for finger in &fingers {
+                let device_print = self.store.load(user, &info.driver, &info.id, *finger);
+                self.store.delete(user, &info.driver, &info.id, *finger)?;
+                if let Some(print) = device_print {
+                    if let Err(e) = self.handle.delete_device_print(print).await {
+                        tracing::warn!("failed to delete on-device print: {e:?}");
+                    }
+                }
+            }
+        } else if info.features.contains(DeviceFeature::STORAGE_CLEAR) {
+            // No per-template delete exists on this reader, so wiping the whole sensor is the only
+            // device-side option — a last resort, since it would take any other user's slots with it.
+            for finger in &fingers {
+                self.store.delete(user, &info.driver, &info.id, *finger)?;
+            }
+            if let Err(e) = self.handle.clear_storage().await {
+                tracing::warn!("failed to clear on-device storage: {e:?}");
+            }
+        } else {
+            for finger in &fingers {
+                self.store.delete(user, &info.driver, &info.id, *finger)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Reconcile a claimed user's host records against the reader's on-sensor storage, in both
+    /// directions. Best-effort: any error is logged and ignored so the claim never fails on it.
+    ///
+    /// - **Host ← device:** drop any host record the sensor has no backing for (the sensor was
+    ///   reset or re-enrolled elsewhere).
+    /// - **Device ← host:** free any on-sensor slot the host no longer records — the orphans a
+    ///   prior unclaimed, host-only [`delete_enrolled_fingers`](Device::delete_enrolled_fingers)
+    ///   leaves behind, since that path cannot drive the sensor. Only a `STORAGE_DELETE` reader can
+    ///   free a single slot; a `STORAGE_CLEAR`-only reader would have to wipe every user, so its
+    ///   orphans wait.
+    ///
+    /// Host and device prints are matched by finger. A device print naming no real finger backs
+    /// nothing; if the sensor reports prints but none names a finger, the host ← device prune is
+    /// skipped entirely rather than risk dropping host records the sensor still holds.
+    async fn reconcile_host_with_device(&self, user: &str) {
+        let device_prints = match self.handle.list_prints().await {
+            Ok(prints) => prints,
+            Err(e) => {
+                tracing::warn!("could not list on-device prints to reconcile: {e:?}");
+                return;
+            }
+        };
+
+        let device_fingers: Vec<Finger> = device_prints
+            .iter()
+            .filter_map(|p| p.finger)
+            .filter(|f| *f != Finger::Unknown)
+            .collect();
+        // Prune only against a positive, finger-named device inventory. An empty listing — or one
+        // that names no finger — is "cannot confirm", never "the sensor is empty, so wipe the host":
+        // acting on a spurious or transient empty read would delete a user's live enrollments.
+        if device_fingers.is_empty() {
+            return;
+        }
+
+        let info = self.info();
+        let host_fingers = self.store.list_fingers(user, &info.driver, &info.id);
+
+        // Host ← device: drop host records the sensor has no backing for.
+        for finger in &host_fingers {
+            if !device_fingers.contains(finger) {
+                if let Err(e) = self.store.delete(user, &info.driver, &info.id, *finger) {
+                    tracing::warn!("failed to drop unbacked host record: {e:?}");
+                }
+            }
+        }
+
+        // Device ← host: free on-sensor slots *this user* no longer records. Only a per-template
+        // delete can free one slot; a wipe-only reader would take every user's slots with it.
+        if info.features.contains(DeviceFeature::STORAGE_DELETE) {
+            for print in device_prints {
+                // Never touch a slot this user does not own. `device_prints` is the whole sensor —
+                // every user's slots — so a slot owned by another user (or one whose owner the reader
+                // does not report, `username` None) must be left alone: attributing it to this user
+                // and deleting it would destroy another user's enrollment. Ownership comes from the
+                // slot's stored username (the libfprint shim recovers it from the FP3 blob; the
+                // native reader stamps it at enroll).
+                if print.username.as_deref() != Some(user) {
+                    continue;
+                }
+                let Some(finger) = print.finger.filter(|f| *f != Finger::Unknown) else {
+                    continue;
+                };
+                if !host_fingers.contains(&finger) {
+                    if let Err(e) = self.handle.delete_device_print(print).await {
+                        tracing::warn!("failed to free unbacked on-device slot: {e:?}");
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -976,26 +1129,25 @@ async fn resolve_user(
     Ok(requested.to_string())
 }
 
-/// The caller's own username, resolved via `GetConnectionUnixUser` on the request's bus and a
-/// `/etc/passwd` lookup. Best-effort: returns `None` if either step fails.
+/// The caller's own username, resolved via `GetConnectionUnixUser` on the request's bus and an NSS
+/// lookup. Best-effort: returns `None` if any step fails.
 async fn caller_username(conn: &zbus::Connection, sender: &str) -> Option<String> {
     let proxy = zbus::fdo::DBusProxy::new(conn).await.ok()?;
     let bus_name = zbus::names::BusName::try_from(sender).ok()?;
     let uid = proxy.get_connection_unix_user(bus_name).await.ok()?;
-    uid_to_name(uid)
+    // `getpwuid_r` goes through NSS, which on an LDAP/SSSD/systemd-homed host can block for a long
+    // time; running it inline would stall this tokio worker (and every task sharing it). Confine the
+    // blocking call to the blocking pool.
+    tokio::task::spawn_blocking(move || uid_to_name(uid))
+        .await
+        .ok()
+        .flatten()
 }
 
-/// Map a uid to a username by scanning `/etc/passwd`.
+/// Map a uid to a username through NSS (`getpwuid_r`), so LDAP/SSSD/systemd-homed accounts resolve,
+/// not just the ones in the local `/etc/passwd`. A non-UTF-8 name (which the D-Bus contract cannot
+/// carry anyway) reads as "not found". Blocking; call it via [`spawn_blocking`](tokio::task::spawn_blocking).
 fn uid_to_name(uid: u32) -> Option<String> {
-    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
-    for line in passwd.lines() {
-        let mut fields = line.split(':');
-        let name = fields.next()?;
-        let _password = fields.next()?;
-        let field_uid = fields.next()?;
-        if field_uid.parse::<u32>().ok() == Some(uid) {
-            return Some(name.to_string());
-        }
-    }
-    None
+    let user = uzers::get_user_by_uid(uid)?;
+    user.name().to_str().map(str::to_owned)
 }

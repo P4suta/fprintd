@@ -15,12 +15,13 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::thread::JoinHandle;
 
 use fprint_core::{
     Device, DeviceFeature, DeviceInfo, EnrollProgress, Error, FingerStatus, IdentifyOutcome, Print,
-    Result, VerifyOutcome,
+    Result, Temperature, VerifyOutcome,
 };
 use futures_channel::mpsc::{self, UnboundedSender};
 use futures_channel::oneshot;
@@ -35,9 +36,14 @@ use crate::worker::{self, Job};
 /// Obtained from [`crate::LibfprintBackend`]; call [`Device::open`] before any operation. The
 /// reader itself lives on an internal worker thread — this handle is `Send`, and dropping it
 /// releases the sensor and joins that thread.
+#[derive(Debug)]
 pub struct LibfprintDevice {
     jobs: Sender<Job>,
     info: DeviceInfo,
+    /// The sensor's live thermal state, published by the worker after each job and read by
+    /// [`Device::temperature`] without a round-trip to the `!Send` device. Contention is nil — one
+    /// writer at job boundaries, one reader in the getter — so a plain `Mutex` is enough.
+    temperature: Arc<Mutex<Option<Temperature>>>,
     worker: Option<JoinHandle<()>>,
 }
 
@@ -45,18 +51,25 @@ impl LibfprintDevice {
     /// Spawn the worker for the device described by `info` and return a handle to it. The worker
     /// re-finds the device by `info.id` in its own context; `info` is the caller-thread getter
     /// snapshot, refreshed from the worker on [`Device::open`].
-    pub(crate) fn spawn(info: DeviceInfo) -> Self {
+    ///
+    /// Fails with [`Error::Other`] if the OS refuses the worker thread (resource exhaustion), so a
+    /// device that cannot be given its worker surfaces as a fallible enumeration/open rather than a
+    /// panic out of [`crate::LibfprintBackend`]'s public methods.
+    pub(crate) fn spawn(info: DeviceInfo) -> Result<Self> {
         let (jobs, rx) = std::sync::mpsc::channel();
         let id = info.id.clone();
+        let temperature = Arc::new(Mutex::new(None));
+        let worker_temperature = Arc::clone(&temperature);
         let worker = std::thread::Builder::new()
             .name(format!("libfprint-worker-{}", id.as_str()))
-            .spawn(move || worker::run(id, rx))
-            .expect("spawn libfprint worker thread");
-        LibfprintDevice {
+            .spawn(move || worker::run(id, rx, worker_temperature))
+            .map_err(|e| Error::Other(format!("failed to spawn libfprint worker thread: {e}")))?;
+        Ok(LibfprintDevice {
             jobs,
             info,
+            temperature,
             worker: Some(worker),
-        }
+        })
     }
 
     /// Send a job to the worker. Fails only if the worker thread has already stopped.
@@ -170,6 +183,10 @@ impl Device for LibfprintDevice {
         &self.info
     }
 
+    fn temperature(&self) -> Option<Temperature> {
+        *self.temperature.lock().unwrap()
+    }
+
     async fn open(&mut self) -> Result<()> {
         let (_guard, reply) = self.start(|cancel, reply| Job::Open { cancel, reply })?;
         self.info = await_reply(reply).await?;
@@ -183,12 +200,12 @@ impl Device for LibfprintDevice {
 
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
-        template: Print,
+        print: Print,
         on_progress: F,
     ) -> Result<Print> {
         let (_guard, reply, progress) =
             self.start_streaming(|cancel, progress, reply| Job::Enroll {
-                template,
+                template: print,
                 cancel,
                 progress,
                 reply,

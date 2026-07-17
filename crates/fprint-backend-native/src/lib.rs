@@ -52,7 +52,7 @@ mod usb;
 mod yield_now;
 
 pub use backend::VirtualBackend;
-pub use builder::{DeviceShape, VirtualDeviceBuilder};
+pub use builder::{DeviceShape, SharedStorage, VirtualDeviceBuilder};
 pub use device::VirtualDevice;
 pub use device_db::{lookup as lookup_device, DeviceRecord, Family};
 pub use frame::Frame;

@@ -88,9 +88,11 @@ pub(crate) struct RotGrids {
     /// Border padding (in pixels) these offsets assume on every side of the image.
     pub(crate) pad: i32,
     /// Whether offsets are relative to the grid center or origin.
-    // `dead_code`: `relative2`/`start_angle` mirror the stock `ROTGRIDS` layout but are consumed only
-    // while *building* the grids (`init_rotgrids`); the offsets carry all the port needs afterward, so
-    // nothing reads them back. Transcribed for fidelity and pinned by the tests.
+    // `dead_code` (not `expect`): these fields are written in every build but read only by the tests,
+    // so the lint fires in the plain lib build and not in the `--test` build — `expect` would be
+    // unfulfilled in the latter. `relative2`/`start_angle` mirror the stock `ROTGRIDS` layout but are
+    // consumed only while *building* the grids (`init_rotgrids`); the offsets carry all the port needs
+    // afterward, so nothing reads them back at runtime. Transcribed for fidelity and pinned by tests.
     #[allow(dead_code)]
     pub(crate) relative2: Relative2,
     /// Angle (radians) of the first grid (direction `0`).
