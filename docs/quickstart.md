@@ -17,11 +17,14 @@ detection, templating, and matching — end to end.
 
 ## The pieces on their own
 
-Each published crate ships a runnable example so a single command exercises one
-layer in isolation. All depend only on `std` or their existing normal
-dependencies, so nothing is added to the published graph.
+Each layer ships a runnable example so a single command exercises it in
+isolation. All depend only on `std` or their existing normal dependencies, so
+nothing is added to the published graph.
 
 ```console
+# The whole loop in code (fprint-pipeline): detect, enroll, verify, reject.
+$ cargo run -p fprint-pipeline --example enroll_verify
+
 # The matcher (fprint-bozorth3): score two xyt minutiae files.
 $ cargo run -p fprint-bozorth3 --example match_xyt a.xyt b.xyt
 
@@ -30,9 +33,6 @@ $ cargo run -p fprint-mindtct --example detect_pgm finger.pgm
 
 # The format (fprint-fp3): encode a print to FP3 bytes and read it back.
 $ cargo run -p fprint-fp3 --example roundtrip
-
-# The whole loop in code (fprint-backend-native): enroll, verify, reject.
-$ cargo run -p fprint-backend-native --example enroll_verify
 ```
 
 ## What just ran
@@ -42,16 +42,22 @@ The stack layers strictly, dependencies flowing toward the leaves:
 - `fprint-core` — zero-dependency domain types and the backend traits.
 - `fprint-mindtct` — minutiae detection (a bit-exact NBIS port).
 - `fprint-bozorth3` — minutiae matching (a bit-exact NBIS port).
+- `fprint-pipeline` — the glue that joins the two kernels into image → minutiae
+  → template → match; the published front door for host-image matching.
 - `fprint-fp3` — the on-disk template format libfprint reads and writes.
 - the backends — native (host-image sensors) and the C-libfprint shim.
 
 ## The xyt boundary
 
 Minutiae cross crate boundaries as `(x, y, theta)` triples in the NBIS xyt
-convention: `x` and `y` in pixels, `theta` in degrees. `Minutia` carries
-`from_xyt` / `as_xyt` (and `From<(i32, i32, i32)>`) in each crate that owns a
-minutia type, so the detector's output feeds the matcher without a shared type.
-That triple is the interop fact — the same one the `.xyt` files above hold.
+convention: `x` and `y` in pixels, `theta` in degrees. Each kernel owns its own
+`Minutia` rather than sharing a type — that triple is the interop fact, the same
+one the `.xyt` files above hold. The detector's `fprint_mindtct::Minutia`
+exposes `as_xyt` (its output), and `fprint_bozorth3::Minutia` and
+`fprint_core::Minutia` carry the full `from_xyt` / `as_xyt` / `From<(i32, i32,
+i32)>` trio. `fprint-pipeline` owns the conversions between them
+(`minutia_to_core`, `minutiae_to_bozorth`), so you never write that boundary by
+hand.
 
 ## Where to next
 

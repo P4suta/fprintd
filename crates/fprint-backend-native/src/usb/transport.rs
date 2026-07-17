@@ -45,6 +45,48 @@ pub trait UsbTransport {
     ) -> Result<Vec<u8>>;
 }
 
+// --- Live bus enumeration (feature-gated) --------------------------------------------------------
+
+/// A USB device present on the bus, as [`list_usb_devices`] reports it.
+///
+/// Enough to identify and label a device — its [`UsbId`](super::UsbId) plus the manufacturer/product
+/// descriptor strings when the OS exposes them — without opening it. Unlike the transfer path, plain
+/// enumeration touches no endpoint, so this is verifiable on any host with USB devices attached.
+#[cfg(feature = "usb")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UsbDeviceInfo {
+    /// The device's `(vid, pid)`.
+    pub id: super::UsbId,
+    /// The USB manufacturer-descriptor string, when the OS exposes it.
+    pub manufacturer: Option<String>,
+    /// The USB product-descriptor string, when the OS exposes it.
+    pub product: Option<String>,
+}
+
+/// Enumerate the USB devices currently attached to the bus.
+///
+/// A read-only listing over [`nusb::list_devices`] — it opens nothing and streams no bytes, so it
+/// needs no specific sensor and runs on any host. `fpdev probe` uses it to classify every attached
+/// device against the interoperability database.
+///
+/// # Errors
+/// [`fprint_core::Error::Transport`] if the platform USB backend cannot enumerate the bus.
+#[cfg(feature = "usb")]
+pub fn list_usb_devices() -> Result<Vec<UsbDeviceInfo>> {
+    let devices = nusb::list_devices()
+        .map_err(|e| fprint_core::Error::Transport(format!("list USB devices: {e}")))?;
+    Ok(devices
+        .map(|d| UsbDeviceInfo {
+            id: super::UsbId {
+                vid: d.vendor_id(),
+                pid: d.product_id(),
+            },
+            manufacturer: d.manufacturer_string().map(str::to_owned),
+            product: d.product_string().map(str::to_owned),
+        })
+        .collect())
+}
+
 // --- Real nusb-backed transport (feature-gated; hardware-only verification) ----------------------
 
 /// A [`UsbTransport`] over a claimed [`nusb::Interface`].

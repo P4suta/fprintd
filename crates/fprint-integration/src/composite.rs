@@ -9,8 +9,8 @@
 //! method with an explicit `match`; see the crate docs for why, rather than `enum_dispatch`.
 
 use fprint_core::{
-    Backend, Device, DeviceId, DeviceInfo, EnrollProgress, IdentifyOutcome, Print, Result,
-    VerifyOutcome,
+    Backend, Device, DeviceId, DeviceInfo, EnrollProgress, FingerStatus, IdentifyOutcome, Print,
+    Result, VerifyOutcome,
 };
 
 use fprint_backend_native::{VirtualBackend, VirtualDevice};
@@ -69,19 +69,27 @@ impl Device for CompositeDevice {
         }
     }
 
-    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        on_status: F,
+    ) -> Result<VerifyOutcome> {
         match self {
-            CompositeDevice::Native(d) => d.verify(enrolled).await,
+            CompositeDevice::Native(d) => d.verify_with_status(enrolled, on_status).await,
             #[cfg(target_os = "linux")]
-            CompositeDevice::Shim(d) => d.verify(enrolled).await,
+            CompositeDevice::Shim(d) => d.verify_with_status(enrolled, on_status).await,
         }
     }
 
-    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        on_status: F,
+    ) -> Result<IdentifyOutcome> {
         match self {
-            CompositeDevice::Native(d) => d.identify(gallery).await,
+            CompositeDevice::Native(d) => d.identify_with_status(gallery, on_status).await,
             #[cfg(target_os = "linux")]
-            CompositeDevice::Shim(d) => d.identify(gallery).await,
+            CompositeDevice::Shim(d) => d.identify_with_status(gallery, on_status).await,
         }
     }
 

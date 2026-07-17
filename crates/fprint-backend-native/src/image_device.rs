@@ -6,10 +6,10 @@
 //!
 //! Where [`crate::VirtualDevice`] scripts what the sensor pretends happened, `ImageDevice` runs the
 //! host-image pipeline over whatever frames a [`FrameSource`] hands it: `enroll` detects
-//! minutiae from each captured frame (`crate::detector::template_from_images`) into an
+//! minutiae from each captured frame (`fprint_pipeline::template_from_images`) into an
 //! [`fprint_core::Template::Nbis`], and `verify` / `identify` score a fresh scan against it with the
-//! BOZORTH3 matcher (`crate::matcher`). It is a host-side sensor: no on-device storage, and it
-//! surfaces the scanned print.
+//! BOZORTH3 matcher (`fprint_pipeline::nbis_match_score`). It is a host-side sensor: no on-device
+//! storage, and it surfaces the scanned print.
 //!
 //! Invariants follow the same rules as [`crate::VirtualDevice`]: one operation at a time is the
 //! borrow checker's job (`&mut self`); cancellation is dropping the future — `enroll` commits its
@@ -19,8 +19,8 @@
 //! storage.
 
 use fprint_core::{
-    Device, DeviceFeature, DeviceInfo, EnrollDate, EnrollProgress, Error, IdentifyOutcome, Print,
-    Result, Template, VerifyOutcome,
+    Device, DeviceFeature, DeviceInfo, EnrollDate, EnrollProgress, Error, FingerStatus,
+    IdentifyOutcome, Print, Result, Template, VerifyOutcome,
 };
 
 use crate::frame::Frame;
@@ -82,8 +82,8 @@ impl<S: FrameSource> ImageDevice<S> {
     fn scan_print(&self, template: Template) -> Print {
         Print::builder()
             .template(template)
-            .driver(Some(self.info.driver.clone()))
-            .device_id(Some(self.info.id.clone()))
+            .driver(self.info.driver.clone())
+            .device_id(self.info.id.clone())
             .device_stored(false)
             .build()
     }
@@ -92,7 +92,7 @@ impl<S: FrameSource> ImageDevice<S> {
     /// surfaces as [`Error::RetryScan`].
     async fn one_scan(&mut self) -> Result<Template> {
         match self.source.capture().await? {
-            Capture::Frame(f) => Ok(crate::detector::template_from_images(&[f.as_gray()?])),
+            Capture::Frame(f) => Ok(fprint_pipeline::template_from_images(&[f.as_gray()?])),
             Capture::Retry(r) => Err(Error::RetryScan(r)),
         }
     }
@@ -148,36 +148,47 @@ impl<S: FrameSource> Device for ImageDevice<S> {
         // Detect once per captured frame — one enrolled minutiae sample per capture.
         let grays: Vec<fprint_mindtct::GrayImage<'_>> =
             frames.iter().map(Frame::as_gray).collect::<Result<_>>()?;
-        let detected = crate::detector::template_from_images(&grays);
+        let detected = fprint_pipeline::template_from_images(&grays);
 
         // Fixed, deterministic date so enrolled prints are reproducible (as VirtualDevice does).
         Ok(Print::builder()
             .template(detected)
             .finger(template.finger)
-            .driver(Some(self.info.driver.clone()))
-            .device_id(Some(self.info.id.clone()))
+            .driver(self.info.driver.clone())
+            .device_id(self.info.id.clone())
             .device_stored(false)
-            .enroll_date(Some(EnrollDate::new(2026, 1, 1)))
+            .enroll_date(EnrollDate::new(2026, 1, 1))
             .build())
     }
 
-    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        mut on_status: F,
+    ) -> Result<VerifyOutcome> {
         self.guard_open()?;
         self.need(DeviceFeature::VERIFY)?;
 
         let scanned = self.one_scan().await?;
+        // A frame was captured, so a finger was on the sensor.
+        on_status(FingerStatus::PRESENT);
         let matched =
-            crate::matcher::nbis_match_score(&enrolled.template, &scanned) >= self.threshold;
+            fprint_pipeline::nbis_match_score(&enrolled.template, &scanned) >= self.threshold;
         Ok(VerifyOutcome::new(matched, Some(self.scan_print(scanned))))
     }
 
-    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        mut on_status: F,
+    ) -> Result<IdentifyOutcome> {
         self.guard_open()?;
         self.need(DeviceFeature::IDENTIFY)?;
 
         let scanned = self.one_scan().await?;
+        on_status(FingerStatus::PRESENT);
         let galv: Vec<Template> = gallery.iter().map(|p| p.template.clone()).collect();
-        let match_index = crate::matcher::nbis_identify(&scanned, &galv, self.threshold);
+        let match_index = fprint_pipeline::nbis_identify(&scanned, &galv, self.threshold);
         Ok(IdentifyOutcome::new(
             match_index,
             Some(self.scan_print(scanned)),

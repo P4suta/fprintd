@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Finger identity — the FP3/`FpFinger` byte value, via
-//! [`Finger::as_u8`]/[`Finger::from_u8`].
+//! Finger identity — the FP3/`FpFinger` byte value, via the [`From`]/[`TryFrom`] conversions to and
+//! from `u8` (or the equivalent [`Finger::as_u8`]/[`Finger::from_u8`] inherent methods).
 //!
 //! The `net.reactivated.Fprint` D-Bus finger-name vocabulary (`"left-index-finger"`, …) is
 //! *not* here: that is interop wire vocabulary and lives at the daemon edge (`fprintd`),
@@ -87,9 +87,41 @@ impl Finger {
     }
 }
 
+/// The error [`Finger::try_from`] returns for a byte outside the valid `0..=10` range.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct InvalidFinger(
+    /// The offending byte.
+    pub u8,
+);
+
+impl core::fmt::Display for InvalidFinger {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} is not a valid finger byte (expected 0..=10)", self.0)
+    }
+}
+
+impl std::error::Error for InvalidFinger {}
+
+impl From<Finger> for u8 {
+    /// The raw FP3/`FpFinger` byte value — the [`From`] form of [`Finger::as_u8`].
+    fn from(finger: Finger) -> u8 {
+        finger as u8
+    }
+}
+
+impl TryFrom<u8> for Finger {
+    type Error = InvalidFinger;
+
+    /// Reconstruct from the raw FP3/`FpFinger` byte — the [`TryFrom`] form of [`Finger::from_u8`],
+    /// naming the offending byte on failure.
+    fn try_from(v: u8) -> Result<Finger, InvalidFinger> {
+        Finger::from_u8(v).ok_or(InvalidFinger(v))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Finger;
+    use super::{Finger, InvalidFinger};
 
     #[test]
     fn byte_roundtrip_is_stable() {
@@ -98,6 +130,27 @@ mod tests {
         }
         assert_eq!(Finger::from_u8(0), Some(Finger::Unknown));
         assert_eq!(Finger::from_u8(11), None);
+    }
+
+    /// The std [`From`]/[`TryFrom`] conversions agree with the inherent `as_u8`/`from_u8` over the
+    /// whole byte, and the error names the offending value.
+    #[test]
+    fn std_conversions_agree_with_inherent_methods() {
+        for v in u8::MIN..=u8::MAX {
+            assert_eq!(
+                Finger::try_from(v).ok(),
+                Finger::from_u8(v),
+                "try_from({v})"
+            );
+            match Finger::try_from(v) {
+                Ok(f) => assert_eq!(u8::from(f), v, "u8::from round-trip for {f:?}"),
+                Err(e) => assert_eq!(e, InvalidFinger(v), "error carries the byte"),
+            }
+        }
+        // Every real finger and Unknown convert to their discriminant.
+        for f in Finger::ALL.iter().chain(&[Finger::Unknown]) {
+            assert_eq!(u8::from(*f), f.as_u8());
+        }
     }
 
     /// [`Finger::from_u8`] is total over its input, so the accepted set is checked over the whole

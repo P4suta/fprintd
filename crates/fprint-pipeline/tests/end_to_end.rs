@@ -4,24 +4,22 @@
 
 //! End-to-end **image → minutiae → match**, hardware-free and fixture-free.
 //!
-//! This closes the host-image loop the two seams model: [`fprint_backend_native::template_from_images`]
+//! This closes the host-image loop the pipeline joins: [`fprint_pipeline::template_from_images`]
 //! runs the real MINDTCT detector ([`fprint_mindtct`]) over a synthetic fingerprint frame, converts the
 //! detected minutiae into an [`fprint_core::Template::Nbis`], and
-//! [`fprint_backend_native::nbis_match_score`] scores it with the real BOZORTH3 matcher
+//! [`fprint_pipeline::nbis_match_score`] scores it with the real BOZORTH3 matcher
 //! ([`fprint_bozorth3`]). No `.raw` fixtures are read: the images are generated in-process by a tiny LCG
 //! grating (the same idiom as `docker/mindtct-oracle/gen_corpus.py`), so every byte — and therefore
 //! every detected minutia and every score — is reproducible on any platform.
 //!
 //! The evidence: a capture self-matches strongly, a re-noised recapture of the *same* finger still
 //! clears threshold, an unrelated finger scores far below it, and — because BOZORTH3 is rotation- and
-//! translation-invariant by construction — a rotated recapture still matches. Threshold follows the
-//! `real_matching.rs` convention.
+//! translation-invariant by construction — a rotated recapture still matches.
 
-use fprint_backend_native::{extract_minutiae, nbis_match_score, template_from_images};
-use fprint_core::Template;
-use fprint_mindtct::GrayImage;
+use fprint_pipeline::fprint_core::Template;
+use fprint_pipeline::{extract_minutiae, nbis_match_score, template_from_images, GrayImage};
 
-/// Driver match threshold, matching the `real_matching.rs` convention.
+/// Driver match threshold, matching the backend's `real_matching.rs` convention.
 const THRESHOLD: u32 = 40;
 
 /// Scan resolution recorded in every synthetic frame (500 ppi, as in the oracle corpus).

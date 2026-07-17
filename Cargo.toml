@@ -14,6 +14,7 @@ members = [
   "crates/fprint-fp3",            # FP3 (de)serialization codec (edge translator; offline)
   "crates/fprint-bozorth3",       # pure-Rust BOZORTH3 minutiae matcher (public-domain NBIS port)
   "crates/fprint-mindtct",        # pure-Rust MINDTCT minutiae detector (public-domain NBIS port)
+  "crates/fprint-pipeline",       # host-image glue: image -> minutiae -> template -> match (published front door)
   "crates/fprint-backend-native", # pure-Rust virtual device: the first fprint-core Backend/Device implementor
   "crates/fprint-cli",            # demo tool (`fprint`): clone-and-run enroll/verify over the virtual device
   "crates/fprint-driverkit",      # driver-author workbench (`fpdev`): probe/capture/iterate a new native sensor
@@ -51,6 +52,7 @@ fprint-core = { path = "crates/fprint-core", version = "0.1.0" }
 fprint-fp3 = { path = "crates/fprint-fp3", version = "0.1.0" }
 fprint-bozorth3 = { path = "crates/fprint-bozorth3", version = "0.1.0" }
 fprint-mindtct = { path = "crates/fprint-mindtct", version = "0.1.0" }
+fprint-pipeline = { path = "crates/fprint-pipeline", version = "0.1.0" }
 # Deliberately version-less: this crate is `publish = false`, and it is a *dev*-dependency of
 # the published `fprint-fp3`. Cargo includes only dev-dependencies that specify a version, so
 # leaving it out is what lets it be stripped from the published tarball. Adding a `version`

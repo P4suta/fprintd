@@ -52,7 +52,7 @@
 //! # }
 //! use fprint_core::{
 //!     Backend, Device, DeviceFeature, DeviceId, DeviceInfo, DriverId, EnrollProgress, Error,
-//!     Finger, IdentifyOutcome, Print, Result, ScanType, Template, VerifyOutcome,
+//!     Finger, FingerStatus, IdentifyOutcome, Print, Result, ScanType, Template, VerifyOutcome,
 //! };
 //!
 //! /// A match-on-chip reader holding one template.
@@ -82,14 +82,19 @@
 //!         Ok(template)
 //!     }
 //!
-//!     async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+//!     async fn verify_with_status<F: FnMut(FingerStatus)>(
+//!         &mut self,
+//!         enrolled: &Print,
+//!         mut on_status: F,
+//!     ) -> Result<VerifyOutcome> {
+//!         on_status(FingerStatus::PRESENT); // report the finger the desktop prompts for
 //!         Ok(VerifyOutcome::new(self.stored.as_ref() == Some(enrolled), None))
 //!     }
 //!
 //!     // The remaining operations are stubs here; a real backend talks to the sensor.
 //! #   async fn open(&mut self) -> Result<()> { Ok(()) }
 //! #   async fn close(&mut self) -> Result<()> { Ok(()) }
-//! #   async fn identify(&mut self, _gallery: &[Print]) -> Result<IdentifyOutcome> {
+//! #   async fn identify_with_status<F: FnMut(FingerStatus)>(&mut self, _gallery: &[Print], _on_status: F) -> Result<IdentifyOutcome> {
 //! #       Err(Error::NotSupported)
 //! #   }
 //! #   async fn list_prints(&mut self) -> Result<Vec<Print>> {
@@ -164,7 +169,7 @@ pub use device::{
 };
 pub use error::{Error, Result, RetryReason};
 pub use feature::{DeviceFeature, FingerStatus, ScanType, Temperature};
-pub use finger::Finger;
+pub use finger::{Finger, InvalidFinger};
 pub use print::{EnrollDate, Minutia, Print, PrintBuilder, Template};
 
 /// The names a backend or client reaches for most: the traits, the model, and the result types.

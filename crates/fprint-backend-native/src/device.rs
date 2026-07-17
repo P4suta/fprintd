@@ -14,8 +14,8 @@
 //! [`Error::ProtoState`] before `open`, [`Error::NotSupported`] for absent features.
 
 use fprint_core::{
-    Device, DeviceFeature, DeviceInfo, EnrollDate, EnrollProgress, Error, IdentifyOutcome, Print,
-    Result, Template, VerifyOutcome,
+    Device, DeviceFeature, DeviceInfo, EnrollDate, EnrollProgress, Error, FingerStatus,
+    IdentifyOutcome, Print, Result, Template, VerifyOutcome,
 };
 
 use crate::builder::DeviceShape;
@@ -146,8 +146,8 @@ impl VirtualDevice {
     fn scan_print(&self, template: Template) -> Print {
         Print::builder()
             .template(template)
-            .driver(Some(self.info.driver.clone()))
-            .device_id(Some(self.info.id.clone()))
+            .driver(self.info.driver.clone())
+            .device_id(self.info.id.clone())
             .device_stored(self.is_moc())
             .build()
     }
@@ -161,16 +161,16 @@ impl VirtualDevice {
     }
 
     /// Whether `scanned` matches `enrolled`. With a `match_threshold` set and both sides NBIS, this
-    /// is the **real** BOZORTH3 score `>= threshold` (`crate::matcher`); otherwise it is the
-    /// synthetic byte-equality stub (`crate::synth::matches`) — the default, and the only path for
-    /// `Raw`/MOC handles.
+    /// is the **real** BOZORTH3 score `>= threshold` (`fprint_pipeline::nbis_match_score`); otherwise
+    /// it is the synthetic byte-equality stub (`crate::synth::matches`) — the default, and the only
+    /// path for `Raw`/MOC handles.
     fn match_templates(&self, enrolled: &Template, scanned: &Template) -> bool {
         match self.match_threshold {
             Some(threshold)
                 if matches!(enrolled, Template::Nbis(_))
                     && matches!(scanned, Template::Nbis(_)) =>
             {
-                crate::matcher::nbis_match_score(enrolled, scanned) >= threshold
+                fprint_pipeline::nbis_match_score(enrolled, scanned) >= threshold
             }
             _ => matches(enrolled, scanned),
         }
@@ -249,10 +249,10 @@ impl Device for VirtualDevice {
         let finished = Print::builder()
             .template(want)
             .finger(template.finger)
-            .driver(Some(self.info.driver.clone()))
-            .device_id(Some(self.info.id.clone()))
+            .driver(self.info.driver.clone())
+            .device_id(self.info.id.clone())
             .device_stored(is_moc)
-            .enroll_date(Some(EnrollDate::new(2026, 1, 1)))
+            .enroll_date(EnrollDate::new(2026, 1, 1))
             .build();
 
         // Commit to on-device storage only now, on the final poll — so a cancelled
@@ -264,11 +264,19 @@ impl Device for VirtualDevice {
         Ok(finished)
     }
 
-    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        mut on_status: F,
+    ) -> Result<VerifyOutcome> {
         self.guard_open()?;
         self.need(DeviceFeature::VERIFY)?;
 
         let scanned = self.scan_template();
+        // The scripted device models a finger being presented: report it when a scan is available.
+        if scanned.is_some() {
+            on_status(FingerStatus::PRESENT);
+        }
         let matched = scanned
             .as_ref()
             .is_some_and(|s| self.match_templates(&enrolled.template, s));
@@ -281,17 +289,24 @@ impl Device for VirtualDevice {
         Ok(VerifyOutcome::new(matched, scanned))
     }
 
-    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        mut on_status: F,
+    ) -> Result<IdentifyOutcome> {
         self.guard_open()?;
         self.need(DeviceFeature::IDENTIFY)?;
 
         let scanned = self.scan_template();
+        if scanned.is_some() {
+            on_status(FingerStatus::PRESENT);
+        }
         let match_index = scanned.as_ref().and_then(|s| match self.match_threshold {
             // With a threshold and an NBIS scan, identify through the real BOZORTH3 matcher (1:N,
             // strongest above threshold) — mirroring `verify`'s `match_templates` NBIS branch.
             Some(t) if matches!(s, Template::Nbis(_)) => {
                 let templates: Vec<Template> = gallery.iter().map(|p| p.template.clone()).collect();
-                crate::matcher::nbis_identify(s, &templates, t)
+                fprint_pipeline::nbis_identify(s, &templates, t)
             }
             _ => gallery
                 .iter()

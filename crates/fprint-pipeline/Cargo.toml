@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+#
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+[package]
+name = "fprint-pipeline"
+description = "The host-image fingerprint pipeline in a few lines: turn a grayscale frame into minutiae with MINDTCT, build an NBIS template, and score it with BOZORTH3 — the glue that joins fprint-mindtct, fprint-bozorth3 and fprint-core into image -> minutiae -> match."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+readme = "README.md"
+keywords = ["fingerprint", "biometrics", "minutiae", "mindtct", "bozorth3"]
+categories = ["authentication", "computer-vision"]
+
+[dependencies]
+# The domain model: the `Minutia`/`Template`/`Print` this crate's functions produce and consume. The
+# glue's whole job is to speak these in terms of the two dependency-free kernels below.
+fprint-core = { workspace = true }
+# The detector kernel. Its public-domain `Minutia` (an xyt triple) is converted to `fprint_core::Minutia`
+# here — the conversion lives in this consumer, not in the kernel, so the kernel stays zero-dependency.
+fprint-mindtct = { workspace = true }
+# The matcher kernel. Same seam on the back half: `fprint_core::Minutia` is converted to the matcher's
+# own `Minutia` here, so BOZORTH3 stays a self-contained arithmetic kernel with no domain coupling.
+fprint-bozorth3 = { workspace = true }
+
+[lints]
+workspace = true

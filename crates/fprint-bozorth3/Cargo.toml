@@ -10,6 +10,7 @@ rust-version.workspace = true
 # The NBIS lineage is recorded as provenance, not as a licence — see ARCHITECTURE.md §Provenance.
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "biometrics", "bozorth3", "nbis", "matcher"]

@@ -2,20 +2,18 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The minutiae detector a host-image driver uses — the seam onto [`fprint_mindtct`].
+//! The minutiae detector seam — the front half of the pipeline, onto [`fprint_mindtct`].
 //!
-//! The front half of the host-image pipeline (`crate::matcher` is the back half): it turns a
-//! captured 8-bit grayscale frame into an [`fprint_core::Template::Nbis`] by calling
+//! It turns a captured 8-bit grayscale frame into an [`fprint_core::Template::Nbis`] by calling
 //! [`fprint_mindtct::detect_minutiae`] and converting each public-domain
-//! [`fprint_mindtct::Minutia`] into an [`fprint_core::Minutia`], so a driver can go
-//! **image → minutiae → match** end-to-end.
+//! [`fprint_mindtct::Minutia`] into an [`fprint_core::Minutia`], so a caller can go
+//! **image → minutiae → match** end-to-end (the back half is [`crate::matcher`]).
 //!
 //! The conversion lives here rather than in `fprint-mindtct`: that crate is a self-contained,
 //! dependency-free public-domain kernel that does not know `fprint-core`, and the only thing
 //! crossing the boundary is the `xyt` triple — an interoperability *fact*, not a code coupling.
-//! Keeping the `Minutia → fprint_core::Minutia` mapping on the permissive
-//! (`fprint-backend-native`) side lets the PD detector and PD matcher each define their own
-//! `Minutia`.
+//! Keeping the `Minutia → fprint_core::Minutia` mapping in this pipeline crate lets the PD detector
+//! and PD matcher each define their own `Minutia`.
 
 use fprint_core::{Minutia, Template};
 

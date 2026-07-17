@@ -21,9 +21,12 @@
 //! "One operation in flight" is enforced by inspecting the stored pump task: a new start is
 //! refused while the previous pump is still running.
 
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 
-use fprint_core::{DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, Print};
+use fprint_core::{
+    DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, FingerStatus, Print,
+};
 use tokio::sync::oneshot;
 use zbus::object_server::SignalEmitter;
 
@@ -89,6 +92,11 @@ pub struct Device {
     /// The watcher outlives the method that spawned it, and zbus owns the `Device` itself.
     claim: Arc<Mutex<Option<Session>>>,
     active: Arc<Mutex<Option<ActiveOp>>>,
+    /// Live finger-presence status ([`FingerStatus`] bits), driving the `finger-present` /
+    /// `finger-needed` properties. Updated by the enroll / verify / identify pump as the backend
+    /// reports it, and reset to [`FingerStatus::NONE`] when no operation is streaming it; `Arc` so
+    /// the detached pump task shares it with the interface object zbus owns.
+    finger_status: Arc<AtomicU8>,
 }
 
 impl Device {
@@ -107,12 +115,18 @@ impl Device {
             authz,
             claim: Arc::new(Mutex::new(None)),
             active: Arc::new(Mutex::new(None)),
+            finger_status: Arc::new(AtomicU8::new(FingerStatus::NONE.bits())),
         }
     }
 
     /// The shape as currently known. Safe to hold across an `.await`.
     fn info(&self) -> Arc<DeviceInfo> {
         self.info.lock().unwrap().clone()
+    }
+
+    /// The live finger-presence status the enroll pump last reported (see [`Device::finger_present`]).
+    fn live_finger_status(&self) -> FingerStatus {
+        FingerStatus::from_bits_truncate(self.finger_status.load(Ordering::Relaxed))
     }
 
     // --- claim / session helpers ------------------------------------------------------
@@ -263,17 +277,21 @@ impl Device {
         }
     }
 
-    /// Whether a finger is on the sensor. `fprint_core` does not surface live finger-status
-    /// events, so this is always `false`.
+    /// Whether a finger is on the sensor.
+    ///
+    /// Reflects the live [`FingerStatus`] the backend reports during an enroll, verify, or identify
+    /// operation; that operation's pump updates it and emits a change signal, driving the desktop's
+    /// "touch the sensor" prompts. Between operations it is [`FingerStatus::NONE`], so this reads
+    /// `false`.
     #[zbus(property, name = "finger-present")]
     async fn finger_present(&self) -> bool {
-        false
+        self.live_finger_status().contains(FingerStatus::PRESENT)
     }
 
     /// Whether the sensor is waiting for a finger (see [`Device::finger_present`]).
     #[zbus(property, name = "finger-needed")]
     async fn finger_needed(&self) -> bool {
-        false
+        self.live_finger_status().contains(FingerStatus::NEEDED)
     }
 
     // --- anytime / auto-claim methods -------------------------------------------------
@@ -507,8 +525,9 @@ impl Device {
         let handle = self.handle.clone();
         let owned = emitter.to_owned();
         let pump_emitter = owned.clone();
+        let finger_status = self.finger_status.clone();
         let task = tokio::spawn(async move {
-            run_verify(handle, pump_emitter, op, stop_rx).await;
+            run_verify(handle, pump_emitter, op, finger_status, stop_rx).await;
         });
         self.set_active(ActiveOp {
             kind: OpKind::Verify,
@@ -558,6 +577,7 @@ impl Device {
         let store = self.store.clone();
         let driver = info.driver.clone();
         let device_id = info.id.clone();
+        let finger_status = self.finger_status.clone();
         let task = tokio::spawn(async move {
             run_enroll(EnrollPump {
                 handle,
@@ -568,6 +588,7 @@ impl Device {
                 user,
                 driver,
                 device_id,
+                finger_status,
                 stop_rx,
             })
             .await;
@@ -648,13 +669,16 @@ async fn run_verify(
     handle: DeviceHandle,
     emitter: SignalEmitter<'static>,
     op: VerifyOp,
+    finger_status: Arc<AtomicU8>,
     stop_rx: oneshot::Receiver<()>,
 ) {
     match op {
         VerifyOp::Single { print, finger } => {
-            verify_loop(handle, emitter, print, finger, stop_rx).await
+            verify_loop(handle, emitter, print, finger, finger_status, stop_rx).await
         }
-        VerifyOp::Identify { gallery } => identify_loop(handle, emitter, gallery, stop_rx).await,
+        VerifyOp::Identify { gallery } => {
+            identify_loop(handle, emitter, gallery, finger_status, stop_rx).await
+        }
     }
 }
 
@@ -663,23 +687,32 @@ async fn verify_loop(
     emitter: SignalEmitter<'static>,
     print: Print,
     finger: Finger,
+    finger_status: Arc<AtomicU8>,
     mut stop_rx: oneshot::Receiver<()>,
 ) {
     loop {
         let (cancel_tx, cancel_rx) = oneshot::channel();
-        let (reply_tx, reply_rx) = oneshot::channel();
+        let (reply_tx, mut reply_rx) = oneshot::channel();
+        let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(8);
         let cmd = DeviceCommand::Verify {
             enrolled: print.clone(),
+            status: status_tx,
             cancel: cancel_rx,
             reply: reply_tx,
         };
         if handle.send(cmd).await.is_err() {
-            return;
+            break;
         }
 
-        let result = tokio::select! {
-            r = reply_rx => r,
-            _ = &mut stop_rx => { drop(cancel_tx); return; }
+        // Wait for the outcome, publishing live finger status as it streams in.
+        let result = loop {
+            tokio::select! {
+                r = &mut reply_rx => break r,
+                _ = &mut stop_rx => { drop(cancel_tx); publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await; return; }
+                Some(s) = status_rx.recv() => {
+                    publish_finger_status(&finger_status, &emitter, s).await;
+                }
+            }
         };
         drop(cancel_tx);
 
@@ -692,45 +725,58 @@ async fn verify_loop(
                 }
                 let (s, done) = status::verify_match(outcome.matched);
                 let _ = Device::verify_status(&emitter, s, done).await;
-                return;
+                break;
             }
             Ok(Err(Error::RetryScan(reason))) => {
                 let (s, done) = status::verify_retry(reason);
                 let _ = Device::verify_status(&emitter, s, done).await;
+                // The finger lifted between attempts; the next attempt re-reports presence.
+                publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await;
                 // loop: re-issue the verify
             }
             Ok(Err(e)) => {
                 let (s, done) = status::verify_error(&e);
                 let _ = Device::verify_status(&emitter, s, done).await;
-                return;
+                break;
             }
-            Err(_) => return, // actor gone
+            Err(_) => break, // actor gone
         }
     }
+
+    // The operation is over: the sensor is no longer reporting finger presence.
+    publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await;
 }
 
 async fn identify_loop(
     handle: DeviceHandle,
     emitter: SignalEmitter<'static>,
     gallery: Vec<(Finger, Print)>,
+    finger_status: Arc<AtomicU8>,
     mut stop_rx: oneshot::Receiver<()>,
 ) {
     let prints: Vec<Print> = gallery.iter().map(|(_, p)| p.clone()).collect();
     loop {
         let (cancel_tx, cancel_rx) = oneshot::channel();
-        let (reply_tx, reply_rx) = oneshot::channel();
+        let (reply_tx, mut reply_rx) = oneshot::channel();
+        let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(8);
         let cmd = DeviceCommand::Identify {
             gallery: prints.clone(),
+            status: status_tx,
             cancel: cancel_rx,
             reply: reply_tx,
         };
         if handle.send(cmd).await.is_err() {
-            return;
+            break;
         }
 
-        let result = tokio::select! {
-            r = reply_rx => r,
-            _ = &mut stop_rx => { drop(cancel_tx); return; }
+        let result = loop {
+            tokio::select! {
+                r = &mut reply_rx => break r,
+                _ = &mut stop_rx => { drop(cancel_tx); publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await; return; }
+                Some(s) = status_rx.recv() => {
+                    publish_finger_status(&finger_status, &emitter, s).await;
+                }
+            }
         };
         drop(cancel_tx);
 
@@ -747,20 +793,23 @@ async fn identify_loop(
                 }
                 let (s, done) = status::verify_match(matched_finger.is_some());
                 let _ = Device::verify_status(&emitter, s, done).await;
-                return;
+                break;
             }
             Ok(Err(Error::RetryScan(reason))) => {
                 let (s, done) = status::verify_retry(reason);
                 let _ = Device::verify_status(&emitter, s, done).await;
+                publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await;
             }
             Ok(Err(e)) => {
                 let (s, done) = status::verify_error(&e);
                 let _ = Device::verify_status(&emitter, s, done).await;
-                return;
+                break;
             }
-            Err(_) => return,
+            Err(_) => break,
         }
     }
+
+    publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await;
 }
 
 /// Everything the enroll pump needs: the actor `handle`, the signal `emitter`, the `template`
@@ -775,11 +824,18 @@ struct EnrollPump {
     user: String,
     driver: DriverId,
     device_id: DeviceId,
+    /// Shared with the [`Device`] object: the live [`FingerStatus`] backing `finger-present` /
+    /// `finger-needed`. The pump writes each progress report's status here and signals the change.
+    finger_status: Arc<AtomicU8>,
     stop_rx: oneshot::Receiver<()>,
 }
 
 /// The enroll pump: forward progress as `EnrollStatus`, then save the finished print and
 /// report `enroll-completed` / `enroll-failed`, or map a terminal error.
+///
+/// Along the way it publishes each report's live [`FingerStatus`] to the `finger-present` /
+/// `finger-needed` properties, and clears it to [`FingerStatus::NONE`] when the pump ends — the
+/// sensor is no longer streaming presence once the operation is over.
 async fn run_enroll(pump: EnrollPump) {
     let EnrollPump {
         handle,
@@ -790,11 +846,12 @@ async fn run_enroll(pump: EnrollPump) {
         user,
         driver,
         device_id,
+        finger_status,
         mut stop_rx,
     } = pump;
 
     let (prog_tx, mut prog_rx) = tokio::sync::mpsc::channel(8);
-    // `_cancel_tx` is held for the whole pump: dropping it (on any `return`) tells the actor
+    // `_cancel_tx` is held for the whole pump: dropping it (on any exit) tells the actor
     // to cancel the in-flight enroll (ARCHITECTURE.md principle 4).
     let (_cancel_tx, cancel_rx) = oneshot::channel();
     let (reply_tx, mut reply_rx) = oneshot::channel();
@@ -812,10 +869,11 @@ async fn run_enroll(pump: EnrollPump) {
     let mut prog_open = true;
     loop {
         tokio::select! {
-            _ = &mut stop_rx => return,
+            _ = &mut stop_rx => break,
             maybe = prog_rx.recv(), if prog_open => {
                 match maybe {
                     Some(p) => {
+                        publish_finger_status(&finger_status, &emitter, p.finger_status).await;
                         if let Some(s) = status::enroll_progress(&p) {
                             let _ = Device::enroll_status(&emitter, s, false).await;
                         }
@@ -837,12 +895,39 @@ async fn run_enroll(pump: EnrollPump) {
                         }
                     }
                     Ok(Err(e)) => status::enroll_error(&e),
-                    Err(_) => return, // actor gone
+                    Err(_) => break, // actor gone
                 };
                 let _ = Device::enroll_status(&emitter, status, true).await;
-                return;
+                break;
             }
         }
+    }
+
+    // The operation is over: the sensor is no longer reporting finger presence.
+    publish_finger_status(&finger_status, &emitter, FingerStatus::NONE).await;
+}
+
+/// Publish a finger-status change to the `finger-present` / `finger-needed` properties: store the
+/// new bits and, if they changed, emit `PropertiesChanged` from the live `Device` object.
+///
+/// Best-effort — if the interface is already gone (the object was torn down) the emission is simply
+/// skipped; the stored value is what the property getter reads regardless.
+async fn publish_finger_status(
+    status: &AtomicU8,
+    emitter: &SignalEmitter<'static>,
+    new: FingerStatus,
+) {
+    let previous = status.swap(new.bits(), Ordering::Relaxed);
+    if previous == new.bits() {
+        return;
+    }
+    let server = emitter.connection().object_server();
+    if let Ok(iface) = server.interface::<_, Device>(emitter.path()).await {
+        // The generated `*_changed` emitters re-read the getters (which read the value just stored)
+        // and emit `PropertiesChanged`; the pump's own `emitter` carries the right path.
+        let device = iface.get_mut().await;
+        let _ = device.finger_present_changed(emitter).await;
+        let _ = device.finger_needed_changed(emitter).await;
     }
 }
 

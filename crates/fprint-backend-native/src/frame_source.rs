@@ -5,7 +5,7 @@
 //! [`FrameSource`]: the capture seam an [`crate::ImageDevice`] drives.
 //!
 //! The one hardware-facing abstraction of the host-image pipeline: everything above it
-//! (detect → match, in `crate::detector` / `crate::matcher`) is pure and deterministic, and
+//! (detect → match, in `fprint_pipeline`) is pure and deterministic, and
 //! everything a real sensor does — arm the reader, wait for a finger, hand back a frame — lives
 //! behind [`FrameSource::capture`]. Implementors that need no bring-up (such as
 //! [`crate::SyntheticFrameSource`]) inherit the default no-op [`arm`](FrameSource::arm) /

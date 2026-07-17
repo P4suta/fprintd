@@ -483,15 +483,98 @@ pub fn run(options: &ProbeOptions) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    // HW-verified: required. Live USB enumeration needs a real device on the bus and belongs to a
-    // later phase; probe stays offline and deterministic until then.
-    // TODO(phase-1): enumerate the bus and classify each device found.
-    eprintln!(
-        "fpdev probe: live USB enumeration is not wired yet.\n\
-         Pass --vid <hex> --pid <hex> to classify a specific device offline, or --all to list the\n\
-         known-device database."
-    );
+    // No selector: enumerate the live bus and classify each device found. Enumeration opens no
+    // endpoint, so it is verifiable on any host — but it needs the `usb` feature's transport.
+    #[cfg(feature = "usb")]
+    {
+        run_live(options.json, color)
+    }
+    #[cfg(not(feature = "usb"))]
+    {
+        eprintln!(
+            "fpdev probe: live USB enumeration needs the `usb` feature.\n\
+             Rebuild with `--features usb`, or pass --vid <hex> --pid <hex> to classify a device\n\
+             offline, or --all to list the known-device database."
+        );
+        Ok(())
+    }
+}
+
+/// Enumerate the attached USB devices and classify each against the interoperability database.
+///
+/// A read-only bus listing (it opens nothing), so it runs on any host with USB devices — the one
+/// live-USB path that needs no specific sensor.
+#[cfg(feature = "usb")]
+fn run_live(json: bool, color: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let devices = fprint_backend_native::list_usb_devices()?;
+    if json {
+        let rows: Vec<serde_json::Value> = devices.iter().map(live_json).collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!(rows))?
+        );
+    } else {
+        print!("{}", render_live(&devices, color));
+    }
     Ok(())
+}
+
+/// One enumerated device as JSON: its offline classification plus the descriptor strings the OS
+/// reported.
+#[cfg(feature = "usb")]
+fn live_json(dev: &fprint_backend_native::UsbDeviceInfo) -> serde_json::Value {
+    let mut row = ProbeReport::new(dev.id.vid, dev.id.pid).to_json();
+    if let Some(obj) = row.as_object_mut() {
+        obj.insert("manufacturer".into(), dev.manufacturer.clone().into());
+        obj.insert("product".into(), dev.product.clone().into());
+    }
+    row
+}
+
+/// Render the live enumeration: one line per attached device, classified, plus a `next:` hint for
+/// the first host-image candidate. `color` gates ANSI styling.
+#[cfg(feature = "usb")]
+fn render_live(devices: &[fprint_backend_native::UsbDeviceInfo], color: bool) -> String {
+    let p = Palette::new(color);
+    let mut out = String::new();
+    let _ = writeln!(out, "{}", "fpdev probe · live bus".style(p.head));
+    let _ = writeln!(out);
+
+    if devices.is_empty() {
+        let _ = writeln!(out, "  {}", "no USB devices found on the bus".style(p.dim));
+        return out;
+    }
+
+    for dev in devices {
+        let report = ProbeReport::new(dev.id.vid, dev.id.pid);
+        let label = dev
+            .product
+            .as_deref()
+            .or(report.driver)
+            .unwrap_or("(no product string)");
+        let mark = match report.reach() {
+            Reach::HostImageSeam => "✓".style(p.ok).to_string(),
+            _ => "·".style(p.dim).to_string(),
+        };
+        let _ = writeln!(
+            out,
+            "  {mark} {}   {}   {}",
+            report.id().style(p.id),
+            report.family.label().style(p.family(report.family)),
+            label.style(p.dim),
+        );
+    }
+
+    // Point the author at the first device the host-image seam can reach.
+    if let Some(hit) = devices
+        .iter()
+        .map(|d| ProbeReport::new(d.id.vid, d.id.pid))
+        .find(|r| matches!(r.reach(), Reach::HostImageSeam))
+    {
+        let _ = writeln!(out);
+        let _ = writeln!(out, "  {}  {}", "next".style(p.key), hit.next_hint());
+    }
+    out
 }
 
 #[cfg(test)]

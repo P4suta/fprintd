@@ -20,8 +20,8 @@
 //!
 //! let print = Print::builder()
 //!     .template(Template::Nbis(vec![vec![Minutia { x: 12, y: 34, theta: 90 }]]))
-//!     .finger(Some(Finger::RightIndex))
-//!     .username(Some("alice".into()))
+//!     .finger(Finger::RightIndex)
+//!     .username("alice".to_string())
 //!     .build();
 //!
 //! let bytes: Vec<u8> = fprint_fp3::to_bytes(&print)?;

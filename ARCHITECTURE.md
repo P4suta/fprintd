@@ -38,8 +38,12 @@ library underneath.
   fprint-backend-* (leaves)  fprint-backend-libfprint (FFI shim, !Send) · fprint-backend-native
         │                    each implements fprint-core's traits
         ▼
+  fprint-pipeline (lib)      host-image glue: image → minutiae → template → match
+        │                    joins the two NBIS kernels + fprint-core; the published front door
+        ▼
   fprint-core (lib)          domain model + Backend/Device traits
                              zero dependencies · #![forbid(unsafe_code)]
+    fprint-mindtct · fprint-bozorth3 (kernels)   dependency-free NBIS ports, below the pipeline
 
   fprint-integration      the ONLY layer that may know every backend
                           CompositeBackend / enum CompositeDevice { Native, Shim }
@@ -121,7 +125,7 @@ dependency arrows stay pointed down.
 Why hand-written and not `enum_dispatch`: the core trait uses native `async fn` in trait,
 whose per-impl return futures are not `dyn`-object-safe, so a dispatch macro built around
 object-safety is the wrong tool; the `Shim` arm is also `#[cfg(target_os = "linux")]`-gated,
-which a hand `match` expresses trivially, and the whole delegation is ten four-line arms.
+which a hand `match` expresses trivially, and the whole delegation is one short `match` per method.
 
 ### fprintd compatibility, not libfprint compatibility
 
@@ -249,8 +253,9 @@ the GPL projects around us; GPL code could not flow back. Coexistence points the
 | `fprint-fp3` | FP3 print (de)serialization codec (edge translator) | any | **`fprint-core` only** — GVariant hand-rolled |
 | `fprint-bozorth3` | BOZORTH3 minutiae matcher (original port from public-domain NBIS) | any | **none** — self-contained arithmetic kernel |
 | `fprint-mindtct` | MINDTCT minutiae detector (original port from public-domain NBIS) | any | **none** — self-contained image-processing kernel |
+| `fprint-pipeline` | host-image glue (image→minutiae→template→match); the published front door for matching | any | `fprint-core`, `fprint-mindtct`, `fprint-bozorth3` — owns the boundary conversions |
 | `fprint-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
-| `fprint-backend-native` | virtual device + host-image matching (image→minutiae→match via `fprint-mindtct`/`fprint-bozorth3`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-mindtct`, `fprint-bozorth3`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
+| `fprint-backend-native` | virtual device + host-image `Device` (matching via `fprint-pipeline`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-pipeline`, `fprint-mindtct`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
 | *integration* (`fprint-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
 | `fprintd` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
 

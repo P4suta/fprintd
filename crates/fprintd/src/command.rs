@@ -14,7 +14,9 @@
 //! against `cancel`, and dropping the future cancels it. The sender drops `cancel`'s
 //! counterpart (or sends `()`), and the actor stops.
 
-use fprint_core::{DeviceInfo, EnrollProgress, Error, IdentifyOutcome, Print, VerifyOutcome};
+use fprint_core::{
+    DeviceInfo, EnrollProgress, Error, FingerStatus, IdentifyOutcome, Print, VerifyOutcome,
+};
 use tokio::sync::{mpsc, oneshot};
 
 /// A unit of work handed to a device actor. The `reply` oneshot delivers the outcome.
@@ -40,15 +42,19 @@ pub enum DeviceCommand {
         cancel: oneshot::Receiver<()>,
         reply: oneshot::Sender<Result<Print, Error>>,
     },
-    /// Verify a single scan against one `enrolled` print (1:1).
+    /// Verify a single scan against one `enrolled` print (1:1), streaming live finger-presence
+    /// over `status`.
     Verify {
         enrolled: Print,
+        status: mpsc::Sender<FingerStatus>,
         cancel: oneshot::Receiver<()>,
         reply: oneshot::Sender<Result<VerifyOutcome, Error>>,
     },
-    /// Identify a single scan against a `gallery` of prints (1:N).
+    /// Identify a single scan against a `gallery` of prints (1:N), streaming live finger-presence
+    /// over `status`.
     Identify {
         gallery: Vec<Print>,
+        status: mpsc::Sender<FingerStatus>,
         cancel: oneshot::Receiver<()>,
         reply: oneshot::Sender<Result<IdentifyOutcome, Error>>,
     },

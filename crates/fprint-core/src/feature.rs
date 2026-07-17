@@ -71,6 +71,18 @@ impl DeviceFeature {
         self.0 & other.0 == other.0
     }
 
+    /// Whether no flag is set (equal to [`DeviceFeature::NONE`]).
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether `self` and `other` share any flag.
+    #[must_use]
+    pub const fn intersects(self, other: DeviceFeature) -> bool {
+        self.0 & other.0 != 0
+    }
+
     /// Whether this looks like a match-on-chip device (persistent on-sensor storage).
     #[must_use]
     pub const fn is_match_on_chip(self) -> bool {
@@ -120,6 +132,43 @@ impl core::ops::BitOr for DeviceFeature {
 impl core::ops::BitOrAssign for DeviceFeature {
     fn bitor_assign(&mut self, rhs: DeviceFeature) {
         self.0 |= rhs.0;
+    }
+}
+
+impl core::ops::BitAnd for DeviceFeature {
+    type Output = DeviceFeature;
+    /// Set intersection: the flags in both sets.
+    fn bitand(self, rhs: DeviceFeature) -> DeviceFeature {
+        DeviceFeature(self.0 & rhs.0)
+    }
+}
+
+impl core::ops::BitAndAssign for DeviceFeature {
+    fn bitand_assign(&mut self, rhs: DeviceFeature) {
+        self.0 &= rhs.0;
+    }
+}
+
+impl core::ops::Sub for DeviceFeature {
+    type Output = DeviceFeature;
+    /// Set difference: the flags in `self` that are not in `rhs` (`self & !rhs`).
+    fn sub(self, rhs: DeviceFeature) -> DeviceFeature {
+        DeviceFeature(self.0 & !rhs.0)
+    }
+}
+
+impl core::ops::SubAssign for DeviceFeature {
+    fn sub_assign(&mut self, rhs: DeviceFeature) {
+        self.0 &= !rhs.0;
+    }
+}
+
+impl core::ops::Not for DeviceFeature {
+    type Output = DeviceFeature;
+    /// Set complement **within the defined flags** — unknown/high bits never appear, so
+    /// `!!x == x` for every representable set.
+    fn not(self) -> DeviceFeature {
+        DeviceFeature(defined_bits() & !self.0)
     }
 }
 
@@ -178,10 +227,31 @@ impl FingerStatus {
         self.0
     }
 
+    /// The defined flags, `NEEDED | PRESENT` — the mask the complement stays within.
+    const DEFINED_BITS: u8 = FingerStatus::NEEDED.0 | FingerStatus::PRESENT.0;
+
+    /// Build from a raw bitmask, keeping only the defined `NEEDED`/`PRESENT` bits.
+    #[must_use]
+    pub const fn from_bits_truncate(bits: u8) -> FingerStatus {
+        FingerStatus(bits & FingerStatus::DEFINED_BITS)
+    }
+
     /// True iff every bit in `other` is set in `self`.
     #[must_use]
     pub const fn contains(self, other: FingerStatus) -> bool {
         self.0 & other.0 == other.0
+    }
+
+    /// Whether no flag is set (equal to [`FingerStatus::NONE`]).
+    #[must_use]
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether `self` and `other` share any flag.
+    #[must_use]
+    pub const fn intersects(self, other: FingerStatus) -> bool {
+        self.0 & other.0 != 0
     }
 }
 
@@ -195,6 +265,42 @@ impl core::ops::BitOr for FingerStatus {
 impl core::ops::BitOrAssign for FingerStatus {
     fn bitor_assign(&mut self, rhs: FingerStatus) {
         self.0 |= rhs.0;
+    }
+}
+
+impl core::ops::BitAnd for FingerStatus {
+    type Output = FingerStatus;
+    /// Set intersection: the flags in both sets.
+    fn bitand(self, rhs: FingerStatus) -> FingerStatus {
+        FingerStatus(self.0 & rhs.0)
+    }
+}
+
+impl core::ops::BitAndAssign for FingerStatus {
+    fn bitand_assign(&mut self, rhs: FingerStatus) {
+        self.0 &= rhs.0;
+    }
+}
+
+impl core::ops::Sub for FingerStatus {
+    type Output = FingerStatus;
+    /// Set difference: the flags in `self` that are not in `rhs` (`self & !rhs`).
+    fn sub(self, rhs: FingerStatus) -> FingerStatus {
+        FingerStatus(self.0 & !rhs.0)
+    }
+}
+
+impl core::ops::SubAssign for FingerStatus {
+    fn sub_assign(&mut self, rhs: FingerStatus) {
+        self.0 &= !rhs.0;
+    }
+}
+
+impl core::ops::Not for FingerStatus {
+    type Output = FingerStatus;
+    /// Set complement **within the defined flags** (`NEEDED`/`PRESENT`), so `!!x == x`.
+    fn not(self) -> FingerStatus {
+        FingerStatus(FingerStatus::DEFINED_BITS & !self.0)
     }
 }
 
@@ -318,6 +424,46 @@ mod tests {
         }
     }
 
+    /// The intersection / difference / complement operators obey the set laws, over every one of
+    /// the 1024 representable `DeviceFeature` sets (and, for the binary ops, all pairs).
+    #[test]
+    fn bitand_sub_not_obey_the_set_laws() {
+        let all = DeviceFeature::from_bits_truncate(u32::from(defined_bits()));
+        for a_bits in 0..=defined_bits() {
+            let a = DeviceFeature::from_bits_truncate(u32::from(a_bits));
+
+            // Complement stays within the defined flags and is an involution.
+            assert!((a & !a).is_empty(), "a & !a must be empty for {a:?}");
+            assert_eq!(a | !a, all, "a | !a must be every defined flag for {a:?}");
+            assert_eq!(!!a, a, "double complement is identity for {a:?}");
+            assert_eq!(a.is_empty(), a == DeviceFeature::NONE, "is_empty for {a:?}");
+
+            for b_bits in 0..=defined_bits() {
+                let b = DeviceFeature::from_bits_truncate(u32::from(b_bits));
+
+                assert_eq!(a & b, b & a, "intersection commutes for {a:?}, {b:?}");
+                assert_eq!(
+                    a.intersects(b),
+                    !(a & b).is_empty(),
+                    "intersects agrees with & for {a:?}, {b:?}"
+                );
+                // Difference clears exactly b's bits from a, and with the intersection partitions a.
+                let diff = a - b;
+                assert!(!diff.intersects(b), "a - b keeps no b bit for {a:?}, {b:?}");
+                assert_eq!(diff, a & !b, "a - b == a & !b for {a:?}, {b:?}");
+                assert_eq!(diff | (a & b), a, "difference and intersection partition a");
+
+                // The assigning forms agree with the operators.
+                let mut and_acc = a;
+                and_acc &= b;
+                assert_eq!(and_acc, a & b, "&= agrees for {a:?}, {b:?}");
+                let mut sub_acc = a;
+                sub_acc -= b;
+                assert_eq!(sub_acc, a - b, "-= agrees for {a:?}, {b:?}");
+            }
+        }
+    }
+
     /// `BitOrAssign` agrees with `BitOr` over all 100 pairs — the two must not drift apart.
     #[test]
     fn bitor_assign_agrees_with_bitor() {
@@ -360,5 +506,46 @@ mod tests {
         let both = FingerStatus::NEEDED | FingerStatus::PRESENT;
         assert_eq!(both.bits(), 0b11);
         assert!(!FingerStatus::NEEDED.contains(FingerStatus::PRESENT));
+    }
+
+    /// [`FingerStatus`]'s intersection / difference / complement obey the same set laws.
+    #[test]
+    fn finger_status_bitand_sub_not_obey_the_set_laws() {
+        const THREE: [FingerStatus; 4] = [
+            FingerStatus::NONE,
+            FingerStatus::NEEDED,
+            FingerStatus::PRESENT,
+            FingerStatus(0b11),
+        ];
+        let all = FingerStatus::NEEDED | FingerStatus::PRESENT;
+        // Truncation keeps the defined bits and drops the rest, and round-trips every defined set.
+        assert_eq!(FingerStatus::from_bits_truncate(0xFF), all);
+        assert_eq!(FingerStatus::from_bits_truncate(0b100), FingerStatus::NONE);
+        for a in THREE {
+            assert_eq!(
+                FingerStatus::from_bits_truncate(a.bits()),
+                a,
+                "round-trip {a:?}"
+            );
+            assert!((a & !a).is_empty(), "a & !a must be empty for {a:?}");
+            assert_eq!(a | !a, all, "a | !a must be every defined flag for {a:?}");
+            assert_eq!(!!a, a, "double complement is identity for {a:?}");
+            assert_eq!(a.is_empty(), a == FingerStatus::NONE, "is_empty for {a:?}");
+            for b in THREE {
+                assert_eq!(a & b, b & a, "intersection commutes for {a:?}, {b:?}");
+                assert_eq!(
+                    a.intersects(b),
+                    !(a & b).is_empty(),
+                    "intersects for {a:?}, {b:?}"
+                );
+                assert_eq!(a - b, a & !b, "a - b == a & !b for {a:?}, {b:?}");
+                let mut acc = a;
+                acc &= b;
+                assert_eq!(acc, a & b, "&= agrees for {a:?}, {b:?}");
+                acc = a;
+                acc -= b;
+                assert_eq!(acc, a - b, "-= agrees for {a:?}, {b:?}");
+            }
+        }
     }
 }

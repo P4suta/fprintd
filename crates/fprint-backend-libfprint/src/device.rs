@@ -13,13 +13,13 @@
 use core::ffi::c_void;
 
 use fprint_core::{
-    Device, DeviceFeature, DeviceInfo, EnrollProgress, Error, IdentifyOutcome, Print, Result,
-    VerifyOutcome,
+    Device, DeviceFeature, DeviceInfo, EnrollProgress, Error, FingerStatus, IdentifyOutcome, Print,
+    Result, VerifyOutcome,
 };
 use gio::Cancellable;
-use libfprint_rs::{FpDevice, FpEnrollProgress, FpPrint};
+use libfprint_rs::{FpDevice, FpEnrollProgress, FpMatchCb, FpPrint};
 
-use crate::progress::{on_enroll_progress, Trampoline};
+use crate::progress::{on_enroll_progress, on_match_status, MatchTrampoline, Trampoline};
 use crate::{convert, print, storage};
 
 /// A fingerprint reader driven through the C libfprint.
@@ -98,14 +98,25 @@ impl Device for LibfprintDevice {
         print::fp_to_core(&enrolled)
     }
 
-    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        mut on_status: F,
+    ) -> Result<VerifyOutcome> {
         let fp = print::core_to_fp_for_match(enrolled)?;
         let mut scanned = FpPrint::new(&self.dev);
         self.cancel = Some(Cancellable::new());
 
-        let result =
-            self.dev
-                .verify_sync::<()>(&fp, self.cancel.clone(), None, None, Some(&mut scanned));
+        let mut trampoline = MatchTrampoline { cb: &mut on_status };
+        let user_data: *mut c_void = (&mut trampoline as *mut MatchTrampoline<'_, F>).cast();
+
+        let result = self.dev.verify_sync::<*mut c_void>(
+            &fp,
+            self.cancel.clone(),
+            Some(on_match_status::<F> as FpMatchCb<*mut c_void>),
+            Some(user_data),
+            Some(&mut scanned),
+        );
 
         self.cancel = None;
         let matched = result.map_err(convert::from_gerror)?;
@@ -118,7 +129,11 @@ impl Device for LibfprintDevice {
         ))
     }
 
-    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        mut on_status: F,
+    ) -> Result<IdentifyOutcome> {
         let fps = gallery
             .iter()
             .map(print::core_to_fp_for_match)
@@ -126,11 +141,14 @@ impl Device for LibfprintDevice {
         let mut scanned = FpPrint::new(&self.dev);
         self.cancel = Some(Cancellable::new());
 
-        let result = self.dev.identify_sync::<()>(
+        let mut trampoline = MatchTrampoline { cb: &mut on_status };
+        let user_data: *mut c_void = (&mut trampoline as *mut MatchTrampoline<'_, F>).cast();
+
+        let result = self.dev.identify_sync::<*mut c_void>(
             &fps,
             self.cancel.as_ref(),
-            None,
-            None,
+            Some(on_match_status::<F> as FpMatchCb<*mut c_void>),
+            Some(user_data),
             Some(&mut scanned),
         );
 

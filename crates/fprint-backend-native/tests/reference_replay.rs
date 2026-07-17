@@ -13,9 +13,9 @@
 use std::path::{Path, PathBuf};
 
 use fprint_backend_native::{
-    extract_minutiae, nbis_match_score, template_from_images, Capture, Frame, FrameSource,
-    ScriptedTransport, Session, UsbFrameSource, UsbTransfer,
+    Capture, Frame, FrameSource, ScriptedTransport, Session, UsbFrameSource, UsbTransfer,
 };
+use fprint_pipeline::{extract_minutiae, nbis_match_score, template_from_images};
 use fprint_testkit::block_on;
 
 /// The VFS5011 image endpoint. The scripted transport ignores it; the recorded transfer names it.

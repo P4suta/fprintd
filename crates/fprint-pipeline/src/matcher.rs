@@ -2,17 +2,16 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The NBIS-template matcher a host-image driver uses — the seam onto [`fprint_bozorth3`].
+//! The NBIS-template matcher seam — the back half of the pipeline, onto [`fprint_bozorth3`].
 //!
 //! It converts an [`fprint_core::Template::Nbis`] (host-side minutiae, one inner vector per
 //! enrolled capture) into `fprint_bozorth3::Minutia` and scores a probe against an enrolled
 //! template, taking the **maximum** score over enrolled samples — libfprint/NBIS's verify
 //! semantics.
 //!
-//! The [`VirtualDevice`](crate::VirtualDevice) instead uses a deterministic, non-biometric
-//! byte-equality stub (see `crate::synth`); image drivers match through this function. The
-//! conversion lives here rather than in `fprint-bozorth3` so the matcher stays a self-contained,
-//! dependency-free arithmetic kernel — the xyt triple is the only shared fact.
+//! The conversion lives here rather than in `fprint-bozorth3` so the matcher stays a self-contained,
+//! dependency-free arithmetic kernel — the `xyt` triple is the only shared fact. A match-on-chip
+//! `Raw` handle is opaque and never host-matched.
 
 use fprint_core::Template;
 

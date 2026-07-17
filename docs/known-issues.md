@@ -61,3 +61,27 @@ The NBIS fixture carries no biometric data: the frames fed to `virtual_image` ar
 from `fprint-mindtct`'s golden corpus (`loop_200x240.raw`, which stock NBIS resolves to 26 minutiae).
 Enrolling a real finger to fill this gap would put an irrevocable biometric in the repository, so it
 is not an option — see `SECURITY.md`.
+
+## Experimental native USB capture seam (unpublished, off by default)
+
+`fprint-backend-native`'s `usb` feature and the `fpdev` (`fprint-driverkit`) live-USB paths are a
+**worked example of a native host-image driver, not a working one**. Native drivers are an open
+invitation, never a project goal (`ARCHITECTURE.md` §Non-goals), so this is a **deliberate,
+hardware-gated boundary** — recorded here, not worked around. Both crates are `publish = false`; the
+feature is off by default, so nothing on crates.io reaches any of it.
+
+| id | site | what | removal condition |
+|---|---|---|---|
+| **HW-1** | `crates/fprint-backend-native/src/usb/vfs5011.rs` | The VFS5011 device constants and init/deinit handshake **bytes** (endpoints, `WIDTH`/`HEIGHT`/`PPI`, the reset/configure/stop transfers) are structurally plausible placeholders marked `HW-verified: required`; the module never asserts as fact a byte it has not observed on a sensor. | Confirm each value against a physical Validity VFS5011, replacing the placeholder with the observed byte. |
+| **HW-2** | `crates/fprint-backend-native/src/usb/transport.rs` (`NusbTransport`) | The real `nusb`-backed bulk/control transport renders the intended transfer calls but has done **no real I/O**; the exact `nusb` call shapes can only be confirmed against hardware. | Drive a real capture end-to-end through `NusbTransport` and reconcile the calls. |
+
+## Native USB capture seam — offline layers
+
+Everything above the two hardware-gated spots is exercised offline and is **complete**: the protocol framing
+(`usb::proto`), the scripted transport and cassette replay (`usb::scripted`, `usb::wire`), the
+`UsbFrameSource` → detect → match path (`crates/fprint-backend-native/tests/reference_replay.rs`),
+frame decode, and `fpdev`'s `probe`/`import`/`replay`/`frame`/`match`/`doctor` commands. Live bus
+**enumeration** (`fpdev probe` with no selector, `list_usb_devices`) is the one live-USB path that
+needs no specific sensor — it opens nothing — and is wired behind the `usb` feature. The seam
+graduates from worked-example to working driver when **HW-1** and **HW-2** are confirmed on a
+physical unit.

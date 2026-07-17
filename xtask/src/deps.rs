@@ -47,8 +47,17 @@ const ALLOWED: &[(&str, &[&str])] = &[
     ("xtask", &[]),
     ("fprint-fp3", &["fprint-core"]),
     (
-        "fprint-backend-native",
+        "fprint-pipeline",
         &["fprint-core", "fprint-bozorth3", "fprint-mindtct"],
+    ),
+    (
+        "fprint-backend-native",
+        &[
+            "fprint-core",
+            "fprint-bozorth3",
+            "fprint-mindtct",
+            "fprint-pipeline",
+        ],
     ),
     (
         "fprint-cli",
@@ -57,6 +66,7 @@ const ALLOWED: &[(&str, &[&str])] = &[
             "fprint-fp3",
             "fprint-bozorth3",
             "fprint-mindtct",
+            "fprint-pipeline",
             "fprint-backend-native",
         ],
     ),
@@ -66,6 +76,7 @@ const ALLOWED: &[(&str, &[&str])] = &[
             "fprint-core",
             "fprint-mindtct",
             "fprint-bozorth3",
+            "fprint-pipeline",
             "fprint-backend-native",
         ],
     ),
@@ -77,6 +88,7 @@ const ALLOWED: &[(&str, &[&str])] = &[
             "fprint-fp3",
             "fprint-bozorth3",
             "fprint-mindtct",
+            "fprint-pipeline",
             "fprint-backend-native",
             "fprint-backend-libfprint",
         ],

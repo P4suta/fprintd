@@ -6,6 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "fprintd", "gvariant", "fp3", "serialization"]
@@ -24,9 +25,9 @@ thiserror = "2"
 # above the domain model, so it may know a backend for testing; the backend stays
 # unaware of any wire format — ARCHITECTURE.md principle 3).
 fprint-backend-native = { workspace = true }
-# The nbis-match seam test also drives the real BOZORTH3 matcher through fprint-backend-native's
-# `nbis_match_score`, proving a Print(Nbis) survives FP3 and still scores as a match.
-fprint-bozorth3 = { workspace = true }
+# The nbis-match seam test drives the real BOZORTH3 matcher through the pipeline's `nbis_match_score`,
+# proving a Print(Nbis) survives FP3 and still scores as a match.
+fprint-pipeline = { workspace = true }
 # `Lcg` drives the property sweep and the malformed-blob mutation harness. Version-less so
 # `cargo publish` strips it: `fprint-testkit` is `publish = false`, and `cargo xtask publish-check`
 # proves it is absent from this crate's packaged manifest.

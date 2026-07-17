@@ -18,7 +18,7 @@
 //! [`DeviceCommand::Open`] (i.e. the first `Claim`), so the actor thread, not the daemon's
 //! runtime, is the only one that ever touches the reader.
 
-use fprint_core::{Backend, Device, DeviceId, DeviceInfo, EnrollProgress, Error};
+use fprint_core::{Backend, Device, DeviceId, DeviceInfo, EnrollProgress, Error, FingerStatus};
 use tokio::sync::mpsc;
 
 use crate::command::DeviceCommand;
@@ -122,28 +122,40 @@ where
             }
             DeviceCommand::Verify {
                 enrolled,
+                status,
                 cancel,
                 reply,
             } => {
                 let res = match dev.as_mut() {
-                    Some(d) => tokio::select! {
-                        r = d.verify(&enrolled) => r,
-                        _ = cancel => Err(Error::Cancelled),
-                    },
+                    Some(d) => {
+                        let mut on_status = |s: FingerStatus| {
+                            let _ = status.try_send(s);
+                        };
+                        tokio::select! {
+                            r = d.verify_with_status(&enrolled, &mut on_status) => r,
+                            _ = cancel => Err(Error::Cancelled),
+                        }
+                    }
                     None => Err(Error::ProtoState),
                 };
                 let _ = reply.send(res);
             }
             DeviceCommand::Identify {
                 gallery,
+                status,
                 cancel,
                 reply,
             } => {
                 let res = match dev.as_mut() {
-                    Some(d) => tokio::select! {
-                        r = d.identify(&gallery) => r,
-                        _ = cancel => Err(Error::Cancelled),
-                    },
+                    Some(d) => {
+                        let mut on_status = |s: FingerStatus| {
+                            let _ = status.try_send(s);
+                        };
+                        tokio::select! {
+                            r = d.identify_with_status(&gallery, &mut on_status) => r,
+                            _ = cancel => Err(Error::Cancelled),
+                        }
+                    }
                     None => Err(Error::ProtoState),
                 };
                 let _ = reply.send(res);

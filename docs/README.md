@@ -28,4 +28,5 @@ Historical and tracking documents; useful context, not entry points.
 - [`M0-ground-truth.md`](M0-ground-truth.md) — the measured SLOC of upstream libfprint /
   fprintd / NBIS and the sizing conclusions that set the shim-first strategy (research log).
 - [`known-issues.md`](known-issues.md) — tracked technical debt: shim FFI workarounds,
-  version pins, and FP3 byte-exactness verification status.
+  version pins, FP3 byte-exactness verification status, and the hardware-gated native USB
+  capture seam.

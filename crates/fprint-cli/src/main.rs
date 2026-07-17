@@ -24,11 +24,10 @@ use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand};
 
-use fprint_backend_native::{
-    nbis_match_score, template_from_images, Scenario, VirtualDeviceBuilder,
-};
+use fprint_backend_native::{Scenario, VirtualDeviceBuilder};
 use fprint_core::{Device, Finger, Minutia, Print, Template};
 use fprint_mindtct::GrayImage;
+use fprint_pipeline::{nbis_match_score, template_from_images};
 use pollster::block_on;
 
 /// Scan resolution stamped on synthetic frames, and the PGM default (500 ppi).

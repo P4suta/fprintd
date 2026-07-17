@@ -28,14 +28,18 @@ serde = ["dep:serde"]
 
 [dependencies]
 fprint-core = { workspace = true }
-# The pure-Rust minutiae matcher a real host-image driver uses to score NBIS templates. The virtual
-# device keeps its non-biometric byte-equality stub; `matcher::nbis_match_score` is the real seam,
-# exercised end-to-end (enroll -> FP3 -> match) by fprint-fp3's integration test.
-fprint-bozorth3 = { workspace = true }
-# The pure-Rust MINDTCT minutiae detector a real host-image driver runs on a captured frame. Its
-# public-domain xyt output is converted to `fprint_core::Minutia` in `detector`, closing the
-# image -> minutiae -> match loop (see `detector`, exercised end-to-end by tests/end_to_end.rs).
+# The published host-image pipeline: image -> minutiae -> template -> match. The virtual device keeps
+# its non-biometric byte-equality stub; the real host-image seam (`extract_minutiae`,
+# `template_from_images`, `nbis_match_score`, `nbis_identify`) lives in `fprint-pipeline` and is
+# re-exported here for this crate's own consumers. Exercised end-to-end by tests/end_to_end.rs and
+# fprint-fp3's integration test.
+fprint-pipeline = { workspace = true }
+# The pure-Rust MINDTCT detector, used directly for its borrowing `GrayImage` input type: a
+# `crate::Frame` is borrowed as a `GrayImage` for one detection pass (see `frame.rs`).
 fprint-mindtct = { workspace = true }
+# The pure-Rust BOZORTH3 matcher, named directly so the device/builder docs can link its match seam;
+# the scoring itself goes through `fprint-pipeline`.
+fprint-bozorth3 = { workspace = true }
 # The real USB transport, behind the optional `usb` feature only: a default build resolves the crate
 # graph but compiles no USB code. Our wrapper is `#![forbid(unsafe_code)]`; nusb's internal `unsafe`
 # is nusb's concern, quarantined to the leaf transport as `ARCHITECTURE.md` requires.

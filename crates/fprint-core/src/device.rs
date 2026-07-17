@@ -290,11 +290,40 @@ pub trait Device {
         on_progress: F,
     ) -> Result<Print>;
 
+    /// Verify a single scan against one `enrolled` print (1:1), reporting live finger-presence
+    /// through `on_status` as the sensor sees a finger arrive and leave.
+    ///
+    /// `on_status` is the verify-side counterpart of [`enroll`](Device::enroll)'s progress callback:
+    /// static dispatch, pushed to the caller, so the core stays `dyn`-free. A backend with no live
+    /// finger reporting simply never calls it.
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        on_status: F,
+    ) -> Result<VerifyOutcome>;
+
     /// Verify a single scan against one `enrolled` print (1:1).
-    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome>;
+    ///
+    /// The status-free convenience form of [`verify_with_status`](Device::verify_with_status), for
+    /// callers that do not drive finger-presence UI prompts.
+    async fn verify(&mut self, enrolled: &Print) -> Result<VerifyOutcome> {
+        self.verify_with_status(enrolled, |_| {}).await
+    }
+
+    /// Identify a single scan against a `gallery` of prints (1:N), reporting live finger-presence
+    /// through `on_status`.
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        on_status: F,
+    ) -> Result<IdentifyOutcome>;
 
     /// Identify a single scan against a `gallery` of prints (1:N).
-    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome>;
+    ///
+    /// The status-free convenience form of [`identify_with_status`](Device::identify_with_status).
+    async fn identify(&mut self, gallery: &[Print]) -> Result<IdentifyOutcome> {
+        self.identify_with_status(gallery, |_| {}).await
+    }
 
     /// List prints stored on the device (match-on-chip devices with `STORAGE`).
     async fn list_prints(&mut self) -> Result<Vec<Print>>;
@@ -331,7 +360,7 @@ pub trait Backend {
 mod tests {
     use super::{Device, DeviceId, DeviceInfo, DriverId, EnrollProgress, IdentifyOutcome};
     use crate::feature::FLAGS;
-    use crate::{DeviceFeature, Print, Result, ScanType, VerifyOutcome};
+    use crate::{DeviceFeature, FingerStatus, Print, Result, ScanType, VerifyOutcome};
 
     /// Carries a [`DeviceInfo`] and nothing else. Only `info` is ever called: [`Device::has_feature`]
     /// is a default method over it, so the sensor operations need no bodies to test it.
@@ -351,10 +380,18 @@ mod tests {
         async fn enroll<F: FnMut(EnrollProgress)>(&mut self, _: Print, _: F) -> Result<Print> {
             todo!("has_feature never scans")
         }
-        async fn verify(&mut self, _: &Print) -> Result<VerifyOutcome> {
+        async fn verify_with_status<F: FnMut(FingerStatus)>(
+            &mut self,
+            _: &Print,
+            _: F,
+        ) -> Result<VerifyOutcome> {
             todo!("has_feature never scans")
         }
-        async fn identify(&mut self, _: &[Print]) -> Result<IdentifyOutcome> {
+        async fn identify_with_status<F: FnMut(FingerStatus)>(
+            &mut self,
+            _: &[Print],
+            _: F,
+        ) -> Result<IdentifyOutcome> {
             todo!("has_feature never scans")
         }
         async fn list_prints(&mut self) -> Result<Vec<Print>> {

@@ -8,6 +8,7 @@ edition.workspace = true
 rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
 readme = "README.md"
 keywords = ["fingerprint", "libfprint", "ffi", "fprintd", "linux"]

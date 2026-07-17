@@ -15,7 +15,7 @@
 
 use core::ffi::c_void;
 
-use fprint_core::EnrollProgress;
+use fprint_core::{EnrollProgress, FingerStatus};
 use libfprint_rs::{FpDevice, FpPrint, GError};
 
 use crate::convert;
@@ -63,4 +63,40 @@ pub fn on_enroll_progress<F: FnMut(EnrollProgress)>(
         progress = progress.with_retry(reason);
     }
     (tramp.cb)(progress);
+}
+
+/// The caller's finger-status callback, ferried across FFI for verify/identify.
+///
+/// The verify-side counterpart of [`Trampoline`]: it carries only a `&mut F` because verify's one
+/// live intermediate signal is the finger-presence status (a retry is surfaced as an error result,
+/// not a report). Generic over the concrete closure type so [`on_match_status`] monomorphizes to a
+/// plain fn pointer.
+pub struct MatchTrampoline<'a, F> {
+    pub cb: &'a mut F,
+}
+
+/// The `FpMatchCb<*mut c_void>` libfprint invokes when a print is matched (or a retry occurs)
+/// during verify/identify. Reads the device's live finger-presence status and relays it, so the
+/// daemon can drive the `finger-present` / `finger-needed` prompts during a login the same way it
+/// does during enrollment.
+///
+/// Generic over `F` but takes none of it in its signature, so `on_match_status::<F>` monomorphizes
+/// to the exact fn pointer libfprint expects.
+pub fn on_match_status<F: FnMut(FingerStatus)>(
+    dev: &FpDevice,
+    _matched: Option<FpPrint>,
+    _print: FpPrint,
+    _error: Option<GError>,
+    data: &Option<*mut c_void>,
+) {
+    let Some(ptr) = *data else { return };
+
+    // SAFETY: identical contract to `on_enroll_progress` — `ptr` is the `&mut MatchTrampoline<'_, F>`
+    // handed to `fp_device_verify_sync` / `fp_device_identify_sync` as user data, `F` is the exact
+    // closure type this fn was monomorphized for, and libfprint runs the callback synchronously on
+    // the thread parked inside the `*_sync` call, strictly within the borrow's lifetime. No other
+    // alias exists and it never outlives the call, so reconstituting the `&mut` is sound.
+    let tramp: &mut MatchTrampoline<'_, F> = unsafe { &mut *ptr.cast::<MatchTrampoline<'_, F>>() };
+
+    (tramp.cb)(convert::finger_status(dev));
 }

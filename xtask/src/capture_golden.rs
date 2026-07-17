@@ -240,15 +240,13 @@ SPDX-License-Identifier = \"MIT OR Apache-2.0\"
 fn generated_test(driver: &str, kind: Recording) -> String {
     let (imports, consts, assemble) = match kind {
         Recording::Cassette => (
-            "extract_minutiae, nbis_match_score, template_from_images, Capture, Frame, FrameSource, \
-             ScriptedTransport, Session, UsbFrameSource, UsbTransfer,",
+            "Capture, Frame, FrameSource, ScriptedTransport, Session, UsbFrameSource, UsbTransfer,",
             "/// The VFS5011 image endpoint. The scripted transport ignores it; the recorded \
              transfer names it.\nconst EP_IN: u8 = 0x81;\n\n",
             CASSETTE_ASSEMBLE,
         ),
         Recording::Pgm => (
-            "extract_minutiae, nbis_match_score, template_from_images, Capture, FileFrameSource, \
-             Frame, FrameSource,",
+            "Capture, FileFrameSource, Frame, FrameSource,",
             "/// The scan resolution the file source stamps on the replayed frame (the NBIS \
              reference). The detector's thresholds are resolution-relative.\nconst PPI: u16 = \
              500;\n\n",
@@ -273,6 +271,7 @@ fn generated_test(driver: &str, kind: Recording) -> String {
          use std::path::{{Path, PathBuf}};\n\
          \n\
          use fprint_backend_native::{{{imports}}};\n\
+         use fprint_pipeline::{{extract_minutiae, nbis_match_score, template_from_images}};\n\
          use fprint_testkit::block_on;\n\
          \n\
          {consts}\

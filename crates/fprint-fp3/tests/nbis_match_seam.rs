@@ -6,14 +6,14 @@
 //! **FP3 on-disk round-trip** and still scores as a match under the **BOZORTH3** matcher.
 //!
 //! Ties together `fprint-core` (the domain `Print`/`Template::Nbis`), `fprint-fp3` (the wire codec),
-//! and `fprint-bozorth3` (the matcher, reached via `fprint-backend-native`'s `nbis_match_score`
-//! seam). It covers genuine fuzzy minutiae matching, which the virtual device's deterministic stub
-//! does not: enroll capture A, persist it as FP3, read it back, then match a *different* capture B
-//! of the same synthetic finger (small jitter) and confirm it clears a threshold, while an
-//! unrelated finger does not.
+//! and `fprint-bozorth3` (the matcher, reached via `fprint-pipeline`'s `nbis_match_score` seam). It
+//! covers genuine fuzzy minutiae matching, which the virtual device's deterministic stub does not:
+//! enroll capture A, persist it as FP3, read it back, then match a *different* capture B of the same
+//! synthetic finger (small jitter) and confirm it clears a threshold, while an unrelated finger does
+//! not.
 
-use fprint_backend_native::{nbis_identify, nbis_match_score};
 use fprint_core::{Minutia, Print, Template};
+use fprint_pipeline::{nbis_identify, nbis_match_score};
 
 /// A conventional BOZORTH3 accept threshold; a same-finger recapture clears it comfortably while an
 /// unrelated finger scores near zero.
@@ -71,9 +71,9 @@ fn jitter(pts: &[Minutia], seed: u64) -> Vec<Minutia> {
 fn nbis_print(samples: Vec<Vec<Minutia>>) -> Print {
     Print::builder()
         .template(Template::Nbis(samples))
-        .finger(Some(fprint_core::Finger::LeftIndex))
-        .driver(Some(fprint_core::DriverId::new("virtual_image")))
-        .device_id(Some(fprint_core::DeviceId::new("seam-test")))
+        .finger(fprint_core::Finger::LeftIndex)
+        .driver(fprint_core::DriverId::new("virtual_image"))
+        .device_id(fprint_core::DeviceId::new("seam-test"))
         .build()
 }
 

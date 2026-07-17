@@ -51,6 +51,7 @@ pub use source::UsbFrameSource;
 pub use transport::UsbTransport;
 pub use wire::{Session, UsbId, UsbTransfer};
 
-// The real transport is the sole feature-gated surface; the rest of the module is always built.
+// The real transport and live bus enumeration are the feature-gated surface; the rest of the module
+// is always built.
 #[cfg(feature = "usb")]
-pub use transport::NusbTransport;
+pub use transport::{list_usb_devices, NusbTransport, UsbDeviceInfo};

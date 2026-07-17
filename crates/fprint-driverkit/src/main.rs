@@ -4,10 +4,14 @@
 
 //! `fpdev`: the workbench for bringing up a native driver for an unsupported fingerprint sensor.
 //!
-//! Each subcommand is one phase of the bring-up. Today that is `probe` (Phase 0 — identify what a
-//! connected device is); later phases add capture, decode, and match iteration. The binary stays a
-//! thin clap shell — each subcommand parses its arguments and hands off to the matching module in
-//! the library.
+//! Each subcommand is one step of the bring-up, from identifying a device to shipping a driver:
+//! `probe` (identify a connected sensor), `new-driver` (scaffold a host-image driver), `shell`
+//! (poke a sensor over a control/bulk REPL), `import`/`record` (capture a USB session to a
+//! `.cassette`), `replay`/`frame` (inspect a recording, decode a frame to PNG), `match`/`doctor`
+//! (score captures, diagnose a frame's fitness for detection), and `ship` (package the driver).
+//! The offline-verifiable path is complete; the live-USB seam (`--features usb`) is
+//! hardware-gated — see `docs/known-issues.md`. The binary stays a thin clap shell: each subcommand
+//! parses its arguments and hands off to the matching module in the library.
 
 #![forbid(unsafe_code)]
 

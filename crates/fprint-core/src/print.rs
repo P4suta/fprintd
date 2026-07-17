@@ -161,6 +161,10 @@ impl Print {
 ///
 /// `Print::default()` with field writes stays available; this is the fluent construction path
 /// and the one that survives new fields on `Print`.
+///
+/// Every optional-field setter takes `impl Into<Option<T>>`, so it accepts the bare value on the
+/// construction path (`.finger(Finger::RightIndex)`) and an `Option<T>` on a plumbing path that
+/// already holds one (`.finger(some_print.finger)`) — no `Some(...)` wrapping either way.
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
 pub struct PrintBuilder {
     template: Template,
@@ -181,38 +185,38 @@ impl PrintBuilder {
         self
     }
 
-    /// Set which finger this is.
+    /// Set which finger this is. Takes a [`Finger`] or an `Option<Finger>`.
     #[must_use]
-    pub fn finger(mut self, finger: Option<Finger>) -> Self {
-        self.finger = finger;
+    pub fn finger(mut self, finger: impl Into<Option<Finger>>) -> Self {
+        self.finger = finger.into();
         self
     }
 
-    /// Set the owning user.
+    /// Set the owning user. Takes a [`String`] or an `Option<String>`.
     #[must_use]
-    pub fn username(mut self, username: Option<String>) -> Self {
-        self.username = username;
+    pub fn username(mut self, username: impl Into<Option<String>>) -> Self {
+        self.username = username.into();
         self
     }
 
-    /// Set the free-form label.
+    /// Set the free-form label. Takes a [`String`] or an `Option<String>`.
     #[must_use]
-    pub fn description(mut self, description: Option<String>) -> Self {
-        self.description = description;
+    pub fn description(mut self, description: impl Into<Option<String>>) -> Self {
+        self.description = description.into();
         self
     }
 
-    /// Set the driver this template is bound to.
+    /// Set the driver this template is bound to. Takes a [`DriverId`] or an `Option<DriverId>`.
     #[must_use]
-    pub fn driver(mut self, driver: Option<DriverId>) -> Self {
-        self.driver = driver;
+    pub fn driver(mut self, driver: impl Into<Option<DriverId>>) -> Self {
+        self.driver = driver.into();
         self
     }
 
-    /// Set the specific reader this template came from.
+    /// Set the specific reader this template came from. Takes a [`DeviceId`] or an `Option<DeviceId>`.
     #[must_use]
-    pub fn device_id(mut self, device_id: Option<DeviceId>) -> Self {
-        self.device_id = device_id;
+    pub fn device_id(mut self, device_id: impl Into<Option<DeviceId>>) -> Self {
+        self.device_id = device_id.into();
         self
     }
 
@@ -223,10 +227,10 @@ impl PrintBuilder {
         self
     }
 
-    /// Set the enrollment date.
+    /// Set the enrollment date. Takes an [`EnrollDate`] or an `Option<EnrollDate>`.
     #[must_use]
-    pub fn enroll_date(mut self, enroll_date: Option<EnrollDate>) -> Self {
-        self.enroll_date = enroll_date;
+    pub fn enroll_date(mut self, enroll_date: impl Into<Option<EnrollDate>>) -> Self {
+        self.enroll_date = enroll_date.into();
         self
     }
 

@@ -24,6 +24,9 @@ path = "src/main.rs"
 fprint-core = { workspace = true }
 # The FP3 codec: `enroll` writes a template to disk and `verify` reads it back.
 fprint-fp3 = { workspace = true }
+# The host-image pipeline: `verify`/`demo` score templates with `nbis_match_score` and build them
+# with `template_from_images` — the published image -> minutiae -> match front door.
+fprint-pipeline = { workspace = true }
 # The BOZORTH3 matcher, called directly by `match`.
 fprint-bozorth3 = { workspace = true }
 # The MINDTCT detector, called directly by `detect`.

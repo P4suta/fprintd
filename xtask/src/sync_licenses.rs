@@ -21,6 +21,7 @@ use std::path::Path;
 pub(crate) const MIRRORS: &[(&str, &[&str])] = &[
     ("fprint-core", DUAL),
     ("fprint-fp3", DUAL),
+    ("fprint-pipeline", DUAL),
     ("fprint-bozorth3", WITH_NBIS),
     ("fprint-mindtct", WITH_NBIS),
     ("fprint-backend-libfprint", DUAL),

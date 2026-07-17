@@ -795,6 +795,7 @@ dependencies = [
  "fprint-bozorth3",
  "fprint-core",
  "fprint-mindtct",
+ "fprint-pipeline",
  "fprint-testkit",
  "nusb",
  "serde",
@@ -817,6 +818,7 @@ dependencies = [
  "fprint-core",
  "fprint-fp3",
  "fprint-mindtct",
+ "fprint-pipeline",
  "pollster",
 ]
 
@@ -850,8 +852,8 @@ name = "fprint-fp3"
 version = "0.1.0"
 dependencies = [
  "fprint-backend-native",
- "fprint-bozorth3",
  "fprint-core",
+ "fprint-pipeline",
  "fprint-testkit",
  "thiserror 2.0.18",
  "zvariant",
@@ -872,6 +874,15 @@ name = "fprint-mindtct"
 version = "0.1.0"
 dependencies = [
  "fprint-testkit",
+]
+
+[[package]]
+name = "fprint-pipeline"
+version = "0.1.0"
+dependencies = [
+ "fprint-bozorth3",
+ "fprint-core",
+ "fprint-mindtct",
 ]
 
 [[package]]
