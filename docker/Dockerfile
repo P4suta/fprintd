@@ -53,7 +53,7 @@ RUN rustup component add clippy rustfmt
 # the last one, so the 109 third-party crates behind the libfprint-sys bindgen spine are compiled
 # from scratch on every pull request. Measured in this image: `cargo test --workspace
 # --all-features --no-run` takes 84s cold and 36s against a warm cache, at a 167 MiB cache and a
-# 130/130 hit rate. A dev box keeps its `fp-target` volume and needs none of it.
+# 130/130 hit rate. A dev box keeps its `fprintd-target` volume and needs none of it.
 #
 # Pinned: an unpinned tool is a moving dependency, and this one sits under every compile.
 ARG SCCACHE_VERSION=0.8.2

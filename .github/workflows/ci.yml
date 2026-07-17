@@ -108,18 +108,18 @@ jobs:
       - uses: actions/checkout@v4
       # The image builds libfprint v1.94.10 from source. Without an exported cache that happens on
       # every run, because runners share nothing — several minutes to rebuild a byte-identical
-      # pinned image. docker-compose.yml already names `fp-rs-dev`, so every `run` below picks this
+      # pinned image. docker-compose.yml already names `fprintd-dev`, so every `run` below picks this
       # up with no further change.
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
-          tags: fp-rs-dev
+          tags: fprintd-dev
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      # The image cache above holds the libfprint build and nothing Rust. This job's `fp-target`
+      # The image cache above holds the libfprint build and nothing Rust. This job's `fprintd-target`
       # volume is created empty on every run, so without this the 109 third-party crates behind the
       # libfprint-sys bindgen spine compile from scratch every time. sccache's cache is what carries
       # between runs — 167 MiB measured, so restoring it costs seconds. Keyed on the lockfile and

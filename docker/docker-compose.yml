@@ -9,12 +9,12 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: fp-rs-dev
+    image: fprintd-dev
     working_dir: /work
     volumes:
       - ..:/work
-      - fp-target:/work/target
-      - fp-cargo-registry:/cargo/registry
+      - fprintd-target:/work/target
+      - fprintd-cargo-registry:/cargo/registry
     environment:
       CARGO_HOME: /cargo
       G_MESSAGES_DEBUG: all
@@ -22,5 +22,5 @@ services:
     command: ["bash"]
 
 volumes:
-  fp-target:
-  fp-cargo-registry:
+  fprintd-target:
+  fprintd-cargo-registry:
