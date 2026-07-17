@@ -38,7 +38,6 @@ path = [
   ".vscode/tasks.json",
   ".vscode/launch.json",
   ".devcontainer/devcontainer.json",
-  ".github/renovate.json",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 fprintd (pure-Rust) contributors"
