@@ -47,7 +47,7 @@ image = "0.25"
 # Drawing minutiae markers, orientation ticks, and glyphs onto a diagnostic overlay (`image` 0.25).
 imageproc = "0.27"
 # The optional text-UI for `fpdev doctor`: an in-terminal dashboard over the same diagnostics.
-ratatui = "0.29"
+ratatui = "0.30"
 # Terminal setup and input events behind the `doctor` TUI (the backend `ratatui` renders onto).
 crossterm = "0.28"
 # Reading little/big-endian scalars out of a raw capture buffer.
