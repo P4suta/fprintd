@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
 # One-time crates.io bootstrap. Trusted Publishing (OIDC) cannot publish a crate that has never
-# been published, so the first release of each new crate needs a token. Run this once, from the
-# Actions tab (Run workflow, from main), with CARGO_REGISTRY_TOKEN set in the `release` environment.
-# It publishes the six crates in dependency order.
+# been published, so the first release of each new crate needs a token. Run from the Actions tab
+# (Run workflow, from main), with CARGO_REGISTRY_TOKEN set in the `release` environment.
+#
+# The other five crates published on the first run; only fprint-backend-libfprint remained (a
+# crates.io new-crate rate limit stopped it), so this finishes it.
 #
 # After it succeeds:
 #   1. Register a trusted publisher for each crate on crates.io (owner P4suta, repo fprintd,
@@ -32,17 +34,7 @@ jobs:
       # The shim's publish verify build links libfprint-2 and glib-2.0 through pkg-config.
       - name: install libfprint
         run: sudo apt-get update && sudo apt-get install -y libfprint-2-dev
-      # Dependency order: cargo publish waits for each crate to reach the index before returning,
-      # so a downstream crate resolves the one it depends on.
-      - name: publish fprint-core
-        run: cargo publish --locked -p fprint-core
-      - name: publish fprint-bozorth3
-        run: cargo publish --locked -p fprint-bozorth3
-      - name: publish fprint-mindtct
-        run: cargo publish --locked -p fprint-mindtct
-      - name: publish fprint-pipeline
-        run: cargo publish --locked -p fprint-pipeline
-      - name: publish fprint-fp3
-        run: cargo publish --locked -p fprint-fp3
+      # core, bozorth3, mindtct, pipeline, and fp3 are already on crates.io from the first run; only
+      # the shim remains. Its dependencies (fprint-core, fprint-fp3) are already indexed.
       - name: publish fprint-backend-libfprint
         run: cargo publish --locked -p fprint-backend-libfprint
