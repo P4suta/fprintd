@@ -62,3 +62,20 @@ frame decode, and `fpdev`'s `probe`/`import`/`replay`/`frame`/`match`/`doctor` c
 needs no specific sensor — it opens nothing — and is wired behind the `usb` feature. The seam
 graduates from worked-example to working driver when **HW-1** and **HW-2** are confirmed on a
 physical unit.
+
+## Supply chain
+
+`cargo deny` gates advisories, licences, bans and sources (the `deny` CI job). Two advisories are
+**deliberately ignored**, recorded here so each decision is re-read every run rather than buried in
+`deny.toml`. Both are *unmaintained* advisories (informational, not vulnerabilities), and both reach
+the graph only through `fprint-driverkit`'s (`publish = false`) diagnostic imaging — nothing shipped
+or published reaches either:
+
+| id | crate | reachability | why ignored |
+|---|---|---|---|
+| **RUSTSEC-2026-0192** | `ttf-parser` (unmaintained) | `imageproc` -> `ab_glyph` -> `owned_ttf_parser` -> `ttf-parser` | Arrives solely through imageproc's glyph/text-drawing path, which this repo never calls — the `fpdev` diagnostic overlay draws circles and lines (`crates/fprint-driverkit/src/diag/overlay.rs`), never text. Revisit if imageproc is dropped or `ttf-parser` gains a real vulnerability advisory. |
+| **RUSTSEC-2024-0436** | `paste` (unmaintained) | `image` -> `exr` -> `pulp` -> `paste` | A proc-macro helper reached only through the `image` crate's OpenEXR codec — a format `fpdev` never saves or opens (it uses PNG). Revisit if `image` drops the codec or `paste` gains a real vulnerability advisory. |
+
+The permissive licences `Zlib` (the `image` crate's PNG deflate codec — unavoidable for the overlay's
+PNG save/open) and `NCSA` (`libfuzzer-sys`, the fuzz harness runtime) are allow-listed in `deny.toml`:
+both are permissive, and the only boundary the licence policy polices is LGPL, which nothing here crosses.

@@ -3,8 +3,14 @@
 #
 # release-plz drives the workspace release: it reads Conventional Commits, derives the version
 # bump, writes each crate's CHANGELOG from cliff.toml, opens the Release PR, and on merge publishes
-# in dependency order (core -> fp3/bozorth3/mindtct -> backend-libfprint), then tags and cuts the
-# GitHub release. Run by .github/workflows/release.yml.
+# in dependency order, then tags and cuts the GitHub release. Run by .github/workflows/release.yml.
+#
+# The order it computes — and the one a manual `cargo publish` sweep must follow — is:
+#   core -> {bozorth3, mindtct} -> pipeline -> fp3 -> backend-libfprint
+# `pipeline` precedes `fp3` because `fp3` carries a *versioned* dev-dependency on it (the
+# nbis-match seam test, kept in the tarball on purpose), which crates.io requires present at
+# publish time. release-plz's toposort accounts for dev-deps, so automated releases order it for
+# you; the note is here so a hand publish does not try `fp3` before `pipeline` exists.
 
 [workspace]
 # The workspace pins one version for the whole tree (version.workspace = true). Leave it that way:

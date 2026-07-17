@@ -25,6 +25,14 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # whatever the registry holds on the day the image is built.
 RUN cargo install cargo-fuzz --locked
 
+# Force this image's nightly toolchain, overriding the `rust-toolchain.toml` (channel = "stable")
+# the bind-mounted repo carries at /work. `cargo fuzz` runs from /work, where rustup would otherwise
+# honour that file and refuse `-Z sanitizer` ("only accepted on the nightly compiler") — so without
+# this the fuzzer cannot build at all. `RUSTUP_TOOLCHAIN` outranks the file, exactly as the file's
+# own comment says CI does for the msrv/beta channels. (Placed after the heavy layers so it does not
+# invalidate their cache.)
+ENV RUSTUP_TOOLCHAIN=nightly
+
 # CARGO_HOME is left at the image's default on purpose: it already holds the registry index that
 # `cargo install` warmed, and `docker run --rm` would discard anything written elsewhere. Build
 # artifacts persist instead through the bind mount, under fuzz/target.
