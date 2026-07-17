@@ -527,12 +527,15 @@ impl Bz {
                         }
                     }
                     2 => {
-                        avn[1] += probe.x[(jj - 1) as usize];
-                        avn[2] += probe.y[(jj - 1) as usize];
+                        // `wrapping_add`, matching the reference's `int` centroid accumulation: an
+                        // out-of-contract extreme coordinate wraps as the C does instead of
+                        // panicking under overflow-checks; in-contract image coordinates never wrap.
+                        avn[1] = avn[1].wrapping_add(probe.x[(jj - 1) as usize]);
+                        avn[2] = avn[2].wrapping_add(probe.y[(jj - 1) as usize]);
                     }
                     _ => {
-                        avn[3] += gallery.x[(jj - 1) as usize];
-                        avn[4] += gallery.y[(jj - 1) as usize];
+                        avn[3] = avn[3].wrapping_add(gallery.x[(jj - 1) as usize]);
+                        avn[4] = avn[4].wrapping_add(gallery.y[(jj - 1) as usize]);
                     }
                 }
             }
@@ -584,11 +587,13 @@ impl Bz {
             if diff * diff > TXS && diff * diff < CTXS {
                 continue;
             }
-            // centroid distance-ratio gate
-            let cl = self.avv[tpu][1] - self.avv[iiu][1];
-            let cj = self.avv[tpu][2] - self.avv[iiu][2];
-            let ck = self.avv[tpu][3] - self.avv[iiu][3];
-            let cji = self.avv[tpu][4] - self.avv[iiu][4];
+            // centroid distance-ratio gate. `wrapping_sub` matching the reference `int`: two
+            // centroids from out-of-contract extreme coordinates can differ by more than i32 spans,
+            // and the square below is taken in i64; for in-contract coordinates nothing wraps.
+            let cl = self.avv[tpu][1].wrapping_sub(self.avv[iiu][1]);
+            let cj = self.avv[tpu][2].wrapping_sub(self.avv[iiu][2]);
+            let ck = self.avv[tpu][3].wrapping_sub(self.avv[iiu][3]);
+            let cji = self.avv[tpu][4].wrapping_sub(self.avv[iiu][4]);
             // Squared in i64 so far-apart centroids cannot overflow the multiply; the sum feeds an
             // f32, and for in-range coordinates the widened value is the same integer.
             let tt = (i64::from(cl) * i64::from(cl) + i64::from(cj) * i64::from(cj)) as f32;

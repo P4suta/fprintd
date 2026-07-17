@@ -39,8 +39,12 @@ pub(crate) fn comp(p: &Prepared) -> Vec<CompRow> {
                 continue;
             }
 
-            let dx = p.x[j] - p.x[k];
-            let dy = p.y[j] - p.y[k];
+            // `wrapping_sub`, matching the reference's `int` subtraction: for in-contract image
+            // coordinates it never wraps, and for an out-of-contract extreme (`match_score` accepts
+            // any `i32` xyt) it wraps exactly as the C does rather than panicking under
+            // overflow-checks — upholding the crate's "never panics on any input" contract.
+            let dx = p.x[j].wrapping_sub(p.x[k]);
+            let dy = p.y[j].wrapping_sub(p.y[k]);
             // Squared in i64 so an arbitrarily large separation cannot overflow the multiply; the
             // guard below rejects anything past DM_SQUARED, so a kept edge fits i32 losslessly.
             let distance = i64::from(dx) * i64::from(dx) + i64::from(dy) * i64::from(dy);
@@ -69,8 +73,12 @@ pub(crate) fn comp(p: &Prepared) -> Vec<CompRow> {
                 dz as i32
             };
 
-            let beta_k = iangle180(theta_kj - tk);
-            let beta_j = iangle180(theta_kj - tj + 180);
+            // `wrapping_*`, matching the reference's `int` angle arithmetic: `tk`/`tj` are the raw
+            // input thetas, which `match_score` accepts across the whole `i32` range. In-contract
+            // thetas (`0..360`) never wrap, so scores are unchanged; an extreme theta wraps as the C
+            // does instead of panicking under overflow-checks. `iangle180` folds any `i32` safely.
+            let beta_k = iangle180(theta_kj.wrapping_sub(tk));
+            let beta_j = iangle180(theta_kj.wrapping_sub(tj).wrapping_add(180));
 
             let ki = (k + 1) as i32;
             let ji = (j + 1) as i32;
