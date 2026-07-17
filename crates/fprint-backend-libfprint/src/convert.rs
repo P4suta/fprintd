@@ -8,7 +8,8 @@
 //! `FpDeviceError`/`FpDeviceRetry` code tables, the `FpFinger`/`FpScanType`/`FpDeviceFeature`
 //! enum discriminants — is confined here so it never leaks into the domain model
 //! (`ARCHITECTURE.md` principle 3). These are interoperability *facts* (enum values, quark
-//! strings), not copyrightable expression, so documenting and matching them is clean.
+//! strings), not copyrightable expression, so documenting and matching them is clean. The raw
+//! object access lives in [`crate::ffi`]; this module reads the primitive values it returns.
 
 use fprint_core::{
     DeviceFeature, DeviceId, DeviceInfo, DriverId, Error, Finger, FingerStatus, RetryReason,
@@ -17,17 +18,18 @@ use fprint_core::{
 use fprint_fp3::Fp3Error;
 use glib::error::ErrorDomain;
 use glib::Quark;
-use libfprint_rs::{FpDevice, FpFinger, GError};
+
+use crate::ffi::FpDevice;
 
 // --- libfprint error domains, expressed as glib `ErrorDomain`s ------------------------
 //
-// The binding does not wrap `FpDeviceError`/`FpDeviceRetry` as typed glib error domains, so
-// these zero-cost markers stand in. `glib::Error::kind::<T>()` returns the code iff the error's
-// `GQuark` domain equals `T::domain()`, giving safe, allocation-free classification with no
-// raw-pointer access to the `GError`. The quark strings come from libfprint's
-// `G_DEFINE_QUARK (fp - device - error - quark, …)` / `(fp - device - retry - quark, …)`.
+// libfprint ships `FpDeviceError`/`FpDeviceRetry` as plain C enums under two `GQuark` domains,
+// not as typed glib error domains, so these zero-cost markers stand in.
+// `glib::Error::kind::<T>()` returns the code iff the error's `GQuark` domain equals
+// `T::domain()`, giving safe, allocation-free classification with no raw-pointer access to the
+// `GError`. The quark strings come from libfprint's `G_DEFINE_QUARK (fp - device - error - quark,
+// …)` / `(fp - device - retry - quark, …)`.
 
-// UPSTREAM(libfprint-rs 0.3.1): FpDeviceError/FpDeviceRetry are not exported as typed glib error domains — remove when fixed; see docs/known-issues.md
 #[derive(Clone, Copy)]
 struct FpDeviceErrorCode(i32);
 
@@ -77,8 +79,8 @@ const FP_RETRY_CENTER_FINGER: i32 = 2;
 const FP_RETRY_REMOVE_FINGER: i32 = 3;
 const FP_RETRY_TOO_FAST: i32 = 4;
 
-/// Classify a `GError` from any libfprint sync call into the core [`Error`] vocabulary.
-pub fn from_gerror(err: GError) -> Error {
+/// Classify a `glib::Error` from any libfprint sync call into the core [`Error`] vocabulary.
+pub(crate) fn from_gerror(err: glib::Error) -> Error {
     if let Some(retry) = err.kind::<FpDeviceRetryCode>() {
         return Error::RetryScan(map_retry(retry.0));
     }
@@ -91,7 +93,7 @@ pub fn from_gerror(err: GError) -> Error {
     Error::Other(err.message().to_owned())
 }
 
-fn map_device_error(code: i32, err: &GError) -> Error {
+fn map_device_error(code: i32, err: &glib::Error) -> Error {
     match code {
         FP_ERR_NOT_SUPPORTED => Error::NotSupported,
         FP_ERR_NOT_OPEN | FP_ERR_ALREADY_OPEN => Error::ProtoState,
@@ -118,12 +120,12 @@ fn map_retry(code: i32) -> RetryReason {
 }
 
 /// A retry reason for a failed enroll capture, or `None` if `err` is not a retry-class error.
-pub fn gerror_retry(err: &GError) -> Option<RetryReason> {
+pub(crate) fn gerror_retry(err: &glib::Error) -> Option<RetryReason> {
     err.kind::<FpDeviceRetryCode>().map(|c| map_retry(c.0))
 }
 
-/// Map a failure of the FP3 codec (round-tripping templates through the binding) to [`Error`].
-pub fn from_fp3(err: Fp3Error) -> Error {
+/// Map a failure of the FP3 codec (round-tripping templates through the shim) to [`Error`].
+pub(crate) fn from_fp3(err: Fp3Error) -> Error {
     Error::Protocol(err.to_string())
 }
 
@@ -133,28 +135,27 @@ pub fn from_fp3(err: Fp3Error) -> Error {
 // comes from the FP3 blob via `fprint-fp3` (the single source of truth, per the D1 decision in
 // `print.rs`), so no separate live-getter translation is needed.
 
-/// core [`Finger`] → libfprint `FpFinger`.
-pub fn finger_to_fp(f: Finger) -> FpFinger {
+/// core [`Finger`] → libfprint's raw `FpFinger` value.
+pub(crate) fn finger_to_fp(f: Finger) -> libfprint_sys::FpFinger {
     match f {
-        Finger::Unknown => FpFinger::Unknown,
-        Finger::LeftThumb => FpFinger::LeftThumb,
-        Finger::LeftIndex => FpFinger::LeftIndex,
-        Finger::LeftMiddle => FpFinger::LeftMiddle,
-        Finger::LeftRing => FpFinger::LeftRing,
-        Finger::LeftLittle => FpFinger::LeftLittle,
-        Finger::RightThumb => FpFinger::RightThumb,
-        Finger::RightIndex => FpFinger::RightIndex,
-        Finger::RightMiddle => FpFinger::RightMiddle,
-        Finger::RightRing => FpFinger::RightRing,
-        Finger::RightLittle => FpFinger::RightLittle,
+        Finger::Unknown => libfprint_sys::FpFinger_FP_FINGER_UNKNOWN,
+        Finger::LeftThumb => libfprint_sys::FpFinger_FP_FINGER_LEFT_THUMB,
+        Finger::LeftIndex => libfprint_sys::FpFinger_FP_FINGER_LEFT_INDEX,
+        Finger::LeftMiddle => libfprint_sys::FpFinger_FP_FINGER_LEFT_MIDDLE,
+        Finger::LeftRing => libfprint_sys::FpFinger_FP_FINGER_LEFT_RING,
+        Finger::LeftLittle => libfprint_sys::FpFinger_FP_FINGER_LEFT_LITTLE,
+        Finger::RightThumb => libfprint_sys::FpFinger_FP_FINGER_RIGHT_THUMB,
+        Finger::RightIndex => libfprint_sys::FpFinger_FP_FINGER_RIGHT_INDEX,
+        Finger::RightMiddle => libfprint_sys::FpFinger_FP_FINGER_RIGHT_MIDDLE,
+        Finger::RightRing => libfprint_sys::FpFinger_FP_FINGER_RIGHT_RING,
+        Finger::RightLittle => libfprint_sys::FpFinger_FP_FINGER_RIGHT_LITTLE,
     }
 }
 
 /// Read the device's scan type. `FpScanType`'s discriminants *are* libfprint's raw
-/// `FP_SCAN_TYPE_*` values, so an `as`-cast avoids naming the binding's non-exported enum.
-pub fn scan_type(dev: &FpDevice) -> ScanType {
-    let raw = dev.scan_type() as u32;
-    if raw == libfprint_sys::FpScanType_FP_SCAN_TYPE_PRESS {
+/// `FP_SCAN_TYPE_*` values.
+pub(crate) fn scan_type(dev: &FpDevice) -> ScanType {
+    if dev.scan_type() == libfprint_sys::FpScanType_FP_SCAN_TYPE_PRESS {
         ScanType::Press
     } else {
         ScanType::Swipe
@@ -163,60 +164,16 @@ pub fn scan_type(dev: &FpDevice) -> ScanType {
 
 /// Fold the device's capability set into a core [`DeviceFeature`] bitmask.
 ///
-/// libfprint's `FpDeviceFeature` bit positions are mirrored exactly by [`DeviceFeature`], so
-/// OR-ing each variant's discriminant reconstructs the same mask.
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-pub fn features(dev: &FpDevice) -> DeviceFeature {
-    // `FpDeviceFeature` is not re-exported by the binding, but each value is castable to its
-    // FP_DEVICE_FEATURE_* bit without naming the type.
-    let mut bits: u32 = 0;
-    for f in dev.features() {
-        bits |= f as u32;
-    }
-    DeviceFeature::from_bits_truncate(bits)
-}
-
-/// Non-x86 fallback: the binding gates `features()` to x86, so read the raw bitmask directly.
-// UPSTREAM(libfprint-rs 0.3.1): FpDevice::features() is cfg-gated to x86, so non-x86 must read the raw getter — remove when fixed; see docs/known-issues.md
-#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
-pub fn features(dev: &FpDevice) -> DeviceFeature {
-    use glib::translate::ToGlibPtr;
-    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_features` is a pure getter that only
-    // reads the object and returns a bitmask, borrowing nothing.
-    let bits = unsafe { libfprint_sys::fp_device_get_features(dev.to_glib_none().0) };
-    DeviceFeature::from_bits_truncate(bits)
-}
-
-/// Read the device's human-readable name.
-///
-/// This bypasses `libfprint-rs` 0.3.1's [`FpDevice::name`], which wraps the *transfer-none*
-/// `fp_device_get_name` with `from_glib_full` and so tries to free a string it does not own —
-/// panicking/corrupting on some devices (the virtual driver among them). It is read here with
-/// the correct transfer-none semantics. The binding's `driver()`/`device_id()` are fine.
-// UPSTREAM(libfprint-rs 0.3.1): FpDevice::name wraps transfer-none fp_device_get_name with from_glib_full (double-free) — remove when fixed; see docs/known-issues.md
-fn device_name(dev: &FpDevice) -> String {
-    use glib::translate::{FromGlibPtrNone, ToGlibPtr};
-    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_name` is a pure getter returning a
-    // device-owned (transfer-none) C string, which `from_glib_none` copies without freeing.
-    unsafe {
-        let ptr = libfprint_sys::fp_device_get_name(dev.to_glib_none().0);
-        if ptr.is_null() {
-            dev.driver()
-        } else {
-            glib::GString::from_glib_none(ptr.cast::<std::os::raw::c_char>()).into()
-        }
-    }
+/// libfprint's `FpDeviceFeature` bit positions are mirrored exactly by [`DeviceFeature`], so the
+/// raw bitmask reconstructs the same mask.
+pub(crate) fn features(dev: &FpDevice) -> DeviceFeature {
+    DeviceFeature::from_bits_truncate(dev.features())
 }
 
 /// Read the device's sensor temperature (`FpTemperature`) as a core [`Temperature`], or `None`
 /// for an unrecognised value.
-// UPSTREAM(libfprint-rs 0.3.1): FpDevice exposes no temperature getter, so read the raw sys getter — remove when wrapped; see docs/known-issues.md
 fn temperature(dev: &FpDevice) -> Option<Temperature> {
-    use glib::translate::ToGlibPtr;
-    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_temperature` is a pure getter that
-    // reads the object's thermal state and returns an `FpTemperature`, borrowing nothing.
-    let raw = unsafe { libfprint_sys::fp_device_get_temperature(dev.to_glib_none().0) };
-    match raw {
+    match dev.temperature() {
         libfprint_sys::FpTemperature_FP_TEMPERATURE_COLD => Some(Temperature::Cold),
         libfprint_sys::FpTemperature_FP_TEMPERATURE_WARM => Some(Temperature::Warm),
         libfprint_sys::FpTemperature_FP_TEMPERATURE_HOT => Some(Temperature::Hot),
@@ -226,15 +183,8 @@ fn temperature(dev: &FpDevice) -> Option<Temperature> {
 
 /// Read the device's live finger-presence status (`FpFingerStatusFlags`) as a core
 /// [`FingerStatus`] bitmask.
-///
-/// The raw getter is read directly rather than through the binding's `FpDevice::finger_status`,
-/// which folds the bitmask into a three-value enum and panics on any combination of flags.
-// UPSTREAM(libfprint-rs 0.3.1): FpDevice::finger_status panics on combined FpFingerStatusFlags, so read the raw sys getter — remove when fixed; see docs/known-issues.md
-pub fn finger_status(dev: &FpDevice) -> FingerStatus {
-    use glib::translate::ToGlibPtr;
-    // SAFETY: `dev` is a live `FpDevice`; `fp_device_get_finger_status` is a pure getter that
-    // reads the object's finger-status flags and returns the bitmask, borrowing nothing.
-    let bits = unsafe { libfprint_sys::fp_device_get_finger_status(dev.to_glib_none().0) };
+pub(crate) fn finger_status(dev: &FpDevice) -> FingerStatus {
+    let bits = dev.finger_status();
     let mut status = FingerStatus::NONE;
     if bits & libfprint_sys::FpFingerStatusFlags_FP_FINGER_STATUS_NEEDED != 0 {
         status |= FingerStatus::NEEDED;
@@ -250,7 +200,7 @@ pub fn finger_status(dev: &FpDevice) -> FingerStatus {
 /// The virtual (and some real) devices report an empty `device_id`; we fall back to the
 /// driver id so the identifier is still stable and non-empty for [`crate::LibfprintBackend`]'s
 /// open-by-id lookup. The sensor temperature is attached when the device reports a known value.
-pub fn device_info(dev: &FpDevice) -> DeviceInfo {
+pub(crate) fn device_info(dev: &FpDevice) -> DeviceInfo {
     let driver = dev.driver();
     let device_id = dev.device_id();
     let id = if device_id.is_empty() {
@@ -260,11 +210,11 @@ pub fn device_info(dev: &FpDevice) -> DeviceInfo {
     };
     let info = DeviceInfo::new(
         DeviceId::new(id),
-        DriverId::new(driver),
-        device_name(dev),
+        DriverId::new(driver.clone()),
+        dev.name().unwrap_or(driver),
         scan_type(dev),
         features(dev),
-        dev.nr_enroll_stage().max(0) as u32,
+        dev.nr_enroll_stages().max(0) as u32,
     );
     match temperature(dev) {
         Some(t) => info.with_temperature(t),

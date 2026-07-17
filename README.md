@@ -26,7 +26,7 @@ backend or wire format ([`ARCHITECTURE.md`](ARCHITECTURE.md) §The one rule).
 | [`fprint-bozorth3`](crates/fprint-bozorth3) | BOZORTH3 minutiae matcher — self-contained, zero-dependency NBIS port | any |
 | [`fprint-mindtct`](crates/fprint-mindtct) | MINDTCT minutiae detector — self-contained, zero-dependency NBIS port | any |
 | [`fprint-pipeline`](crates/fprint-pipeline) | host-image glue: image → minutiae → template → match — the published front door for matching | any |
-| [`fprint-backend-libfprint`](crates/fprint-backend-libfprint) | the shim: dynamically links the C libfprint via the `libfprint-rs` FFI crate | Linux |
+| [`fprint-backend-libfprint`](crates/fprint-backend-libfprint) | the shim: dynamically links the C libfprint, owning the FFI directly via `libfprint-sys` | Linux |
 
 The published crates.io surface is exactly those six. The rest are internal
 (`publish = false`) and never leave the workspace:

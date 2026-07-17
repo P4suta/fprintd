@@ -8,9 +8,10 @@
 //! this backend is `!Send`.
 
 use fprint_core::{Backend, DeviceId, Error, Result};
-use libfprint_rs::FpContext;
 
+use crate::convert;
 use crate::device::LibfprintDevice;
+use crate::ffi::FpContext;
 
 /// Entry point to the C-libfprint-backed devices on this system.
 pub struct LibfprintBackend {
@@ -36,11 +37,14 @@ impl Backend for LibfprintBackend {
     type Device = LibfprintDevice;
 
     async fn enumerate(&self) -> Result<Vec<LibfprintDevice>> {
+        // Read each device's static getters on this thread, hand the resulting `DeviceInfo` to a
+        // worker (which re-finds the device in its own context), and drop the caller-thread
+        // `FpDevice`s as this Vec goes out of scope — the sensor is owned only by its worker.
         Ok(self
             .ctx
             .devices()
             .into_iter()
-            .map(LibfprintDevice::from_device)
+            .map(|dev| LibfprintDevice::spawn(convert::device_info(&dev)))
             .collect())
     }
 
@@ -58,7 +62,7 @@ impl Backend for LibfprintBackend {
                 device_id == id.as_str()
             };
             if hit {
-                return Ok(LibfprintDevice::from_device(dev));
+                return Ok(LibfprintDevice::spawn(convert::device_info(&dev)));
             }
         }
         Err(Error::NotFound)

@@ -782,9 +782,10 @@ dependencies = [
  "fprint-core",
  "fprint-fp3",
  "fprint-testkit",
+ "futures-channel",
+ "futures-core",
  "gio",
  "glib",
- "libfprint-rs",
  "libfprint-sys",
 ]
 
@@ -1350,17 +1351,6 @@ name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
-
-[[package]]
-name = "libfprint-rs"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "549f0d19d06f3732a61fc7c3bb8056ec1308e147f24b69dea45c152099527830"
-dependencies = [
- "gio",
- "glib",
- "libfprint-sys",
-]
 
 [[package]]
 name = "libfprint-sys"

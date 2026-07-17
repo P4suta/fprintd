@@ -2,101 +2,100 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The enroll-progress trampoline.
+//! The enroll-progress and verify/identify match trampolines.
 //!
-//! The binding's `FpEnrollProgress` is a *non-capturing* `fn` pointer with a single generic
-//! user-data slot; it cannot carry a Rust closure, while `fprint-core`'s [`Device::enroll`]
-//! takes a generic `F: FnMut(EnrollProgress)`. The bridge parks a `&mut F` (plus the total
-//! stage count) in a [`Trampoline<'_, F>`], passes a raw pointer to it through the user-data
-//! slot, and rebuilds the `&mut` inside [`on_enroll_progress`] — a fn generic over `F` that
-//! monomorphizes to one concrete `extern`-compatible fn pointer per closure type.
-//!
-//! [`Device::enroll`]: fprint_core::Device::enroll
+//! libfprint's progress/match callbacks are C function pointers with a single `user_data` slot.
+//! The worker passes a pointer to a stack-owned sink as that slot and one of these trampolines as
+//! the callback; libfprint invokes the trampoline **synchronously, on the worker thread, from
+//! inside the `*_sync` call**, so the trampoline can rebuild a shared `&Sink` and read the
+//! device's live finger status there. It forwards a fully-formed domain report over the sink's
+//! channel; the caller's future delivers the reports to the user closure.
 
-use core::ffi::c_void;
+use std::os::raw::{c_int, c_void};
 
 use fprint_core::{EnrollProgress, FingerStatus};
-use libfprint_rs::{FpDevice, FpPrint, GError};
+use futures_channel::mpsc::UnboundedSender;
+use glib::translate::{from_glib_borrow, FromGlibPtrNone};
 
 use crate::convert;
+use crate::ffi::FpDevice;
 
-/// The caller's progress callback and the device's total stage count, ferried across FFI.
-///
-/// Generic over the concrete closure type `F` so the callback stays a monomorphized fn pointer
-/// (no `dyn`): [`on_enroll_progress`] is instantiated for the exact `F` that produced the
-/// pointer, so the raw-pointer reconstruction below is type-correct by construction.
-pub struct Trampoline<'a, F> {
-    pub cb: &'a mut F,
-    pub total: u32,
+/// Ferries enroll progress from the worker to the caller's future: the progress sender plus the
+/// device's total stage count (needed to shape each [`EnrollProgress`]).
+pub(crate) struct EnrollSink {
+    pub(crate) tx: UnboundedSender<EnrollProgress>,
+    pub(crate) total: u32,
 }
 
-/// The `FpEnrollProgress<*mut c_void>` libfprint invokes once per capture attempt.
+/// Ferries verify/identify finger-presence status from the worker to the caller's future.
+pub(crate) struct StatusSink {
+    pub(crate) tx: UnboundedSender<FingerStatus>,
+}
+
+/// libfprint's per-capture enroll callback (`FpEnrollProgress`). A failed capture arrives as a
+/// retry-domain `error` with the stage count unchanged; it is relayed as
+/// [`EnrollProgress::with_retry`] rather than aborting the enrollment. A closed channel (the
+/// caller dropped the operation future) is ignored.
 ///
-/// Generic over `F` but takes none of it in its signature, so `on_enroll_progress::<F>`
-/// monomorphizes to a plain fn pointer of the exact type libfprint expects.
+/// # Safety
 ///
-/// A failed capture arrives as a retry-domain `error` with the stage count unchanged; we relay
-/// it as [`EnrollProgress::retry`] rather than aborting the enrollment. The device's live
-/// finger-presence status is read from `dev` and attached to each report.
-pub fn on_enroll_progress<F: FnMut(EnrollProgress)>(
-    dev: &FpDevice,
-    completed: i32,
-    _print: Option<FpPrint>,
-    error: Option<GError>,
-    data: &Option<*mut c_void>,
+/// Called only by libfprint, synchronously, from inside a `fp_device_enroll_sync` whose
+/// `user_data` is the `&EnrollSink` the worker kept alive across the call.
+pub(crate) unsafe extern "C" fn on_enroll_progress(
+    device: *mut libfprint_sys::FpDevice,
+    completed_stages: c_int,
+    _print: *mut libfprint_sys::FpPrint,
+    user_data: *mut c_void,
+    error: *mut libfprint_sys::GError,
 ) {
-    // `*mut c_void` is `Copy`, so read the pointer out of the shared `&Option<_>` by value.
-    let Some(ptr) = *data else { return };
+    if user_data.is_null() {
+        return;
+    }
+    // SAFETY: libfprint invokes this synchronously on the worker thread from inside the
+    // `fp_device_enroll_sync` call whose `progress_data` is this `&EnrollSink` and whose live
+    // device is `device` (borrowed, no ref taken). Both outlive the call, and the same-thread
+    // invocation means the shared borrow cannot race.
+    let sink = unsafe { &*(user_data as *const EnrollSink) };
+    let dev = unsafe { from_glib_borrow::<_, FpDevice>(device) };
 
-    // SAFETY: `ptr` is the `&mut Trampoline<'_, F>` we handed to `fp_device_enroll_sync` as its
-    // user-data, and `F` here is the very closure type it was created with (this fn is
-    // monomorphized per `F`). libfprint runs this callback synchronously, on the very thread
-    // parked inside `enroll_sync`, strictly within the lifetime of the borrow that produced the
-    // pointer. No other alias to the `Trampoline` exists and the callback never outlives the
-    // enroll call, so reconstituting the `&mut` here is sound.
-    let tramp: &mut Trampoline<'_, F> = unsafe { &mut *ptr.cast::<Trampoline<'_, F>>() };
+    let retry = if error.is_null() {
+        None
+    } else {
+        // SAFETY: `error` is a transfer-none retry `GError`; copied here for classification.
+        let err = unsafe { glib::Error::from_glib_none(error.cast()) };
+        convert::gerror_retry(&err)
+    };
 
-    let retry = error.as_ref().and_then(convert::gerror_retry);
-    let mut progress = EnrollProgress::new(completed.max(0) as u32, tramp.total)
-        .with_finger_status(convert::finger_status(dev));
+    let mut progress = EnrollProgress::new(completed_stages.max(0) as u32, sink.total)
+        .with_finger_status(convert::finger_status(&dev));
     if let Some(reason) = retry {
         progress = progress.with_retry(reason);
     }
-    (tramp.cb)(progress);
+    let _ = sink.tx.unbounded_send(progress);
 }
 
-/// The caller's finger-status callback, ferried across FFI for verify/identify.
+/// libfprint's match callback (`FpMatchCb`), invoked when a print is matched (or a retry occurs)
+/// during verify/identify. Relays the device's live finger-presence status so the daemon can drive
+/// the `finger-present` / `finger-needed` prompts during a login as it does during enroll.
 ///
-/// The verify-side counterpart of [`Trampoline`]: it carries only a `&mut F` because verify's one
-/// live intermediate signal is the finger-presence status (a retry is surfaced as an error result,
-/// not a report). Generic over the concrete closure type so [`on_match_status`] monomorphizes to a
-/// plain fn pointer.
-pub struct MatchTrampoline<'a, F> {
-    pub cb: &'a mut F,
-}
-
-/// The `FpMatchCb<*mut c_void>` libfprint invokes when a print is matched (or a retry occurs)
-/// during verify/identify. Reads the device's live finger-presence status and relays it, so the
-/// daemon can drive the `finger-present` / `finger-needed` prompts during a login the same way it
-/// does during enrollment.
+/// # Safety
 ///
-/// Generic over `F` but takes none of it in its signature, so `on_match_status::<F>` monomorphizes
-/// to the exact fn pointer libfprint expects.
-pub fn on_match_status<F: FnMut(FingerStatus)>(
-    dev: &FpDevice,
-    _matched: Option<FpPrint>,
-    _print: FpPrint,
-    _error: Option<GError>,
-    data: &Option<*mut c_void>,
+/// Called only by libfprint, synchronously, from inside a `fp_device_verify_sync` /
+/// `fp_device_identify_sync` whose `user_data` is the `&StatusSink` the worker kept alive.
+pub(crate) unsafe extern "C" fn on_match_status(
+    device: *mut libfprint_sys::FpDevice,
+    _match: *mut libfprint_sys::FpPrint,
+    _print: *mut libfprint_sys::FpPrint,
+    user_data: *mut c_void,
+    _error: *mut libfprint_sys::GError,
 ) {
-    let Some(ptr) = *data else { return };
-
-    // SAFETY: identical contract to `on_enroll_progress` — `ptr` is the `&mut MatchTrampoline<'_, F>`
-    // handed to `fp_device_verify_sync` / `fp_device_identify_sync` as user data, `F` is the exact
-    // closure type this fn was monomorphized for, and libfprint runs the callback synchronously on
-    // the thread parked inside the `*_sync` call, strictly within the borrow's lifetime. No other
-    // alias exists and it never outlives the call, so reconstituting the `&mut` is sound.
-    let tramp: &mut MatchTrampoline<'_, F> = unsafe { &mut *ptr.cast::<MatchTrampoline<'_, F>>() };
-
-    (tramp.cb)(convert::finger_status(dev));
+    if user_data.is_null() {
+        return;
+    }
+    // SAFETY: as in `on_enroll_progress` — invoked synchronously on the worker thread from inside
+    // the match `*_sync` call; `user_data` is the live `&StatusSink`, `device` the live device
+    // (borrowed, no ref taken).
+    let sink = unsafe { &*(user_data as *const StatusSink) };
+    let dev = unsafe { from_glib_borrow::<_, FpDevice>(device) };
+    let _ = sink.tx.unbounded_send(convert::finger_status(&dev));
 }

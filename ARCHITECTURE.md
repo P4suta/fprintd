@@ -83,7 +83,10 @@ never tested in an implementor's terms" is checked without being a special case.
 
 4. **Cancellation is dropping the future.** No `GCancellable`-style token threads through
    the API. To cancel an operation, drop its future; a backend releases the sensor in its
-   own `Drop`.
+   own `Drop`. Both shipped backends honour this fully: `fprint-backend-native` yields once
+   per capture stage, and the libfprint shim confines its blocking `*_sync` calls to a
+   per-device worker thread, so the operation future yields and its `Drop` fires a `Send`
+   `gio::Cancellable` that cancels the parked call cross-thread.
 
 5. **Invariants are spoken by types, not checked at runtime.** "One operation in flight
    per device" is expressed by taking `&mut self` on every operation — the borrow checker
@@ -92,10 +95,12 @@ never tested in an implementor's terms" is checked without being a special case.
 6. **`unsafe` is quarantined to the leaves.** Only the transport and FFI crates may use
    `unsafe`, and only where the hardware/FFI boundary demands it. The core forbids it.
 
-7. **Thread affinity is confined, not papered over.** The libfprint shim is `!Send`
-   (GObject/GMainContext is thread-affine). The core therefore requires no `Send`, and the
-   daemon confines each device to a single actor thread (or a `LocalSet`), rather than
-   reaching for an unsound `Send` impl.
+7. **Thread affinity is confined, not papered over.** libfprint's GObject/GMainContext is
+   thread-affine, so `LibfprintBackend` (holding the `FpContext`) is `!Send`. The shim confines
+   each device's `!Send` `FpDevice` to a dedicated worker thread and exposes a `Send` handle to
+   it, so only `Send` values cross threads — never an unsound `Send` impl. The core therefore
+   requires no `Send`, and the daemon confines each device to a single actor thread (or a
+   `LocalSet`) regardless.
 
 ---
 
@@ -254,7 +259,7 @@ the GPL projects around us; GPL code could not flow back. Coexistence points the
 | `fprint-bozorth3` | BOZORTH3 minutiae matcher (original port from public-domain NBIS) | any | **none** — self-contained arithmetic kernel |
 | `fprint-mindtct` | MINDTCT minutiae detector (original port from public-domain NBIS) | any | **none** — self-contained image-processing kernel |
 | `fprint-pipeline` | host-image glue (image→minutiae→template→match); the published front door for matching | any | `fprint-core`, `fprint-mindtct`, `fprint-bozorth3` — owns the boundary conversions |
-| `fprint-backend-libfprint` | shim over C libfprint via the `libfprint-rs` FFI crate | Linux | libfprint-2, `!Send` |
+| `fprint-backend-libfprint` | shim owning the C libfprint FFI directly via `libfprint-sys` | Linux | libfprint-2, `!Send` |
 | `fprint-backend-native` | virtual device + host-image `Device` (matching via `fprint-pipeline`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-pipeline`, `fprint-mindtct`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
 | *integration* (`fprint-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
 | `fprintd` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |

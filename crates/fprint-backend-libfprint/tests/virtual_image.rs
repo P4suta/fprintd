@@ -119,11 +119,8 @@ fn enrolled_nbis_print_is_byte_identical_to_libfprint() {
     // libfprint would round-trip it to different bytes.
     let bytes = fprint_fp3::to_bytes(&enrolled).expect("serialize enrolled print");
     {
-        use libfprint_rs::FpPrint;
-        let lib_canonical = FpPrint::deserialize(&bytes)
-            .expect("libfprint accepts our FP3 bytes")
-            .serialize()
-            .expect("libfprint re-serializes");
+        let lib_canonical = fprint_backend_libfprint::libfprint_canonical_fp3(&bytes)
+            .expect("libfprint accepts our FP3 bytes and re-serializes");
         assert_eq!(
             bytes, lib_canonical,
             "fprint-fp3 output must be byte-identical to libfprint's canonical NBIS FP3"

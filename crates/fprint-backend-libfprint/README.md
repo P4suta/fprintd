@@ -4,21 +4,21 @@
 
 # fprint-backend-libfprint
 
-A `fprint_core::Backend`/`fprint_core::Device` implementation that wraps the C libfprint (via
-the crates.io `libfprint-rs` binding), so the pure-Rust daemon can drive every sensor libfprint
+A `fprint_core::Backend`/`fprint_core::Device` implementation that owns the C libfprint FFI
+directly through `libfprint-sys`, so the pure-Rust daemon can drive every sensor libfprint
 already supports. The LGPL library is linked dynamically — an interoperability boundary LGPL
 explicitly permits — and this crate's own source stays MIT/Apache. Linux only: on every other
 target a crate-level `#![cfg]` empties the crate so the cross-platform workspace still builds.
 
-## Two constraints worth knowing
+## Two things worth knowing
 
-- `!Send` bridge — libfprint's objects are glib `GObject`s bound to their creating thread, so
-  `LibfprintBackend`/`LibfprintDevice` are `!Send`. `fprint-core` never requires `Send`, so the
-  daemon confines each device to a single actor thread.
-- Best-effort cancellation — the binding exposes only the blocking `*_sync` entry points, so
-  `fprint-core`'s "dropping the future cancels the operation" contract is only meaningful when
-  the daemon can signal the thread the blocking call parks on. `fprint-backend-native` is fully
-  drop-cancellable.
+- `!Send` backend, worker-thread device — libfprint's objects are glib `GObject`s bound to their
+  creating thread, so `LibfprintBackend` (which holds the `FpContext`) is `!Send`. Each device is
+  driven on its own worker thread that owns the `FpDevice`, so `LibfprintDevice` is a `Send` handle
+  to it. `fprint-core` never requires `Send`.
+- Drop-cancellable — the worker parks inside each blocking `*_sync`, so the operation future yields
+  and dropping it fires a `Send` `gio::Cancellable` cross-thread to cancel the call. The shim is
+  fully drop-cancellable, like `fprint-backend-native`.
 
 ## Quickstart
 

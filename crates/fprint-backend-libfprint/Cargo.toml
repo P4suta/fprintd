@@ -1,10 +1,10 @@
 [package]
 name = "fprint-backend-libfprint"
-description = "M1 shim: implements fprint-core's Backend/Device by dynamically linking the C libfprint via the libfprint-rs FFI binding. Linux-only, !Send."
+description = "M1 shim: implements fprint-core's Backend/Device by dynamically linking the C libfprint, owning the FFI directly via libfprint-sys. Linux-only, !Send."
 version.workspace = true
 edition.workspace = true
-# Not the workspace's 1.82: the pinned `libfprint-rs`/`libfprint-sys` are `edition = "2024"`,
-# which needs 1.85. Declared here rather than at the root, where the pure crates would inherit it.
+# Not the workspace's 1.82: `libfprint-sys` is `edition = "2024"`, which needs 1.85. Declared here
+# rather than at the root, where the pure crates would inherit it.
 rust-version = "1.85"
 license.workspace = true
 repository.workspace = true
@@ -20,7 +20,7 @@ categories = ["authentication", "hardware-support", "api-bindings"]
 all-features = true
 default-target = "x86_64-unknown-linux-gnu"
 targets = ["x86_64-unknown-linux-gnu"]
-rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
+rustdoc-args = ["--generate-link-to-definition"]
 
 # Every dependency is gated to Linux so the (Windows) workspace stays lean and resolvable:
 # on any other target this crate compiles to an empty module (see the `#![cfg]` in lib.rs)
@@ -28,10 +28,18 @@ rustdoc-args = ["--cfg", "docsrs", "--generate-link-to-definition"]
 [target.'cfg(target_os = "linux")'.dependencies]
 fprint-core = { workspace = true }
 fprint-fp3 = { workspace = true }
-libfprint-rs = "=0.3.1"
-libfprint-sys = "=0.2.0"
+# The shim owns the libfprint FFI directly: it calls the raw `libfprint-sys` entry points and
+# manages the GObject lifetime itself. A normal caret — no workaround depends on a point release
+# now that the binding is gone — keeps a published library from forcing one patch on the graph.
+libfprint-sys = "0.2"
 glib = "0.21"
 gio = "0.21"
+# The per-device worker thread hands each operation's reply (oneshot) and progress (mpsc) back to
+# the caller's future over these runtime-agnostic channels — no async runtime is pulled in. Both
+# already resolve in the tree via glib, so naming them adds no crate to the graph; `futures-core`
+# names the `Stream` trait used to drain progress without reaching for `futures-util`.
+futures-channel = "0.3"
+futures-core = "0.3"
 
 # Gated to Linux like everything else here: the tests these serve are `#![cfg(target_os = "linux")]`.
 [target.'cfg(target_os = "linux")'.dev-dependencies]

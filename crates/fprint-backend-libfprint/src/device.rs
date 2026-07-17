@@ -4,56 +4,165 @@
 
 //! [`LibfprintDevice`]: an `fprint-core` [`Device`] backed by a C-libfprint `FpDevice`.
 //!
-//! Every operation is a blocking `*_sync` call into libfprint (the binding exposes no async
-//! entry points), translated in and out of the domain model by [`crate::convert`] and
-//! [`crate::print`]. The type is `!Send` — it holds a glib `FpDevice` — and one operation at
-//! a time is guaranteed by `&mut self`, matching libfprint's single-in-flight contract without
-//! any runtime guard.
+//! The `FpDevice` is `!Send` and every libfprint entry point is a blocking `*_sync` call, so the
+//! device lives on a dedicated [worker thread](crate::worker) and this type is only a `Send`
+//! handle to it: a channel of [`Job`]s plus the cached [`DeviceInfo`]. Each operation submits a
+//! job carrying a fresh [`gio::Cancellable`] and awaits the worker's reply; the [`CancelOnDrop`]
+//! guard held across that await fires the cancellable if the future is dropped, cancelling the
+//! `*_sync` on the worker cross-thread (core principle 4). One operation at a time is guaranteed
+//! by `&mut self`, matching libfprint's single-in-flight contract.
 
-use core::ffi::c_void;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::mpsc::Sender;
+use std::task::Poll;
+use std::thread::JoinHandle;
 
 use fprint_core::{
     Device, DeviceFeature, DeviceInfo, EnrollProgress, Error, FingerStatus, IdentifyOutcome, Print,
     Result, VerifyOutcome,
 };
+use futures_channel::mpsc::{self, UnboundedSender};
+use futures_channel::oneshot;
+use futures_core::Stream;
+use gio::prelude::CancellableExt;
 use gio::Cancellable;
-use libfprint_rs::{FpDevice, FpEnrollProgress, FpMatchCb, FpPrint};
 
-use crate::progress::{on_enroll_progress, on_match_status, MatchTrampoline, Trampoline};
-use crate::{convert, print, storage};
+use crate::worker::{self, Job};
 
 /// A fingerprint reader driven through the C libfprint.
 ///
-/// Obtained from [`crate::LibfprintBackend`]; call [`Device::open`] before any operation.
+/// Obtained from [`crate::LibfprintBackend`]; call [`Device::open`] before any operation. The
+/// reader itself lives on an internal worker thread — this handle is `Send`, and dropping it
+/// releases the sensor and joins that thread.
 pub struct LibfprintDevice {
-    dev: FpDevice,
+    jobs: Sender<Job>,
     info: DeviceInfo,
-    /// The cancellable handed to the currently in-flight operation, if any. See the crate-level
-    /// note on the cancellation limitation: it is installed but cannot be fired from a `Drop`
-    /// that never runs while the thread is parked inside a blocking `*_sync` call.
-    cancel: Option<Cancellable>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl LibfprintDevice {
-    /// Wrap a device discovered by the backend (its [`DeviceInfo`] is read from the getters,
-    /// then refreshed on [`Device::open`] since some fields firm up only once the device is open).
-    pub(crate) fn from_device(dev: FpDevice) -> Self {
-        let info = convert::device_info(&dev);
+    /// Spawn the worker for the device described by `info` and return a handle to it. The worker
+    /// re-finds the device by `info.id` in its own context; `info` is the caller-thread getter
+    /// snapshot, refreshed from the worker on [`Device::open`].
+    pub(crate) fn spawn(info: DeviceInfo) -> Self {
+        let (jobs, rx) = std::sync::mpsc::channel();
+        let id = info.id.clone();
+        let worker = std::thread::Builder::new()
+            .name(format!("libfprint-worker-{}", id.as_str()))
+            .spawn(move || worker::run(id, rx))
+            .expect("spawn libfprint worker thread");
         LibfprintDevice {
-            dev,
+            jobs,
             info,
-            cancel: None,
+            worker: Some(worker),
         }
+    }
+
+    /// Send a job to the worker. Fails only if the worker thread has already stopped.
+    fn submit(&self, job: Job) -> Result<()> {
+        self.jobs
+            .send(job)
+            .map_err(|_| Error::Other("libfprint worker thread stopped".into()))
+    }
+
+    /// Build a fresh cancellable and its drop-guard, open a reply channel, and submit the job the
+    /// caller shapes from those. The returned guard must be held across the await so a dropped
+    /// future cancels the in-flight `*_sync`.
+    fn start<T>(
+        &self,
+        job: impl FnOnce(Cancellable, oneshot::Sender<Result<T>>) -> Job,
+    ) -> Result<(CancelOnDrop, oneshot::Receiver<Result<T>>)> {
+        let cancel = Cancellable::new();
+        let guard = CancelOnDrop(cancel.clone());
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(job(cancel, reply_tx))?;
+        Ok((guard, reply_rx))
+    }
+
+    /// [`start`](Self::start) for a streaming operation, adding the progress channel the worker
+    /// pushes reports to.
+    fn start_streaming<T, P>(
+        &self,
+        job: impl FnOnce(Cancellable, UnboundedSender<P>, oneshot::Sender<Result<T>>) -> Job,
+    ) -> Result<(
+        CancelOnDrop,
+        oneshot::Receiver<Result<T>>,
+        mpsc::UnboundedReceiver<P>,
+    )> {
+        let cancel = Cancellable::new();
+        let guard = CancelOnDrop(cancel.clone());
+        let (event_tx, event_rx) = mpsc::unbounded();
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.submit(job(cancel, event_tx, reply_tx))?;
+        Ok((guard, reply_rx, event_rx))
     }
 }
 
 impl Drop for LibfprintDevice {
     fn drop(&mut self) {
-        if self.dev.is_open() {
-            // Best-effort release of the sensor; nothing to do if it fails as we are tearing down.
-            let _ = self.dev.close_sync(None);
+        // Release the sensor on the worker, then wait for it to finish so the reader is free
+        // before the process moves on. Errors mean the worker already stopped.
+        let _ = self.jobs.send(Job::Shutdown);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
         }
     }
+}
+
+/// Fires its cancellable when dropped. Held across an operation's await so that dropping the
+/// operation future cancels the in-flight `*_sync` on the worker. Fire-and-detach: it never joins
+/// — the worker's `*_sync` returns `Cancelled` and the worker moves on to the next job.
+struct CancelOnDrop(Cancellable);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        self.0.cancel();
+    }
+}
+
+/// Await a job's reply. A dropped reply sender (the worker was torn down) reads as cancellation.
+async fn await_reply<T>(reply: oneshot::Receiver<Result<T>>) -> Result<T> {
+    match reply.await {
+        Ok(outcome) => outcome,
+        Err(oneshot::Canceled) => Err(Error::Cancelled),
+    }
+}
+
+/// Await a streaming job's reply while draining its progress channel, invoking `on_event` on this
+/// (caller) thread as each report arrives — delivering every report exactly once.
+///
+/// The worker pushes every progress report from inside the `*_sync` call and sends the reply only
+/// after it returns, so once the reply is observable the channel holds all remaining reports. Each
+/// wake drains what has arrived before checking the reply (live progress), and a final drain once
+/// the reply is here catches the last report, which would otherwise race the reply and be lost.
+async fn await_streaming<T, P>(
+    mut reply: oneshot::Receiver<Result<T>>,
+    mut events: mpsc::UnboundedReceiver<P>,
+    mut on_event: impl FnMut(P),
+) -> Result<T> {
+    std::future::poll_fn(move |cx| {
+        // Deliver what has arrived so far. Stops on `Pending` (nothing more yet) or `None` (the
+        // worker dropped the sender when the `*_sync` returned).
+        while let Poll::Ready(Some(event)) = Pin::new(&mut events).poll_next(cx) {
+            on_event(event);
+        }
+        match Pin::new(&mut reply).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(reply) => {
+                // The reply lands after every report was pushed, so the channel now holds any that
+                // arrived in the gap above; drain them before finishing.
+                while let Poll::Ready(Some(event)) = Pin::new(&mut events).poll_next(cx) {
+                    on_event(event);
+                }
+                Poll::Ready(match reply {
+                    Ok(outcome) => outcome,
+                    Err(oneshot::Canceled) => Err(Error::Cancelled),
+                })
+            }
+        }
+    })
+    .await
 }
 
 impl Device for LibfprintDevice {
@@ -62,146 +171,99 @@ impl Device for LibfprintDevice {
     }
 
     async fn open(&mut self) -> Result<()> {
-        self.dev.open_sync(None).map_err(convert::from_gerror)?;
-        // Features, scan type and enroll-stage count can become known only after open.
-        self.info = convert::device_info(&self.dev);
+        let (_guard, reply) = self.start(|cancel, reply| Job::Open { cancel, reply })?;
+        self.info = await_reply(reply).await?;
         Ok(())
     }
 
     async fn close(&mut self) -> Result<()> {
-        self.dev.close_sync(None).map_err(convert::from_gerror)
+        let (_guard, reply) = self.start(|cancel, reply| Job::Close { cancel, reply })?;
+        await_reply(reply).await
     }
 
     async fn enroll<F: FnMut(EnrollProgress)>(
         &mut self,
         template: Print,
-        mut on_progress: F,
+        on_progress: F,
     ) -> Result<Print> {
-        let fp = print::core_to_fp(&template, &self.dev);
-        self.cancel = Some(Cancellable::new());
-
-        let mut trampoline = Trampoline {
-            cb: &mut on_progress,
-            total: self.info.enroll_stages,
-        };
-        let user_data: *mut c_void = (&mut trampoline as *mut Trampoline<'_, F>).cast();
-
-        let result = self.dev.enroll_sync(
-            fp,
-            self.cancel.as_ref(),
-            Some(on_enroll_progress::<F> as FpEnrollProgress<*mut c_void>),
-            Some(user_data),
-        );
-
-        self.cancel = None;
-        let enrolled = result.map_err(convert::from_gerror)?;
-        print::fp_to_core(&enrolled)
+        let (_guard, reply, progress) =
+            self.start_streaming(|cancel, progress, reply| Job::Enroll {
+                template,
+                cancel,
+                progress,
+                reply,
+            })?;
+        await_streaming(reply, progress, on_progress).await
     }
 
     async fn verify_with_status<F: FnMut(FingerStatus)>(
         &mut self,
         enrolled: &Print,
-        mut on_status: F,
+        on_status: F,
     ) -> Result<VerifyOutcome> {
-        let fp = print::core_to_fp_for_match(enrolled)?;
-        let mut scanned = FpPrint::new(&self.dev);
-        self.cancel = Some(Cancellable::new());
-
-        let mut trampoline = MatchTrampoline { cb: &mut on_status };
-        let user_data: *mut c_void = (&mut trampoline as *mut MatchTrampoline<'_, F>).cast();
-
-        let result = self.dev.verify_sync::<*mut c_void>(
-            &fp,
-            self.cancel.clone(),
-            Some(on_match_status::<F> as FpMatchCb<*mut c_void>),
-            Some(user_data),
-            Some(&mut scanned),
-        );
-
-        self.cancel = None;
-        let matched = result.map_err(convert::from_gerror)?;
-
-        // Match-on-chip sensors do not surface the live scan; treat an unconvertible
-        // (undefined) print as "no scan surfaced" rather than a failure.
-        Ok(VerifyOutcome::new(
-            matched,
-            print::fp_to_core(&scanned).ok(),
-        ))
+        let enrolled = enrolled.clone();
+        let (_guard, reply, status) =
+            self.start_streaming(|cancel, status, reply| Job::Verify {
+                enrolled,
+                cancel,
+                status,
+                reply,
+            })?;
+        await_streaming(reply, status, on_status).await
     }
 
     async fn identify_with_status<F: FnMut(FingerStatus)>(
         &mut self,
         gallery: &[Print],
-        mut on_status: F,
+        on_status: F,
     ) -> Result<IdentifyOutcome> {
-        let fps = gallery
-            .iter()
-            .map(print::core_to_fp_for_match)
-            .collect::<Result<Vec<FpPrint>>>()?;
-        let mut scanned = FpPrint::new(&self.dev);
-        self.cancel = Some(Cancellable::new());
-
-        let mut trampoline = MatchTrampoline { cb: &mut on_status };
-        let user_data: *mut c_void = (&mut trampoline as *mut MatchTrampoline<'_, F>).cast();
-
-        let result = self.dev.identify_sync::<*mut c_void>(
-            &fps,
-            self.cancel.as_ref(),
-            Some(on_match_status::<F> as FpMatchCb<*mut c_void>),
-            Some(user_data),
-            Some(&mut scanned),
-        );
-
-        self.cancel = None;
-        let matched = result.map_err(convert::from_gerror)?;
-
-        // Recover the gallery index by comparing the matched print's serialization to each
-        // candidate's — the binding hands back the matching `FpPrint`, not its position.
-        let match_index = match matched {
-            Some(m) => {
-                let needle = m.serialize().map_err(convert::from_gerror)?;
-                fps.iter()
-                    .position(|p| p.serialize().ok().as_deref() == Some(needle.as_slice()))
-            }
-            None => None,
-        };
-
-        Ok(IdentifyOutcome::new(
-            match_index,
-            print::fp_to_core(&scanned).ok(),
-        ))
+        let gallery = gallery.to_vec();
+        let (_guard, reply, status) =
+            self.start_streaming(|cancel, status, reply| Job::Identify {
+                gallery,
+                cancel,
+                status,
+                reply,
+            })?;
+        await_streaming(reply, status, on_status).await
     }
 
     async fn list_prints(&mut self) -> Result<Vec<Print>> {
         if !self.has_feature(DeviceFeature::STORAGE_LIST) {
             return Err(Error::NotSupported);
         }
-        storage::list(&self.dev, self.cancel.as_ref())?
-            .iter()
-            .map(print::fp_to_core)
-            .collect()
+        let (_guard, reply) = self.start(|cancel, reply| Job::ListPrints { cancel, reply })?;
+        await_reply(reply).await
     }
 
     async fn delete_print(&mut self, stored: &Print) -> Result<()> {
         if !self.has_feature(DeviceFeature::STORAGE_DELETE) {
             return Err(Error::NotSupported);
         }
-        let fp = print::core_to_fp_for_match(stored)?;
-        storage::delete(&self.dev, &fp, self.cancel.as_ref())
+        let print = stored.clone();
+        let (_guard, reply) = self.start(|cancel, reply| Job::DeletePrint {
+            print,
+            cancel,
+            reply,
+        })?;
+        await_reply(reply).await
     }
 
     async fn clear_storage(&mut self) -> Result<()> {
         if !self.has_feature(DeviceFeature::STORAGE_CLEAR) {
             return Err(Error::NotSupported);
         }
-        storage::clear(&self.dev, self.cancel.as_ref())
+        let (_guard, reply) = self.start(|cancel, reply| Job::ClearStorage { cancel, reply })?;
+        await_reply(reply).await
     }
 
     async fn suspend(&mut self) -> Result<()> {
-        self.dev.suspend_sync(None).map_err(convert::from_gerror)
+        let (_guard, reply) = self.start(|cancel, reply| Job::Suspend { cancel, reply })?;
+        await_reply(reply).await
     }
 
     async fn resume(&mut self) -> Result<()> {
-        self.dev.resume_sync(None).map_err(convert::from_gerror)
+        let (_guard, reply) = self.start(|cancel, reply| Job::Resume { cancel, reply })?;
+        await_reply(reply).await
     }
 }
