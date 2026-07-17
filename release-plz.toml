@@ -26,33 +26,41 @@ release_always = false
 # Run cargo-semver-checks before each release to gate breaking API changes.
 semver_check = true
 
-# The publish = false members. release-plz must not version-bump, changelog, tag, or publish them.
-# Listing each keeps the release set equal to the workspace's publishable crates (checked by
-# `cargo xtask publish-check`'s release_parity).
+# The publish = false members. `release = false` stops release-plz version-bumping, changelogging,
+# tagging, or publishing them; `publish = false` matches each crate's Cargo.toml, which release-plz
+# checks for consistency. Listing each keeps the release set equal to the workspace's publishable
+# crates (checked by `cargo xtask publish-check`'s release_parity).
 [[package]]
 name = "fprintd"
 release = false
+publish = false
 
 [[package]]
 name = "fprint-cli"
 release = false
+publish = false
 
 [[package]]
 name = "fprint-driverkit"
 release = false
+publish = false
 
 [[package]]
 name = "fprint-backend-native"
 release = false
+publish = false
 
 [[package]]
 name = "fprint-integration"
 release = false
+publish = false
 
 [[package]]
 name = "fprint-testkit"
 release = false
+publish = false
 
 [[package]]
 name = "xtask"
 release = false
+publish = false
