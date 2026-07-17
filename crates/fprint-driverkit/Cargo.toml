@@ -45,7 +45,7 @@ pcap-file = "2"
 # Decoding a captured frame to a PNG and reading raw pixel buffers on `fpdev frame`.
 image = "0.25"
 # Drawing minutiae markers, orientation ticks, and glyphs onto a diagnostic overlay (`image` 0.25).
-imageproc = "0.25"
+imageproc = "0.27"
 # The optional text-UI for `fpdev doctor`: an in-terminal dashboard over the same diagnostics.
 ratatui = "0.29"
 # Terminal setup and input events behind the `doctor` TUI (the backend `ratatui` renders onto).
