@@ -32,13 +32,13 @@ jobs:
     name: build the book and the api reference
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
           tool: mdbook
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       # `cargo doc --workspace` documents the two C-linking crates (fprintd, fprint-backend-libfprint),
       # so the distro libfprint headers and libclang must be present for libfprint-sys bindgen.
       - name: Refresh the package index
@@ -57,7 +57,7 @@ jobs:
         run: cp -r docs/book _site
       - name: Place the API reference at /api
         run: cp -r target/doc _site/api
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -70,4 +70,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

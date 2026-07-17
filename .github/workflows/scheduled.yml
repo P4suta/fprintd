@@ -24,7 +24,7 @@ jobs:
     name: new advisories on unchanged code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories
@@ -42,7 +42,7 @@ jobs:
       # the beta toolchain is used.
       RUSTUP_TOOLCHAIN: beta
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@beta
       - uses: Swatinem/rust-cache@v2
       # `RUSTFLAGS: -D warnings` is absent, unlike ci.yml: a new lint firing on beta is not a
