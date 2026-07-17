@@ -184,6 +184,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # publish-check dry-runs `cargo publish --workspace`, which builds the shim crate; its
+      # libfprint-sys FFI links libfprint-2 and glib-2.0 through pkg-config.
+      - name: install libfprint
+        run: sudo apt-get update && sudo apt-get install -y libfprint-2-dev
       - name: Check the published crates package, strip and ship what they claim
         run: cargo xtask publish-check
 
