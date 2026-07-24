@@ -24,7 +24,7 @@ jobs:
     name: new advisories on unchanged code
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           command: check advisories
@@ -42,8 +42,8 @@ jobs:
       # the beta toolchain is used.
       RUSTUP_TOOLCHAIN: beta
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: dtolnay/rust-toolchain@4711ae3e97dd6376c8d5d5d51c89566406abaefa # beta
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # beta
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       # `RUSTFLAGS: -D warnings` is absent, unlike ci.yml: a new lint firing on beta is not a
       # bit-exactness signal and must not mask one.
