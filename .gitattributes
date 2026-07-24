@@ -1,4 +1,7 @@
+* text=auto eol=lf
 # Frozen golden fixtures are compared byte- and line-exact by the tests; keep them byte-identical
 # on every platform. Without this a Windows checkout rewrites LF to CRLF and drifts the goldens.
 **/tests/fixtures/** -text
 **/tests/regressions/** -text
+*.bat text eol=crlf
+*.cmd text eol=crlf
