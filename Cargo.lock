@@ -996,7 +996,7 @@ checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "fprint-backend-libfprint"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-core",
  "fprint-fp3",
@@ -1010,7 +1010,7 @@ dependencies = [
 
 [[package]]
 name = "fprint-backend-native"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-bozorth3",
  "fprint-core",
@@ -1023,14 +1023,14 @@ dependencies = [
 
 [[package]]
 name = "fprint-bozorth3"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-testkit",
 ]
 
 [[package]]
 name = "fprint-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "fprint-backend-native",
@@ -1044,11 +1044,11 @@ dependencies = [
 
 [[package]]
 name = "fprint-core"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "fprint-driverkit"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "byteorder",
  "clap",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "fprint-fp3"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-backend-native",
  "fprint-core",
@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "fprint-integration"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-backend-libfprint",
  "fprint-backend-native",
@@ -1091,14 +1091,14 @@ dependencies = [
 
 [[package]]
 name = "fprint-mindtct"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-testkit",
 ]
 
 [[package]]
 name = "fprint-pipeline"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-bozorth3",
  "fprint-core",
@@ -1107,11 +1107,11 @@ dependencies = [
 
 [[package]]
 name = "fprint-testkit"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "fprintd"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "fprint-backend-libfprint",
  "fprint-backend-native",
@@ -3705,7 +3705,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cargo_metadata",
  "serde_json",
