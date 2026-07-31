@@ -28,13 +28,22 @@ use fprint_core::{DeviceFeature, ScanType};
 use fprintd::{ActionSet, Authorizer, Daemon, Store};
 
 /// A swipe reader whose shape is only known once it is open — the `upekts` case.
+///
+/// The settled values are the ones a physical UPEK TouchStrip reports, checked against one:
+/// swipe, 3 stages, and `VERIFY` **alone** — no `CAPTURE` and no `IDENTIFY`. That is the shape of
+/// a match-on-chip sensor, which returns a verdict rather than pixels and compares against one
+/// template rather than a gallery ([`DeviceFeature::CAPTURE`] says as much: image sensors have
+/// it, match-on-chip sensors normally do not). `crates/fprintd/tests/dbus_hardware.rs` is the
+/// hardware test that read them off the device.
+///
+/// `probe_reports` stays deliberately wrong in every field — that contrast *is* the test.
 fn backend() -> VirtualBackend {
     VirtualBackend::single(
         VirtualDeviceBuilder::host_image_sensor()
             .name("UPEK TouchStrip")
             .scan_type(ScanType::Swipe)
             .enroll_stages(3)
-            .features(DeviceFeature::CAPTURE | DeviceFeature::VERIFY | DeviceFeature::IDENTIFY)
+            .features(DeviceFeature::VERIFY)
             .probe_reports(DeviceShape {
                 scan_type: ScanType::Press,
                 features: DeviceFeature::CAPTURE,

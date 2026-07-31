@@ -76,6 +76,63 @@ description = "Hardware-free enroll+verify against fprintd over its D-Bus contra
 # verify-match -> Release as a client would.
 run = "docker compose -f docker/docker-compose.yml run --rm dev cargo test -p fprintd --test dbus_integration -- --nocapture"
 
+[tasks.docker-hw-build]
+description = "Build the real-sensor bring-up image (libfprint with a hardware driver, not just the virtual ones)"
+# `LIBFPRINT_DRIVERS` is the whole point of this task: the default image builds virtual drivers
+# only, so it can see a real sensor on the bus but has nothing to drive it with. Override the
+# driver for a different sensor; keep the virtual ones so the image stays a superset of CI's.
+# Distinct image tag (`fprintd-hw`), so this never displaces the one `docker-test` uses.
+run = """docker compose -f docker/docker-compose.hw.yml build \
+  --build-arg LIBFPRINT_DRIVERS=upekts,virtual_image,virtual_device,virtual_device_storage"""
+
+[tasks.docker-hw-shell]
+description = "Interactive shell in the bring-up container, with the host's USB bus passed through"
+# Needs a sensor plugged in and `docker-hw-build` run first. Inside: `lsusb` to confirm the
+# device is visible, then `mise run docker-hw-ground-truth` (below) for the libfprint check.
+run = "docker compose -f docker/docker-compose.hw.yml run --rm hw bash"
+
+[tasks.docker-hw-shim]
+description = "Enroll+verify a real finger through the shim (fprint-backend-libfprint) — our Rust in the path"
+# The step after `docker-hw-ground-truth`: same sensor, same libfprint, but driven through
+# `Backend`/`Device` instead of libfprint's own example clients. What that adds is the shape the
+# shim reports, the `Raw` (match-on-chip) template surviving the FP3 codec byte-for-byte, and the
+# worker thread staying alive across an operation that blocks for twenty seconds on a finger.
+#
+# `G_MESSAGES_DEBUG=` overrides the service's `all`: the driver trace is ~1000 lines per run and
+# buries both the swipe prompts and the verdict. DEBUG=1 puts it back for diagnosing a stall.
+# `--features virtual` is not about virtual devices here — it is what exposes the FFI hook the
+# byte-identity assertion needs. `--nocapture` is mandatory; the prompts are the test's stdout.
+#
+# FP_HW_NEGATIVE=1 adds a "a different finger must NOT match" check, at the cost of one more
+# presentation. Worth it: without it the test cannot distinguish matching from always-yes.
+run = """docker compose -f docker/docker-compose.hw.yml run --rm -T \
+  -e FP_HW_NEGATIVE -e G_MESSAGES_DEBUG= hw \
+  cargo test -p fprint-backend-libfprint --test hardware --features virtual \
+  -- --ignored --nocapture"""
+
+[tasks.docker-hw-daemon]
+description = "Enroll+verify a real finger over the fprintd D-Bus contract — the whole stack, on hardware"
+# The top of the bring-up ladder: `docker-hw-ground-truth` (libfprint alone) proves the sensor,
+# `docker-hw-shim` proves our Backend/Device layer, and this proves the daemon — actor threads,
+# the FP3 store round-trip, and the `net.reactivated.Fprint` vocabulary a desktop client speaks.
+# It is `dbus_integration` (which does all of this against a virtual backend) with a real sensor
+# in the socket.
+#
+# The daemon is served on the test's own private session bus, so this needs no D-Bus policy and
+# cannot collide with a distro fprintd. See the test's module docs for what that does not cover.
+run = """docker compose -f docker/docker-compose.hw.yml run --rm -T \
+  -e FP_HW_NEGATIVE -e G_MESSAGES_DEBUG= hw \
+  cargo test -p fprintd --test dbus_hardware -- --ignored --nocapture"""
+
+[tasks.docker-hw-ground-truth]
+description = "Enroll then verify a real finger through libfprint alone — no daemon, none of our Rust"
+# The check that answers "is it the sensor, or is it us?" before any bring-up work starts. It
+# drives libfprint's own example clients, so nothing from this workspace is in the path.
+#
+# The prompt-answering, the scratch path the template must not escape, and the reason `stdbuf` is
+# required all live in `xtask/src/hardware.rs`. Takes a finger index, 0 through 9; default 6.
+run = "cargo xtask hw-ground-truth"
+
 [tasks.unit-verify]
 description = "Check the systemd unit against real systemd: it parses, and Alias= takes the seat"
 run = "cargo xtask unit-verify"

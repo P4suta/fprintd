@@ -34,7 +34,7 @@ pub struct DeviceRecord {
     pub family: Family,
 }
 
-/// Every classified device, sorted by `(vid, pid)`; 256 rows, no duplicate keys.
+/// Every classified device, sorted by `(vid, pid)`; 258 rows, no duplicate keys.
 pub static DEVICES: &[DeviceRecord] = &[
     DeviceRecord {
         vid: 0x045e,
@@ -70,7 +70,7 @@ pub static DEVICES: &[DeviceRecord] = &[
         vid: 0x0483,
         pid: 0x2016,
         driver: "upekts",
-        family: Family::HostImage,
+        family: Family::MatchOnChip,
     },
     DeviceRecord {
         vid: 0x0483,
@@ -663,6 +663,18 @@ pub static DEVICES: &[DeviceRecord] = &[
     DeviceRecord {
         vid: 0x06cb,
         pid: 0x010a,
+        driver: "synaptics",
+        family: Family::MatchOnChip,
+    },
+    DeviceRecord {
+        vid: 0x06cb,
+        pid: 0x010d,
+        driver: "synaptics",
+        family: Family::MatchOnChip,
+    },
+    DeviceRecord {
+        vid: 0x06cb,
+        pid: 0x010e,
         driver: "synaptics",
         family: Family::MatchOnChip,
     },
