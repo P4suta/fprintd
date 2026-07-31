@@ -58,6 +58,51 @@ from `fprint-mindtct`'s golden corpus (`loop_200x240.raw`, which stock NBIS reso
 Enrolling a real finger to fill this gap would put an irrevocable biometric in the repository, so it
 is not an option — see `SECURITY.md`.
 
+## Hardware verification: what one real sensor has and has not settled
+
+A UPEK TouchStrip (`0483:2016`, driver `upekts`) has been run end-to-end against libfprint
+1.94.10 in the bring-up container (`docker/docker-compose.hw.yml`, `mise run docker-hw-*`).
+`crates/fprint-backend-libfprint/tests/hardware.rs` and `crates/fprintd/tests/dbus_hardware.rs`
+are the `#[ignore]`d tests that did it; both are built and linted on every Linux run.
+
+Settled by hardware:
+
+- The shim and the daemon drive a real match-on-chip sensor: enroll, store, verify-match, and
+  verify-**no**-match against a different finger.
+- `fprint-fp3`'s output is byte-identical to libfprint's canonical FP3 for a template a
+  *physical* sensor produced — previously shown only for virtual-device templates (see the FP3
+  section above).
+- The device shape `dbus_device_shape.rs` models is real for scan type (swipe) and stage count
+  (3), and **was wrong about features**: the sensor reports `VERIFY` only, not
+  `CAPTURE`/`IDENTIFY`. The fixture now matches the device.
+- `upekts` is match-on-chip, not host-image. The driver reports the verify verdict itself
+  (`Device reported verify result`); `device_db` classifies it accordingly.
+
+Still open, and **not** claimed anywhere:
+
+| what | why it is still open |
+|---|---|
+| Real **PAM login** | Needs the host's authentication stack, not a container. The host here runs libfprint 1.94.7, which cannot verify at all (below). |
+| `serve_system()` | The hardware tests call `Daemon::attach` on a private session bus, which is the production path minus connecting to the system bus and requesting the well-known name. Nothing has exercised those on hardware. |
+| Every other sensor | One device, one driver. Nothing here generalizes to a host-image sensor, whose whole capture path is untouched by these tests. |
+
+### The host libfprint must be ≥ 1.94.9 for this sensor
+
+`upekts` verify is broken in libfprint before **1.94.9**: `verify_start_sm_run_state` passes the
+raw print data where the framed message belongs, and `do_verify_stop` inverts the condition that
+reports success, so enrollment succeeds and verification always fails. Fixed upstream by
+`cdc22b45` (MR !415), first released in 1.94.9. Ubuntu 24.04 ships 1.94.7 with neither fix
+backported, which is why the bring-up container pins `LIBFPRINT_REF=v1.94.10` rather than using
+a distro package.
+
+### Enroll progress is not obliged to report the final stage
+
+`virtual_device` reports every stage, and `tests/virtual.rs` asserts it. Real drivers need not:
+`upekts` reports a stage only when the *following* poll asks for another presentation, so the
+poll after the last swipe (`0x00`, "enrollment complete") reports nothing and hands over the
+template instead — a 3-stage enroll emits two progress events. Anything consuming
+`EnrollProgress` to drive a UI must treat completion, not a final progress event, as the end.
+
 ## Experimental native USB capture seam (unpublished, off by default)
 
 `fprint-backend-native`'s `usb` feature and the `fpdev` (`fprint-driverkit`) live-USB paths are a

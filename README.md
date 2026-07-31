@@ -39,7 +39,7 @@ What is verified, and what is not:
 | layer | state |
 |---|---|
 | **Core + arithmetic kernels + codec + pipeline** (`fprint-core`, `fprint-fp3`, `fprint-bozorth3`, `fprint-mindtct`, `fprint-pipeline`) | Complete and **golden bit-exact** — matchers/detector verified black-box against the stock C NBIS tools, FP3 verified byte-for-byte against real libfprint, the pipeline glue tested end-to-end (image → minutiae → match). All offline, no hardware. |
-| **Shim daemon** (`fprintd` + `fprint-backend-libfprint`) | Implemented; CI green. Verified only against libfprint's **virtual drivers** in Docker — not yet exercised on a real sensor or a real PAM login. |
+| **Shim daemon** (`fprintd` + `fprint-backend-libfprint`) | Implemented; CI green. Verified against libfprint's **virtual drivers** in Docker, and **on one real sensor** — a UPEK TouchStrip (`0483:2016`, `upekts`), enrolled and verified end-to-end over the `net.reactivated.Fprint` contract, with a non-matching finger correctly rejected. Not yet exercised on a real **PAM login**, nor on the system bus (the hardware tests serve the daemon on a private bus). |
 | **Native** (`fprint-backend-native`) | Host-image matching (image→minutiae→match) works offline and is tested. The USB capture seam is **experimental** and hardware-unverified — see below. |
 
 Native drivers are a non-goal ([`ARCHITECTURE.md`](ARCHITECTURE.md) §Non-goals). To bring up a

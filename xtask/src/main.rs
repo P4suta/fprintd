@@ -19,6 +19,7 @@ mod device_db;
 mod docker;
 mod driver_check;
 mod fuzz;
+mod hardware;
 mod hw_checklist;
 mod lint;
 mod mutants;
@@ -57,6 +58,7 @@ fn main() -> ExitCode {
         Some("fuzz") => fuzz_task(&root, args),
         Some("mutants") => mutants::run(&root, args.next()),
         Some("hw-checklist") => hw_checklist_task(&root, args),
+        Some("hw-ground-truth") => hardware::ground_truth(args.next().as_deref().unwrap_or("6")),
         Some("driver-check") => driver_check::run(&root, driver_arg(args)),
         Some("capture-golden") => capture_golden_task(&root, args),
         Some(other) => Err(format!("unknown task `{other}`\n\n{}", usage())),
@@ -134,6 +136,7 @@ fn usage() -> String {
         "  fuzz <target> [s]  fuzz one target in the nightly container (DELIBERATE; default 60s)",
         "  mutants [base]     which lines the tests do not defend (DELIBERATE; [base] = that diff only)",
         "  hw-checklist       list the pending HW-verified markers ([driver] filters; --json)",
+        "  hw-ground-truth    enroll+verify a real finger through libfprint alone ([finger] 0-9, default 6)",
         "  driver-check       run a native driver's acceptance checks ([driver] scopes)",
         "  capture-golden     freeze a driver's recording as a golden fixture (<driver> <recording>)",
     ]

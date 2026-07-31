@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+#
+# The real-sensor bring-up container. Separate from `docker-compose.yml` on purpose:
+# `docker-test` and `docker-daemon-verify` must keep running against the hardware-free
+# virtual drivers, and nothing here may change what CI builds.
+#
+# What this file adds over the `dev` service:
+#   - a libfprint built with a real driver as well as the virtual ones (LIBFPRINT_DRIVERS)
+#   - the host's USB bus, so libfprint can actually open the sensor
+#
+# The container runs as root, which is what makes the USB node reachable without touching the
+# host: `/dev/bus/usb/*/*` is `root:root 0664`, and a desktop user is not in a group that can
+# write it. Passing the bus through is therefore enough — no udev rule is installed on the host.
+#
+#   docker compose -f docker/docker-compose.hw.yml build \
+#     --build-arg LIBFPRINT_DRIVERS=upekts,virtual_image,virtual_device,virtual_device_storage
+#   docker compose -f docker/docker-compose.hw.yml run --rm hw bash
+#
+# Then inside: `lsusb` to confirm the sensor is visible, `fp-enroll` / `fp-verify` for the
+# libfprint ground truth. See docs/bringing-up-a-sensor.md.
+
+services:
+  hw:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: fprintd-hw
+    working_dir: /work
+    volumes:
+      - ..:/work
+      - fprintd-target:/work/target
+      - fprintd-cargo-registry:/cargo/registry
+      # The USB bus itself. A bind mount rather than `devices:` because a sensor that
+      # re-enumerates (unplug, replug, or a driver-triggered reset) gets a new device node,
+      # and `devices:` pins the node that existed at container start.
+      - /dev/bus/usb:/dev/bus/usb
+    # Bind-mounting the bus makes the nodes visible; this makes them usable. 189 is usbfs.
+    # Narrower than `privileged: true`, which is the fallback if a transfer is denied.
+    device_cgroup_rules:
+      - 'c 189:* rmw'
+    environment:
+      CARGO_HOME: /cargo
+      # libfprint's own tracing: the driver's state-machine transitions, which is what a
+      # bring-up reads when a transfer stalls.
+      G_MESSAGES_DEBUG: all
+    command: ["bash"]
+
+# Declared exactly as in docker-compose.yml. Both files sit in `docker/`, so Compose derives the
+# same project name for each and both resolve to the same `docker_fprintd-*` volumes — a bring-up
+# reuses the warm build tree instead of compiling the dependency spine from scratch.
+volumes:
+  fprintd-target:
+  fprintd-cargo-registry:

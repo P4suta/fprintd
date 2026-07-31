@@ -102,6 +102,12 @@ fn enroll_then_verify_over_virtual_socket() {
     .expect("enroll should complete");
     feeder.join().unwrap();
 
+    // True of `virtual_device`, and *not* a general contract: a driver may complete an enrollment
+    // without reporting its last stage. upekts does exactly that — it reports a stage only once
+    // the following poll asks for another presentation, so the final swipe goes straight to
+    // completion and a 3-stage enroll emits two progress events. Assert it here, where the
+    // scripted device makes it true; `crates/fprint-backend-libfprint/tests/hardware.rs` carries
+    // the weaker claim that holds on real hardware.
     assert_eq!(
         stages_seen, ENROLL_STAGES as u32,
         "every stage should report"
