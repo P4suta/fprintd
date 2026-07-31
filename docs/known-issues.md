@@ -13,8 +13,28 @@ sites carry a `HW-verified: required` marker pointing back here.
 
 - `glib`/`gio` track whatever generation `libfprint-sys` resolves (a mismatch links two
   `libgobject` symbol sets). Keep them aligned.
-- `docker/Dockerfile` `LIBFPRINT_REF=v1.94.10` is pinned to match the vendored `reference/`
-  copy so the shim's `bindgen` output is deterministic — this is good practice, not debt.
+- `docker/Dockerfile` `LIBFPRINT_REF=v1.94.10` pins the libfprint the shim links, so its
+  `bindgen` output is deterministic — good practice, not debt.
+- `xtask/src/references.rs` `LIBFPRINT_REV=v1.94.100` pins the tree `cargo xtask device-db`
+  reads driver id-tables out of. **These two are separate on purpose** and need not match: one
+  is about the library we link against, the other about which devices libfprint has learned to
+  claim.
+
+### Why the device-db input had to be pinned (fixed 2026-07-31)
+
+`clone-ref` used to clone libfprint with `--depth 1` and no ref, so `cargo xtask device-db`
+produced a different committed file depending on the day the reference tree was cloned. Measured:
+`v1.94.10` → 237 rows, `v1.94.100` → 258, the then-current `main` → 259, against a committed
+table of 256. `device_db.rs`'s own module doc promises regeneration leaves no diff on a clean
+tree; without a pin it could not. Regenerating to fix a single row dragged in every upstream
+device change since the table was last cut.
+
+The GitHub fallback mirror (`3v1n0/libfprint`) was removed at the same time rather than repaired.
+It stops at `v1.90.1`, so it can serve no current ref — and since this tree is what the id-tables
+are read from, a fallback that quietly supplies a 2020-era driver set is *worse* than none: it
+would regenerate a plausible table missing dozens of devices. No GitHub mirror carries the pinned
+tag, so the clone now fails loudly instead. `clone-ref` also refuses a `reference/libfprint` that
+is checked out at some other tag, rather than silently reusing it.
 
 ## FP3 codec: byte-exactness vs. real libfprint (M2) — VALIDATED
 

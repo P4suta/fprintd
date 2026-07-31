@@ -31,7 +31,13 @@ const COMMAND: &str = "cargo xtask device-db";
 /// Match-on-chip drivers: comparison happens on the sensor, so no image ever reaches the host and
 /// the `FrameSource` seam cannot drive them. This is every driver under a `*moc/` subdirectory
 /// (`egismoc`/`egis_etu905`, `elanmoc`, `focaltech_moc`, `fpcmoc`, `goodixmoc`, `mafpmoc`) plus
-/// synaptics, whose `bmkt` protocol enrolls and matches on the device.
+/// synaptics, whose `bmkt` protocol enrolls and matches on the device, and `upekts`.
+///
+/// `upekts` is the one member not named by either rule, so its evidence is recorded here: it
+/// derives from `FP_TYPE_DEVICE` rather than `FpImageDevice`, calls no `fpi_image_device_*`
+/// entry point, stores its template as `FPI_PRINT_RAW` under the `fpi-data` GVariant, and
+/// verifies by sending that stored template *back* to the sensor
+/// (`alloc_send_cmd28_transfer`). No pixels ever reach the host.
 const MATCH_ON_CHIP: &[&str] = &[
     "egis_etu905",
     "egismoc",
@@ -41,13 +47,16 @@ const MATCH_ON_CHIP: &[&str] = &[
     "goodixmoc",
     "mafpmoc",
     "synaptics",
+    "upekts",
 ];
 
 /// Host-image drivers: the sensor streams pixels and all matching runs on the host, so the
 /// `FrameSource` seam can carry them. These are the `FpImageDevice`-family drivers (the aes*
-/// series, elan, elanspi, etes603, nb1010, secugen, uru4000, vcom5s, and the upek*/vfs* families).
-/// `upekts` and `elanspi` derive from `FP_TYPE_DEVICE` rather than `FpImageDevice` but still hand a
-/// host-side image to the matcher, so they belong here.
+/// series, elan, elanspi, etes603, nb1010, secugen, uru4000, vcom5s, and the upek*/vfs* families,
+/// `upekts` excepted).
+/// `elanspi` derives from `FP_TYPE_DEVICE` rather than `FpImageDevice` but still hands a
+/// host-side image to the matcher, so it belongs here. `upekts` does not: it is the sibling that
+/// matches on the sensor, and lives in [`MATCH_ON_CHIP`] above.
 const HOST_IMAGE: &[&str] = &[
     "aes1610",
     "aes1660",
@@ -65,7 +74,6 @@ const HOST_IMAGE: &[&str] = &[
     "upeksonly",
     "upektc",
     "upektc_img",
-    "upekts",
     "uru4000",
     "vcom5s",
     "vfs0050",
