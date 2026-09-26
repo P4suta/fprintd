@@ -14,7 +14,7 @@
 
 use std::sync::{Arc, Mutex, Weak};
 
-use fprint_backend_native::VirtualBackend;
+use fprint_core::Backend;
 use fprintd::{ActionSet, Authorizer, Daemon, Store};
 use zbus::zvariant::OwnedObjectPath;
 
@@ -132,11 +132,12 @@ pub struct Harness {
 
 impl Harness {
     /// Serve `backend` under `net.reactivated.Fprint.<scenario>`, authorizing exactly `grants`.
-    pub async fn serve(
-        scenario: &str,
-        grants: ActionSet,
-        backend: fn() -> VirtualBackend,
-    ) -> Harness {
+    pub async fn serve<F, B>(scenario: &str, grants: ActionSet, backend: F) -> Harness
+    where
+        F: Fn() -> B + Clone + Send + Sync + 'static,
+        B: Backend,
+        B::Device: 'static,
+    {
         let name = format!("net.reactivated.Fprint.{scenario}");
         let store_root =
             std::env::temp_dir().join(format!("fprintd-{}-{scenario}", std::process::id()));

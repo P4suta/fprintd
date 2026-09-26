@@ -25,7 +25,11 @@ use common::{Harness, PrivateBus};
 use std::time::Duration;
 
 use fprint_backend_native::{
-    EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDeviceBuilder,
+    EnrollScript, FingerId, Scenario, VirtualBackend, VirtualDevice, VirtualDeviceBuilder,
+};
+use fprint_core::{
+    Backend as CoreBackend, Device as CoreDevice, DeviceId, DeviceInfo, EnrollProgress,
+    FingerStatus, IdentifyOutcome, Print, Result as CoreResult, Temperature, VerifyOutcome,
 };
 use fprintd::ActionSet;
 use futures_util::StreamExt;
@@ -40,6 +44,99 @@ fn backend() -> VirtualBackend {
                 .present(FingerId(2)),
         ),
     )
+}
+
+/// A backend whose enrollment remains pending until the daemon cancels it.
+///
+/// The ordinary virtual backend deliberately completes quickly, so observing `EnrollStart` return
+/// does not prove that its pump is still active when the next D-Bus call arrives.
+/// This wrapper keeps only enrollment pending and delegates every other device operation.
+struct PendingEnrollBackend(VirtualBackend);
+
+struct PendingEnrollDevice(VirtualDevice);
+
+fn pending_enroll_backend() -> PendingEnrollBackend {
+    PendingEnrollBackend(backend())
+}
+
+impl CoreBackend for PendingEnrollBackend {
+    type Device = PendingEnrollDevice;
+
+    async fn enumerate(&self) -> CoreResult<Vec<Self::Device>> {
+        Ok(self
+            .0
+            .enumerate()
+            .await?
+            .into_iter()
+            .map(PendingEnrollDevice)
+            .collect())
+    }
+
+    async fn open(&self, id: &DeviceId) -> CoreResult<Self::Device> {
+        self.0.open(id).await.map(PendingEnrollDevice)
+    }
+}
+
+impl CoreDevice for PendingEnrollDevice {
+    fn info(&self) -> &DeviceInfo {
+        self.0.info()
+    }
+
+    fn temperature(&self) -> Option<Temperature> {
+        self.0.temperature()
+    }
+
+    async fn open(&mut self) -> CoreResult<()> {
+        self.0.open().await
+    }
+
+    async fn close(&mut self) -> CoreResult<()> {
+        self.0.close().await
+    }
+
+    async fn enroll<F: FnMut(EnrollProgress)>(
+        &mut self,
+        _print: Print,
+        _on_progress: F,
+    ) -> CoreResult<Print> {
+        std::future::pending().await
+    }
+
+    async fn verify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        enrolled: &Print,
+        on_status: F,
+    ) -> CoreResult<VerifyOutcome> {
+        self.0.verify_with_status(enrolled, on_status).await
+    }
+
+    async fn identify_with_status<F: FnMut(FingerStatus)>(
+        &mut self,
+        gallery: &[Print],
+        on_status: F,
+    ) -> CoreResult<IdentifyOutcome> {
+        self.0.identify_with_status(gallery, on_status).await
+    }
+
+    async fn list_prints(&mut self) -> CoreResult<Vec<Print>> {
+        self.0.list_prints().await
+    }
+
+    async fn delete_print(&mut self, print: &Print) -> CoreResult<()> {
+        self.0.delete_print(print).await
+    }
+
+    async fn clear_storage(&mut self) -> CoreResult<()> {
+        self.0.clear_storage().await
+    }
+
+    async fn suspend(&mut self) -> CoreResult<()> {
+        self.0.suspend().await
+    }
+
+    async fn resume(&mut self) -> CoreResult<()> {
+        self.0.resume().await
+    }
 }
 
 const IN_USE: &str = "net.reactivated.Fprint.Error.AlreadyInUse";
@@ -158,7 +255,7 @@ async fn a_double_claim_is_refused_and_leaves_the_first_claim_intact() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_second_operation_is_refused_while_one_is_in_flight() {
     let _bus = PrivateBus::shared();
-    let harness = Harness::serve("IsolationBusy", ActionSet::ALL, backend).await;
+    let harness = Harness::serve("IsolationBusy", ActionSet::ALL, pending_enroll_backend).await;
 
     let conn = harness.client().await;
     let device = harness.device(&conn).await;
