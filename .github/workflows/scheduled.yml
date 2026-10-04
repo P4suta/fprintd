@@ -44,7 +44,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@4711ae3e97dd6376c8d5d5d51c89566406abaefa # beta
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # `RUSTFLAGS: -D warnings` is absent, unlike ci.yml: a new lint firing on beta is not a
       # bit-exactness signal and must not mask one.
       - name: Goldens against the next toolchain
