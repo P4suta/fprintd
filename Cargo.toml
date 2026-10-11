@@ -33,7 +33,7 @@ members = [
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.1.0" # all crates inherit via `version.workspace = true`
+version = "0.1.1"
 edition = "2021"
 # MSRV floor for the published pure crates (fprint-core, fprint-fp3, fprint-bozorth3,
 # fprint-mindtct), verified by CI's `msrv` job. The three C-linking crates need more and declare it
@@ -47,11 +47,11 @@ homepage = "https://github.com/P4suta/fprintd"
 [workspace.dependencies]
 # Internal crates. Published members carry `version` alongside `path`: crates.io rejects a
 # path-only dependency, so a published crate's deps must resolve on the registry too.
-fprint-core = { path = "crates/fprint-core", version = "0.1.0" }
-fprint-fp3 = { path = "crates/fprint-fp3", version = "0.1.0" }
-fprint-bozorth3 = { path = "crates/fprint-bozorth3", version = "0.1.0" }
-fprint-mindtct = { path = "crates/fprint-mindtct", version = "0.1.0" }
-fprint-pipeline = { path = "crates/fprint-pipeline", version = "0.1.0" }
+fprint-core = { path = "crates/fprint-core", version = "0.1.1" }
+fprint-fp3 = { path = "crates/fprint-fp3", version = "0.1.1" }
+fprint-bozorth3 = { path = "crates/fprint-bozorth3", version = "0.1.1" }
+fprint-mindtct = { path = "crates/fprint-mindtct", version = "0.1.1" }
+fprint-pipeline = { path = "crates/fprint-pipeline", version = "0.1.1" }
 # Version-less: `publish = false`, and a dev-dependency of the published `fprint-fp3`. Cargo keeps
 # only versioned dev-dependencies in the tarball, so omitting the version strips this crate. Adding
 # a version would drag an unpublished crate into fprint-fp3's manifest and break `cargo publish`.
@@ -59,7 +59,7 @@ fprint-backend-native = { path = "crates/fprint-backend-native" }
 # Version-less for the same reason; the testkit is a dev-dependency of the whole tree. `cargo xtask
 # publish-check` reads the packaged manifests and confirms it is absent.
 fprint-testkit = { path = "crates/fprint-testkit" }
-fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version = "0.1.0" }
+fprint-backend-libfprint = { path = "crates/fprint-backend-libfprint", version = "0.1.1" }
 
 [profile.release]
 lto = "thin"
