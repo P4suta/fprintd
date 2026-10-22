@@ -352,23 +352,11 @@ fn isolated_crate(root: &Path, driver: Option<&str>) -> Option<String> {
         .then(|| name.to_owned())
 }
 
-/// The remaining bring-up work, from `hw-checklist` itself: shell out to the real subcommand and
-/// read its JSON, so the count is whatever that oracle reports, not a second implementation.
+/// Read the same hardware checklist report as the CLI.
 fn hw_summary(root: &Path, driver: Option<&str>) -> HwSummary {
-    let mut cmd = Command::new("cargo");
-    cmd.current_dir(root)
-        .args(["run", "--quiet", "-p", "xtask", "--", "hw-checklist"]);
-    if let Some(d) = driver {
-        cmd.arg(d);
-    }
-    cmd.arg("--json");
-    match cmd.output() {
-        Err(e) => HwSummary::Unavailable(format!("could not run hw-checklist: {e}")),
-        Ok(o) if !o.status.success() => HwSummary::Unavailable(format!(
-            "hw-checklist exited non-zero: {}",
-            String::from_utf8_lossy(&o.stderr).trim(),
-        )),
-        Ok(o) => HwSummary::from_json(String::from_utf8_lossy(&o.stdout).trim()),
+    match crate::hw_checklist::report_json(root, driver) {
+        Ok(json) => HwSummary::from_json(json.trim()),
+        Err(e) => HwSummary::Unavailable(format!("could not read hw-checklist: {e}")),
     }
 }
 
@@ -494,10 +482,37 @@ mod tests {
     }
 
     #[test]
+    fn hw_summary_reads_markers_without_a_cargo_project() {
+        let root = tempfile::tempdir().expect("create a checklist fixture");
+        let driver = root.path().join("usb/drivers/example");
+        std::fs::create_dir_all(&driver).expect("create the driver directory");
+        std::fs::write(
+            driver.join("device.rs"),
+            "/// HW-verified: required. Confirm the endpoint.\n",
+        )
+        .expect("write the pending marker");
+
+        assert!(
+            matches!(
+                hw_summary(root.path(), Some("example")),
+                HwSummary::Pending(1)
+            ),
+            "the checklist must read a driver fixture without a Cargo project"
+        );
+    }
+
+    #[test]
+    fn hw_summary_reports_an_unavailable_directory() {
+        let root = tempfile::tempdir().expect("create an empty fixture");
+        assert!(matches!(
+            hw_summary(&root.path().join("missing"), None),
+            HwSummary::Unavailable(_)
+        ));
+    }
+
+    #[test]
     fn scorecard_runs_and_is_green_on_the_current_tree() {
-        // Fast mode: the in-process graph gates and the hw-checklist shell-out run for real; the
-        // minutes-long cargo gates (tests, clippy, REUSE, publish) are skipped. The real command
-        // (`Mode::Full`) runs them — this only keeps the unit test quick.
+        // Fast mode runs the graph gates and shared checklist without the full subprocess gates.
         let root = repo_root();
         let card = evaluate(&root, None, false);
 

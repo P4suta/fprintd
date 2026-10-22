@@ -62,13 +62,17 @@ impl DriverReport {
 /// `hw-checklist [driver] [--json]`: collect the `HW-verified:` markers into a per-driver burndown,
 /// optionally filtered to one driver and optionally as JSON.
 pub fn run(root: &Path, driver: Option<String>, json: bool) -> Result<(), String> {
-    let reports = collect(root, driver.as_deref())?;
     if json {
-        println!("{}", render_json(&reports));
+        println!("{}", report_json(root, driver.as_deref())?);
     } else {
+        let reports = collect(root, driver.as_deref())?;
         println!("{}", render_markdown(&reports));
     }
     Ok(())
+}
+
+pub(crate) fn report_json(root: &Path, driver: Option<&str>) -> Result<String, String> {
+    collect(root, driver).map(|reports| render_json(&reports))
 }
 
 /// Scan the tree and group the markers by driver, keeping only `filter`'s driver when it is set.
