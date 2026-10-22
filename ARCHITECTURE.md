@@ -84,6 +84,7 @@ Recorded as ADRs in [`docs/adr/`](docs/adr/):
 | [0003](docs/adr/0003-fprintd-not-libfprint.md) | fprintd compatibility, not libfprint compatibility |
 | [0004](docs/adr/0004-coexistence-shim-first.md) | Coexistence: what we install, what we borrow |
 | [0005](docs/adr/0005-provenance-licensing.md) | Provenance & licensing boundary |
+| [Wire codecs](docs/adr/use-maintained-dbus-and-gvariant-codecs.md) | Use maintained D-Bus and GVariant codecs |
 
 ---
 
@@ -150,13 +151,13 @@ not flow back.
 | `fprint-backend-libfprint` | shim owning the C libfprint FFI directly via `libfprint-sys` | Linux | libfprint-2, `!Send` |
 | `fprint-backend-native` | virtual device + host-image `Device` (matching via `fprint-pipeline`); an **experimental** USB capture seam behind the `usb` feature | any | `fprint-pipeline`, `fprint-mindtct`; `nusb` *(optional, experimental)* — async is hand-rolled, no runtime dep |
 | *integration* (`fprint-integration`) | `CompositeBackend` / `CompositeDevice` | any (native-only off Linux) | both backends, hand-written `match` delegation |
-| `fprintd` | `net.reactivated.Fprint` daemon | Linux | `zbus` (+ its `zvariant`), `tokio`, PolicyKit |
+| `fprintd` | `net.reactivated.Fprint` daemon | Linux | `zbus`, `tokio`, PolicyKit |
 
 Wire formats live only in edge modules, never in `fprint-core`. FP3 (de)serialization is a
-hand-rolled GVariant codec in `fprint-fp3` — no serialization crate, so it depends on
-`fprint-core` alone; its correctness is pinned by frozen golden-byte fixtures. Only the D-Bus
-side uses `zvariant`, transitively through `zbus`; the daemon has no direct `zvariant`
-dependency.
+hand-rolled GVariant codec in `fprint-fp3` with no serialization-library dependency.
+Frozen golden-byte fixtures pin its encoding.
+The daemon uses zbus for D-Bus wire types.
+The FP3 tests use zgvariant as an independent GVariant reader.
 
 ## Non-goals
 

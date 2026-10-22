@@ -79,10 +79,7 @@ async fn enroll_then_verify_over_dbus_on_real_hardware() {
         Arc::new(Authorizer::Fixed(ActionSet::ALL)),
         Store::with_root(tmp.clone()),
     );
-    let builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name("net.reactivated.Fprint")
-        .expect("request name");
+    let builder = zbus::connection::Builder::session().name("net.reactivated.Fprint");
     let _daemon_conn = daemon.attach(builder).await.expect("attach daemon");
 
     let client = zbus::Connection::session().await.expect("client session");
@@ -98,7 +95,6 @@ async fn enroll_then_verify_over_dbus_on_real_hardware() {
 
     let device = DeviceProxy::builder(&client)
         .path(device_path)
-        .expect("device path")
         .cache_properties(zbus::proxy::CacheProperties::No)
         .build()
         .await

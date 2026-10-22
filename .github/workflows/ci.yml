@@ -61,9 +61,7 @@ jobs:
       - name: Rustfmt
         run: cargo fmt --all --check
       # `--all-features` covers the feature axis: fprint-backend-native's `usb`/nusb seam, the fp3
-      # GVariant oracle, mindtct's `unstable-diagnostics`. fprintd compiles to nothing off Linux, so
-      # nothing pulls the D-Bus `zvariant` that conflicts with the oracle's `gvariant`; the whole
-      # workspace builds here. The `linux` job excludes fp3.
+      # GVariant oracle, and mindtct's `unstable-diagnostics`.
       - name: Clippy (workspace, all targets, all features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       # Windows-only re-run of clippy as inline PR annotations (the workspace builds there without
@@ -115,18 +113,14 @@ jobs:
           path: .sccache
           key: sccache-linux-${{ hashFiles('Cargo.lock', 'docker/Dockerfile') }}
           restore-keys: sccache-linux-
-      # `--exclude fprint-fp3`: its dev-only GVariant oracle pulls `zvariant/gvariant`, which upstream
-      # zvariant 5.13.0 miscompiles once the daemon's `zvariant` D-Bus features unify onto the same
-      # build (only arises here, where fprintd is real). fp3 is pure and fully covered by the check
-      # job. Separate steps, so a failure names itself.
       - name: Clippy the whole workspace (incl. shim & daemon)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
-          cargo clippy --workspace --all-targets --all-features --exclude fprint-fp3 -- -D warnings
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Test the whole workspace (incl. shim & daemon)
         run: >
           docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml run --rm dev
-          cargo test --workspace --all-features --exclude fprint-fp3
+          cargo test --workspace --all-features
       # These two crates only build on Linux, so this is the only place their intra-doc links are
       # checked.
       - name: Rustdoc (Linux-only crates, warnings are errors)
@@ -170,7 +164,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@1b3313b849df1bb048b694ad5408de234833c4e7 # 1.82
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      # The Linux-only crates are absent: they declare 1.85 and would fail here. Their floor is
+      # The Linux-only crates are absent: they declare higher Rust floors. Their floor is
       # enforced by cargo's `rust-version` and exercised by `linux`.
       - name: Check the pure crates on the declared MSRV
         run: >
