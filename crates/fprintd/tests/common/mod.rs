@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex, Weak};
 
 use fprint_core::Backend;
 use fprintd::{ActionSet, Authorizer, Daemon, Store};
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 /// A private session bus, so the tests are self-contained: no ambient `DBUS_SESSION_BUS_ADDRESS`,
 /// no `dbus-run-session` wrapper. The daemon and client both connect to it, and it is killed when
@@ -148,10 +148,7 @@ impl Harness {
             Arc::new(Authorizer::Fixed(grants)),
             Store::with_root(store_root.clone()),
         );
-        let builder = zbus::connection::Builder::session()
-            .expect("session bus")
-            .name(name.clone())
-            .expect("request name");
+        let builder = zbus::connection::Builder::session().name(name.clone());
         let conn = daemon.attach(builder).await.expect("attach daemon");
         Harness {
             name,
@@ -175,7 +172,6 @@ impl Harness {
     pub async fn device<'a>(&self, conn: &zbus::Connection) -> DeviceProxy<'a> {
         let manager = ManagerProxy::builder(conn)
             .destination(self.name.clone())
-            .expect("destination")
             .build()
             .await
             .expect("manager proxy");
@@ -192,9 +188,7 @@ impl Harness {
     ) -> DeviceProxy<'a> {
         DeviceProxy::builder(conn)
             .destination(self.name.clone())
-            .expect("destination")
             .path(path)
-            .expect("path")
             .build()
             .await
             .expect("device proxy")

@@ -2,24 +2,15 @@
 //
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! A differential oracle for the FP3 codec: decode each frozen golden fixture a second time
-//! with the mature, independent [`zvariant`] GVariant implementation and assert it reads the
-//! same structure the hand-rolled codec does.
+//! Decode frozen FP3 fixtures with the independent zgvariant GVariant implementation.
 //!
-//! `fprint-fp3`'s codec is hand-rolled and already byte-exact against these fixtures
-//! (`tests/libfprint_fixture.rs`). This test adds a second witness: it strips the `"FP3"`
-//! magic and deserializes the remaining GVariant-normal-form body as the FP3 tuple
-//! `(issbymsmsia{sv}v)` — `i`=`i32`, `s`=`String`, `b`=`bool`, `y`=`u8`, `ms`=`Option<String>`,
-//! `a{sv}`=map, `v`=[`Value`] — then checks every field both readers expose against
-//! [`fprint_fp3::from_bytes`]. For the NBIS fixture it also walks the `(a(aiaiai))` payload and
-//! compares the minutiae column-for-column. zvariant is a dev-dependency only; the shipped
-//! codec depends on nothing but `fprint-core`.
+//! Compare every shared metadata field and NBIS minutiae column with [`fprint_fp3::from_bytes`] while preserving the original fixture bytes.
 
 use std::collections::HashMap;
 
 use fprint_core::{Finger, Minutia, Template};
-use zvariant::serialized::{Context, Data};
-use zvariant::{Endian, OwnedValue, Value};
+use zgvariant::serialized::{Context, Data};
+use zgvariant::{Endian, OwnedVariant, Variant};
 
 /// The FP3 magic prefix; the GVariant body begins after it.
 const MAGIC_LEN: usize = 3;
@@ -27,21 +18,21 @@ const MAGIC_LEN: usize = 3;
 /// libfprint's `G_MININT32` "date unset" sentinel.
 const G_MININT32: i32 = i32::MIN;
 
-/// The FP3 top-level tuple `(issbymsmsia{sv}v)`, as zvariant reads it. Its Rust shape fixes the
-/// GVariant signature zvariant decodes against: `Option<String>` is `ms`, `HashMap` is `a{sv}`,
-/// `OwnedValue` is `v`. The dict and variant slots are owned so the decoded tuple borrows
-/// nothing from the deserializer.
+/// The FP3 top-level tuple `(issbymsmsia{sv}v)`, as zgvariant reads it.
+/// Its Rust shape fixes the GVariant signature zgvariant decodes against: `Option<String>` is `ms`, `HashMap` is `a{sv}`,
+/// `OwnedVariant` is `v`.
+/// The dict and variant slots are owned so the decoded tuple borrows nothing from the deserializer.
 type Fp3Tuple = (
-    i32,                         // `i`  kind (FpiPrintType)
-    String,                      // `s`  driver
-    String,                      // `s`  device_id
-    bool,                        // `b`  device_stored
-    u8,                          // `y`  finger
-    Option<String>,              // `ms` username
-    Option<String>,              // `ms` description
-    i32,                         // `i`  enroll_date (Julian day, or G_MININT32)
-    HashMap<String, OwnedValue>, // `a{sv}` reserved (empty)
-    OwnedValue,                  // `v`  payload
+    i32,                           // `i`  kind (FpiPrintType)
+    String,                        // `s`  driver
+    String,                        // `s`  device_id
+    bool,                          // `b`  device_stored
+    u8,                            // `y`  finger
+    Option<String>,                // `ms` username
+    Option<String>,                // `ms` description
+    i32,                           // `i`  enroll_date (Julian day, or G_MININT32)
+    HashMap<String, OwnedVariant>, // `a{sv}` reserved (empty)
+    OwnedVariant,                  // `v`  payload
 );
 
 /// `FpiPrintType::RAW`.
@@ -49,18 +40,18 @@ const KIND_RAW: i32 = 1;
 /// `FpiPrintType::NBIS`.
 const KIND_NBIS: i32 = 2;
 
-/// Decode the GVariant body (magic stripped) with zvariant, asserting it consumes every byte.
-fn zvariant_decode(blob: &[u8]) -> Fp3Tuple {
+/// Decode the GVariant body (magic stripped) with zgvariant, asserting it consumes every byte.
+fn zgvariant_decode(blob: &[u8]) -> Fp3Tuple {
     let body = &blob[MAGIC_LEN..];
-    let ctxt = Context::new_gvariant(Endian::Little, 0);
+    let ctxt = Context::new(Endian::Little, 0);
     let data = Data::new(body, ctxt);
     let (tuple, consumed): (Fp3Tuple, usize) = data
         .deserialize()
-        .expect("zvariant must decode the FP3 GVariant body");
+        .expect("zgvariant must decode the FP3 GVariant body");
     assert_eq!(
         consumed,
         body.len(),
-        "zvariant must consume the whole body, leaving no trailing bytes"
+        "zgvariant must consume the whole body, leaving no trailing bytes"
     );
     tuple
 }
@@ -72,7 +63,7 @@ fn non_empty(s: &str) -> Option<&str> {
 
 /// Cross-check every metadata field both readers expose, on any fixture.
 fn assert_metadata_agrees(blob: &[u8]) {
-    let zt = zvariant_decode(blob);
+    let zt = zgvariant_decode(blob);
     let print = fprint_fp3::from_bytes(blob).expect("fprint-fp3 must decode the fixture");
 
     // kind <-> template variant
@@ -136,9 +127,9 @@ fn assert_metadata_agrees(blob: &[u8]) {
     assert!(zt.8.is_empty(), "reserved a{{sv}} must be empty");
 }
 
-/// Pull an `ai` (array of int32) out of a zvariant [`Value`].
-fn i32_column(v: &Value) -> Vec<i32> {
-    let Value::Array(arr) = v else {
+/// Pull an `ai` (array of int32) out of a zgvariant [`Variant`].
+fn i32_column(v: &Variant) -> Vec<i32> {
+    let Variant::Array(arr) = v else {
         panic!(
             "expected an `ai` array, got signature {}",
             v.value_signature()
@@ -147,28 +138,28 @@ fn i32_column(v: &Value) -> Vec<i32> {
     arr.inner()
         .iter()
         .map(|e| match e {
-            Value::I32(n) => *n,
+            Variant::I32(n) => *n,
             other => panic!("expected i32, got {}", other.value_signature()),
         })
         .collect()
 }
 
-/// Reconstruct the minutiae samples from an NBIS payload `(a(aiaiai))` [`Value`].
-fn zvariant_minutiae(payload: &Value) -> Vec<Vec<Minutia>> {
-    let Value::Structure(outer) = payload else {
+/// Reconstruct the minutiae samples from an NBIS payload `(a(aiaiai))` [`Variant`].
+fn zgvariant_minutiae(payload: &Variant) -> Vec<Vec<Minutia>> {
+    let Variant::Structure(outer) = payload else {
         panic!(
             "NBIS payload must be a `(a(aiaiai))` structure, got {}",
             payload.value_signature()
         );
     };
-    let [Value::Array(samples)] = outer.fields() else {
+    let [Variant::Array(samples)] = outer.fields() else {
         panic!("NBIS payload structure must hold exactly one array field");
     };
     samples
         .inner()
         .iter()
         .map(|sample| {
-            let Value::Structure(cols) = sample else {
+            let Variant::Structure(cols) = sample else {
                 panic!("each sample must be an `(aiaiai)` structure");
             };
             let [x, y, theta] = cols.fields() else {
@@ -192,7 +183,7 @@ fn raw_fixture_metadata_agrees() {
     assert_metadata_agrees(blob);
 
     // The RAW payload is itself an opaque, self-describing standalone variant.
-    let zt = zvariant_decode(blob);
+    let zt = zgvariant_decode(blob);
     assert_eq!(
         zt.9.value_signature().to_string(),
         "v",
@@ -210,13 +201,13 @@ fn nbis_fixture_metadata_agrees() {
 fn nbis_fixture_minutiae_agree() {
     let blob = include_bytes!("fixtures/libfprint_virtual_image_nbis.fp3");
 
-    let zt = zvariant_decode(blob);
+    let zt = zgvariant_decode(blob);
     assert_eq!(
         zt.9.value_signature().to_string(),
         "(a(aiaiai))",
         "the virtual_image payload is the NBIS minutiae structure"
     );
-    let from_zvariant = zvariant_minutiae(&zt.9);
+    let from_zgvariant = zgvariant_minutiae(&zt.9);
 
     let print = fprint_fp3::from_bytes(blob).expect("fprint-fp3 must decode the NBIS fixture");
     let Template::Nbis(from_codec) = &print.template else {
@@ -224,7 +215,7 @@ fn nbis_fixture_minutiae_agree() {
     };
 
     assert_eq!(
-        &from_zvariant, from_codec,
+        &from_zgvariant, from_codec,
         "the two GVariant readers must recover identical minutiae from the frozen bytes"
     );
     assert!(

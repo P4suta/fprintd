@@ -64,10 +64,7 @@ async fn claim_publishes_the_settled_shape() {
         Arc::new(Authorizer::Fixed(ActionSet::ALL)),
         Store::with_root(tmp.clone()),
     );
-    let builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name("net.reactivated.Fprint")
-        .expect("request name");
+    let builder = zbus::connection::Builder::session().name("net.reactivated.Fprint");
     let _daemon_conn = daemon.attach(builder).await.expect("attach daemon");
 
     let client = zbus::Connection::session().await.expect("client session");
@@ -79,7 +76,6 @@ async fn claim_publishes_the_settled_shape() {
     // wire, or this would assert against zbus's cache rather than the daemon.
     let device = DeviceProxy::builder(&client)
         .path(devices[0].clone())
-        .expect("device path")
         .cache_properties(zbus::proxy::CacheProperties::No)
         .build()
         .await

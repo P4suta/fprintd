@@ -3,9 +3,8 @@ name = "fprintd"
 description = "Pure-Rust fingerprint daemon speaking the net.reactivated.Fprint D-Bus contract (fprintd-compatible)."
 version.workspace = true
 edition.workspace = true
-# Inherited from the shim, not chosen: on Linux the daemon drives fprint-backend-libfprint and
-# therefore the `edition = "2024"` FFI stack, which needs 1.85.
-rust-version = "1.85"
+# zbus 6 requires Rust 1.89; the published libraries keep their separate workspace floor.
+rust-version = "1.89"
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
@@ -27,7 +26,13 @@ fprint-fp3 = { workspace = true }
 fprint-backend-libfprint = { workspace = true }
 # zbus must use its tokio integration so interface handlers run in the tokio runtime the
 # daemon is built on (the verify/enroll pumps `tokio::spawn` from inside handlers).
-zbus = { version = "5", default-features = false, features = ["tokio"] }
+zbus = { version = "6", default-features = false, features = [
+  "tokio",
+  "proxy",
+  "service",
+  "object-manager",
+  "tracing",
+] }
 tokio = { version = "1", features = [
   "rt",
   "rt-multi-thread",

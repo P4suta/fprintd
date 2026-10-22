@@ -13,7 +13,7 @@
 //! logind may be absent — a private test bus has no `org.freedesktop.login1`. That is not an error
 //! here: [`install`] then simply does nothing, and the daemon runs without sleep integration.
 
-use zbus::zvariant::OwnedFd;
+use zbus::OwnedFd;
 
 use crate::actor::DeviceHandle;
 use futures_util::future::join_all;

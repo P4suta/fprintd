@@ -40,8 +40,7 @@ mod storage;
 use std::sync::Arc;
 
 use fprint_core::{Backend, Device as _, DeviceInfo};
-use zbus::zvariant::OwnedObjectPath;
-use zbus::Connection;
+use zbus::{Connection, OwnedObjectPath};
 
 use tokio::task::LocalSet;
 
@@ -133,21 +132,21 @@ where
 
         for (index, info) in infos.into_iter().enumerate() {
             let path = format!("{OBJECT_PREFIX}/Device/{index}");
-            let opath: OwnedObjectPath = zbus::zvariant::ObjectPath::try_from(path.as_str())
+            let opath: OwnedObjectPath = zbus::ObjectPath::try_from(path.as_str())
                 .map_err(|e| DaemonError::Internal(format!("bad object path: {e}")))?
                 .into();
 
             let handle = DeviceActor::spawn(self.factory.clone(), info.clone());
             handles.push(handle.clone());
             let device = Device::new(info, handle, self.store.clone(), self.authz.clone());
-            builder = builder.serve_at(opath.clone(), device)?;
+            builder = builder.serve_at(opath.clone(), device);
             paths.push(opath);
         }
 
         let manager = Manager::new(paths);
         let manager_path = OwnedObjectPath::try_from(format!("{OBJECT_PREFIX}/Manager"))
             .map_err(|e| DaemonError::Internal(format!("bad object path: {e}")))?;
-        builder = builder.serve_at(manager_path, manager)?;
+        builder = builder.serve_at(manager_path, manager);
 
         let connection = builder.build().await?;
         // Arm logind sleep integration. A no-op where logind is absent (e.g. a private test bus).
@@ -157,7 +156,7 @@ where
 
     /// Attach to the system bus and request the `net.reactivated.Fprint` name.
     pub async fn serve_system(self) -> Result<Connection, DaemonError> {
-        let builder = zbus::connection::Builder::system()?.name(BUS_NAME)?;
+        let builder = zbus::connection::Builder::system().name(BUS_NAME);
         self.attach(builder).await
     }
 }

@@ -92,17 +92,14 @@ async fn delete_all_frees_per_template_not_a_wholesale_wipe() {
         Arc::new(Authorizer::Fixed(ActionSet::ALL)),
         Store::with_root(tmp.clone()),
     );
-    let dbus_builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name("net.reactivated.Fprint.DeleteIsolation")
-        .expect("request name");
+    let dbus_builder =
+        zbus::connection::Builder::session().name("net.reactivated.Fprint.DeleteIsolation");
     let _daemon_conn = daemon.attach(dbus_builder).await.expect("attach daemon");
 
     // Client side.
     let client = zbus::Connection::session().await.expect("client session");
     let manager = ManagerProxy::builder(&client)
         .destination("net.reactivated.Fprint.DeleteIsolation")
-        .expect("destination")
         .build()
         .await
         .expect("manager proxy");
@@ -110,9 +107,7 @@ async fn delete_all_frees_per_template_not_a_wholesale_wipe() {
     assert_eq!(devices.len(), 1, "one virtual device expected");
     let device = DeviceProxy::builder(&client)
         .destination("net.reactivated.Fprint.DeleteIsolation")
-        .expect("destination")
         .path(devices[0].clone())
-        .expect("device path")
         .build()
         .await
         .expect("device proxy");

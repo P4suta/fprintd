@@ -23,7 +23,7 @@
 
 use std::collections::HashMap;
 
-use zbus::zvariant::OwnedValue;
+use zbus::OwnedVariant;
 
 use crate::error::DaemonError;
 
@@ -133,7 +133,7 @@ trait PolicyKitAuthority {
     /// s cancellation_id) -> (bba{ss})`.
     fn check_authorization(
         &self,
-        subject: &(String, HashMap<String, OwnedValue>),
+        subject: &(String, HashMap<String, OwnedVariant>),
         action_id: &str,
         details: &HashMap<String, String>,
         flags: u32,
@@ -162,7 +162,7 @@ impl PolkitAuthorizer {
         subject_bus_name: &str,
         action: PolkitAction,
     ) -> Result<(), DaemonError> {
-        let name = OwnedValue::try_from(zbus::zvariant::Value::from(subject_bus_name))
+        let name = OwnedVariant::try_from(zbus::Variant::from(subject_bus_name))
             .map_err(|e| DaemonError::Internal(format!("polkit subject: {e}")))?;
         let mut subject_details = HashMap::new();
         subject_details.insert("name".to_string(), name);

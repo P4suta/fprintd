@@ -72,17 +72,13 @@ async fn claim_reconciliation_frees_orphaned_on_sensor_slot() {
         Store::with_root(tmp.clone()),
     );
     let bus_name = "net.reactivated.Fprint.ReconcileOrphan";
-    let conn_builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name(bus_name)
-        .expect("request name");
+    let conn_builder = zbus::connection::Builder::session().name(bus_name);
     let _daemon_conn = daemon.attach(conn_builder).await.expect("attach daemon");
 
     // Client side.
     let client = zbus::Connection::session().await.expect("client session");
     let manager = ManagerProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .build()
         .await
         .expect("manager proxy");
@@ -90,9 +86,7 @@ async fn claim_reconciliation_frees_orphaned_on_sensor_slot() {
     assert_eq!(devices.len(), 1, "one virtual device expected");
     let device = DeviceProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .path(devices[0].clone())
-        .expect("device path")
         .build()
         .await
         .expect("device proxy");
@@ -163,25 +157,19 @@ async fn another_users_claim_keeps_the_first_users_slot() {
         Store::with_root(tmp.clone()),
     );
     let bus_name = "net.reactivated.Fprint.ReconcileXUser";
-    let conn_builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name(bus_name)
-        .expect("request name");
+    let conn_builder = zbus::connection::Builder::session().name(bus_name);
     let _daemon_conn = daemon.attach(conn_builder).await.expect("attach daemon");
 
     let client = zbus::Connection::session().await.expect("client session");
     let manager = ManagerProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .build()
         .await
         .expect("manager proxy");
     let devices = manager.get_devices().await.expect("get devices");
     let device = DeviceProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .path(devices[0].clone())
-        .expect("device path")
         .build()
         .await
         .expect("device proxy");

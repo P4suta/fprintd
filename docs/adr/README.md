@@ -13,3 +13,4 @@ Format: numbered file, a `Status` (`Proposed` / `Accepted` / `Superseded`), and 
 | [0003](0003-fprintd-not-libfprint.md) | fprintd compatibility, not libfprint compatibility | Accepted |
 | [0004](0004-coexistence-shim-first.md) | Coexistence: what we install, what we borrow | Accepted |
 | [0005](0005-provenance-licensing.md) | Provenance & licensing boundary | Accepted |
+| [Wire codecs](use-maintained-dbus-and-gvariant-codecs.md) | Use maintained D-Bus and GVariant codecs | Accepted |

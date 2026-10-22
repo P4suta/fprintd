@@ -9,7 +9,7 @@
 //! manager just holds the fixed path list. `GetDefaultDevice` returns the last device, as
 //! fprintd's `fprint_manager_get_default_device` does.
 
-use zbus::zvariant::OwnedObjectPath;
+use zbus::OwnedObjectPath;
 
 use crate::error::DaemonError;
 

@@ -52,25 +52,19 @@ async fn concurrent_verify_start_spawns_exactly_one() {
         Store::with_root(tmp.clone()),
     );
     let bus_name = "net.reactivated.Fprint.Toctou";
-    let conn_builder = zbus::connection::Builder::session()
-        .expect("session bus")
-        .name(bus_name)
-        .expect("request name");
+    let conn_builder = zbus::connection::Builder::session().name(bus_name);
     let _daemon_conn = daemon.attach(conn_builder).await.expect("attach daemon");
 
     let client = zbus::Connection::session().await.expect("client session");
     let manager = ManagerProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .build()
         .await
         .expect("manager proxy");
     let devices = manager.get_devices().await.expect("get devices");
     let device = DeviceProxy::builder(&client)
         .destination(bus_name)
-        .expect("destination")
         .path(devices[0].clone())
-        .expect("device path")
         .build()
         .await
         .expect("device proxy");
