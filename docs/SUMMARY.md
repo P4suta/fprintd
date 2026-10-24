@@ -11,6 +11,8 @@
   - [0003 · fprintd, not libfprint](adr/0003-fprintd-not-libfprint.md)
   - [0004 · Coexistence](adr/0004-coexistence-shim-first.md)
   - [0005 · Provenance & licensing](adr/0005-provenance-licensing.md)
+  - [CI verification schedule](adr/ci-verification-schedule.md)
+  - [Affected-file verification](adr/affected-file-verification.md)
 
 # The kernels
 
