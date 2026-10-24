@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+runtime:
+  - '**'
+  - '!README.md'
+  - '!CONTRIBUTING.md'
+  - '!CODE_OF_CONDUCT.md'
+  - '!SECURITY.md'
+  - '!SUPPORT.md'
+  - '!ARCHITECTURE.md'
+  - '!docs/**'
+  - '!repository.toml'
+  - '!REUSE.toml'
+  - '!LICENSE-MIT'
+  - '!LICENSE-APACHE'

@@ -8,6 +8,8 @@ date: 2026-10-24
 
 Accepted.
 
+[Affected-file verification](affected-file-verification.md) supersedes the summary's treatment of unaffected prerequisite jobs.
+
 ## Context
 
 The required platform tests, native libfprint integration, minimum Rust version, package checks, dependency policy, and license checks provide the merge verdict.
