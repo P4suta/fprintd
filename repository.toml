@@ -1,0 +1,16 @@
+name = "fprintd"
+summary = "Rust fingerprint service compatible with the fprintd D-Bus interface"
+install = """
+# Install the hardware-free demo from source.
+git clone https://github.com/P4suta/fprintd.git
+cd fprintd
+cargo install --locked --path crates/fprint-cli
+"""
+usage = "fprint demo"
+documentation_index = true
+copyright = "fprintd (pure-Rust) contributors"
+license = "MIT OR Apache-2.0"
+
+[[consent]]
+contributor = "Yasunobu"
+evidence = "Existing dual-license assets introduced at https://github.com/P4suta/fprintd/commit/c2bdc228bd0f0dec902cf946bfec958f8ba26d21"

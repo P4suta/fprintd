@@ -1,5 +1,7 @@
 # Documentation
 
+[The project overview](overview.md) describes the crate surface, verification limits, and development commands.
+
 Design and rationale for the whole stack live in the top-level
 [`ARCHITECTURE.md`](../ARCHITECTURE.md). This directory holds the format specs,
 algorithm references, and development notes.

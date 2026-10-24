@@ -10,10 +10,10 @@ crates.
 $ cargo run -p fprint-cli -- demo
 ```
 
-The `fprint` CLI wraps the native backend and runs a scripted story: enroll a
-synthetic finger, verify the same finger (PASS), then present a different finger
-(REJECT). Add `--json` for machine-readable output. This is the whole stack —
-detection, templating, and matching — end to end.
+The `fprint` CLI enrolls a synthetic minutiae template on the virtual device, accepts a recapture, and rejects a different synthetic finger.
+The example exercises template matching through the device interface.
+It does not run image detection or a physical sensor.
+Add `--json` for machine-readable output.
 
 ## The pieces on their own
 
