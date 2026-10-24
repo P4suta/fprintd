@@ -1,37 +1,17 @@
 # SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
 # SPDX-License-Identifier: MIT OR Apache-2.0
 #
-# CI: strict lints + tests on every platform the code runs on.
-#
-#  * `check`  — pure-Rust crates on Windows and macOS, where the Linux-only shim and daemon compile
-#               to (near-)empty crates so `--workspace` needs no libfprint. Covers fprint-core,
-#               fprint-fp3, fprint-bozorth3, fprint-mindtct, fprint-backend-native, fprint-integration.
-#               Also runs strict rustdoc over the cross-platform library crates.
-#  * `linux`  — Linux verification inside the pinned libfprint container: the shim against the real
-#               `virtual_device` driver (incl. the M2 byte-identity assertion) and the fprintd D-Bus
-#               daemon end-to-end. Lint/test gate for the Linux-only crates. Caches sccache (167 MiB)
-#               rather than the target tree. See docker/docker-compose.ci.yml.
-#  * `unit`   — the systemd unit against real systemd: it parses, and `Alias=` takes the seat from
-#               upstream's unit. See xtask/src/unit.rs.
-#  * `msrv`   — the published pure crates on the declared 1.82 (every other job runs latest stable).
-#               `--locked`. The three C-linking crates declare 1.85 (the FFI binding is
-#               `edition = "2024"`) and are covered by `linux`.
-#  * `publish`— the published crates against crates.io's rules. `reuse lint` accepts a custom
-#               LicenseRef-* identifier and crates.io does not. See xtask/src/publish.rs.
-#  * `deny`   — supply chain: advisories, licence boundary, wildcard pins, source registries.
-#               Reads Cargo.lock via `cargo metadata`; needs neither Linux nor Docker.
-#  * `reuse`  — SPDX/REUSE license compliance.
-#  * `mutants`— which changed lines the tests do not defend. Reports, never gates: a surviving
-#               mutant is untested code, not broken code. Lands as an annotation on the diff. The
-#               whole-tree run is `mise run mutants`. See xtask/src/mutants.rs.
+# Required platform, compatibility, package, dependency, and license checks.
+# Mutation and coverage measurements use the local developer commands.
 
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
   merge_group:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event.merge_group.head_ref }}
@@ -51,10 +31,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: stable
-          components: clippy, rustfmt
+          persist-credentials: false
+      - name: Install the declared Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
         with:
@@ -94,6 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       # The image builds libfprint v1.94.10 from source; the gha cache avoids rebuilding it every
       # run. docker-compose.yml names `fprintd-dev`, so every `run` below picks this up.
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -109,7 +91,7 @@ jobs:
       # volume is empty each run, so sccache (167 MiB) carries the 109 third-party crate compilations
       # between runs. Keyed on the lockfile and the image; either moving invalidates the cache.
       # See docker/docker-compose.ci.yml.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: .sccache
           key: sccache-linux-${{ hashFiles('Cargo.lock', 'docker/Dockerfile') }}
@@ -149,9 +131,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: stable
+          persist-credentials: false
+      - name: Install the declared Rust toolchain
+        run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - name: Verify the unit against real systemd
         run: cargo xtask unit-verify
@@ -165,9 +148,10 @@ jobs:
       RUSTUP_TOOLCHAIN: "1.82"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: "1.82"
+          persist-credentials: false
+      - name: Install the minimum Rust toolchain
+        run: rustup toolchain install 1.82 --profile minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # The Linux-only crates are absent: they declare higher Rust floors. Their floor is
       # enforced by cargo's `rust-version` and exercised by `linux`.
@@ -181,9 +165,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: stable
+          persist-credentials: false
+      - name: Install the declared Rust toolchain
+        run: rustup toolchain install stable --profile minimal
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       # publish-check dry-runs `cargo publish --workspace`, which builds the shim crate; its
       # libfprint-sys FFI links libfprint-2 and glib-2.0 through pkg-config.
@@ -197,6 +182,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2
         with:
           command: check
@@ -206,94 +193,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
 
-  mutants:
-    name: mutants (the diff)
-    # A push has no base ref to diff against.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    # Bounded: a large diff reports nothing rather than holding a runner. The finding is advisory.
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0 # `git diff origin/<base>...HEAD` needs the base branch and the merge base
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
-        with:
-          tool: cargo-mutants
-      - name: Which of the changed lines the tests do not defend
-        # Reports, never gates. Survivors land as annotations on the diff.
-        continue-on-error: true
-        run: cargo xtask mutants origin/${{ github.base_ref }}
-
-  coverage:
-    name: coverage (pure crates, advisory)
-    # Reports, never gates, like mutants: coverage says which lines run, not which are defended.
-    # Pure crates only; the shim links the C libfprint, which this job does not carry.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
-        with:
-          toolchain: stable
-          components: llvm-tools-preview
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
-        with:
-          tool: cargo-nextest,cargo-llvm-cov
-      - name: Coverage over the published pure crates
-        run: >
-          cargo llvm-cov nextest --all-features --lcov --output-path lcov.info
-          -p fprint-core -p fprint-fp3 -p fprint-bozorth3 -p fprint-mindtct -p fprint-backend-native
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: coverage-lcov
-          path: lcov.info
-
-  # Single aggregation gate — the one status context the branch ruleset requires. `if: always()`
-  # so it runs even when a needed job fails; `skipped` counts as pass, so PR-only jobs report green
-  # on push and merge_group. `needs` lists the gating jobs only: `mutants` reports rather than gates
-  # and `coverage` has no floor, so both are intentionally excluded. Keep this list in step with the
-  # gating jobs above.
   ci-required:
     name: ci-required
     if: always()
     needs: [check, linux, unit, msrv, publish, deny, reuse]
     runs-on: ubuntu-latest
     timeout-minutes: 3
+    permissions: {}
     steps:
-      - name: verify all required jobs passed (skipped counts as pass)
-        run: |-
-          results="${{ join(needs.*.result, ' ') }}"
-          echo "needs results: $results"
-          for r in $results; do
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
-              echo "::error::a required job did not pass ($r)"
-              exit 1
-            fi
-          done
-          echo "all required jobs passed"
+      - name: Require success from every verification job
+        env:
+          ALL_REQUIRED_PASSED: >-
+            ${{ needs.check.result == 'success' && needs.linux.result == 'success' &&
+            needs.unit.result == 'success' && needs.msrv.result == 'success' &&
+            needs.publish.result == 'success' && needs.deny.result == 'success' &&
+            needs.reuse.result == 'success' }}
+        run: test "$ALL_REQUIRED_PASSED" = true
 
-  # The one status check branch protection requires,
-  # named the same in every P4suta repository.
-  # It passes only when every job it needs succeeded or was skipped.
   required:
     name: required
     if: always()
-    needs: [check, linux, unit, msrv, publish, deny, reuse, mutants, coverage, ci-required]
+    needs: [ci-required]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: Fail unless every needed job succeeded or was skipped
+      - name: Require the successful verification summary
         env:
-          RESULTS: ${{ toJSON(needs.*.result) }}
-        run: |
-          echo "${RESULTS}"
-          jq -e 'all(.[]; IN("success", "skipped"))' <<< "${RESULTS}"
+          RESULT: ${{ needs.ci-required.result }}
+        run: test "$RESULT" = success

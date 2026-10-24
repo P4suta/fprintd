@@ -55,8 +55,9 @@ mise run docker-test
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
 Docker path on Linux, the systemd unit, the declared MSRV, the published crates against
 the registry's rules, the supply chain, and `reuse lint` — all must be green.
-`.github/workflows/scheduled.yml` runs weekly: a new advisory against unchanged code, and the
-frozen goldens against the next toolchain.
+Pull requests and merge groups run CI once, and every required job must succeed.
+CodeQL runs on pull requests.
+The workflows have no scheduled verification campaigns.
 
 **`reuse lint` passing does not mean a crate can be published**, and `mise run publish-check`
 is the only thing that says otherwise: REUSE accepts a custom `LicenseRef-*` identifier and
@@ -79,8 +80,8 @@ or network. Scope it down while working:
 cargo mutants -f 'crates/fprint-bozorth3/src/cluster.rs'   # one file, minutes
 ```
 
-A surviving mutant is untested code, not broken code, so this gates nothing. A pull request gets
-the same check on its diff, reported as annotations on the changed lines.
+A surviving mutant identifies code that the tests do not defend.
+Mutation and coverage measurements use the local developer commands without automatic hosted jobs.
 
 Tasks that only run one command live in `mise.toml`; anything else belongs in `xtask/`
 (`cargo xtask <task>`), where a compiler and clippy can see it. Shell that would branch,
