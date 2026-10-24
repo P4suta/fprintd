@@ -10,10 +10,10 @@ crates.
 $ cargo run -p fprint-cli -- demo
 ```
 
-The `fprint` CLI wraps the native backend and runs a scripted story: enroll a
-synthetic finger, verify the same finger (PASS), then present a different finger
-(REJECT). Add `--json` for machine-readable output. This is the whole stack —
-detection, templating, and matching — end to end.
+The `fprint` CLI enrolls a synthetic minutiae template on the virtual device, accepts a recapture, and rejects a different synthetic finger.
+The example exercises template matching through the device interface.
+It does not run image detection or a physical sensor.
+Add `--json` for machine-readable output.
 
 ## The pieces on their own
 
@@ -61,10 +61,8 @@ hand.
 
 ## Where to next
 
-- [Architecture & provenance](ARCHITECTURE.md) — the traits, the layering, and
-  where each byte-exact guarantee comes from. Implementing a backend starts from
-  the `fprint-core` traits documented in the [API docs](api/fprint_core/index.html).
-- [The BOZORTH3 matcher](bozorth3-algorithm.md) and
-  [The MINDTCT detector](mindtct-algorithm.md) — the kernel specs.
+- [Architecture & provenance](https://github.com/P4suta/fprintd/blob/main/ARCHITECTURE.md) — the traits, the layering, and where each byte-exact guarantee comes from.
+  Implementing a backend starts from the `fprint-core` traits documented in the [API docs](api/fprint_core/index.html).
+- [The BOZORTH3 matcher](bozorth3-algorithm.md) and [The MINDTCT detector](mindtct-algorithm.md) — the kernel specs.
 - [The FP3 print format](fp3-format.md) — the serialization contract.
 - [Adding a native driver](adding-a-driver.md) — the capture seam.
