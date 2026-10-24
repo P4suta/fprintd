@@ -55,8 +55,9 @@ mise run docker-test
 CI (`.github/workflows/ci.yml`) runs the workspace tests on Windows and macOS, the
 Docker path on Linux, the systemd unit, the declared MSRV, the published crates against
 the registry's rules, the supply chain, and `reuse lint` — all must be green.
-Pull requests and merge groups run CI once, and every required job must succeed.
-CodeQL runs on pull requests.
+Pull requests and merge groups always run repository rules, task tests, workflow lint, and license checks.
+Platform, package, dependency, and CodeQL checks run when the changed files can affect their inputs.
+The summary requires success from selected jobs and explicit skips from unselected jobs.
 The workflows have no scheduled verification campaigns.
 
 **`reuse lint` passing does not mean a crate can be published**, and `mise run publish-check`

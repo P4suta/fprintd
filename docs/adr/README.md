@@ -16,3 +16,5 @@ Format: numbered file, a `Status` (`Proposed` / `Accepted` / `Superseded`), and 
 | [Wire codecs](use-maintained-dbus-and-gvariant-codecs.md) | Use maintained D-Bus and GVariant codecs | Accepted |
 
 [CI verification schedule](ci-verification-schedule.md) defines the required checks and removes recurring advisory campaigns.
+
+[Affected-file verification](affected-file-verification.md) defines job selection and the required results for each selection.

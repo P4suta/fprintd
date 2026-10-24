@@ -22,8 +22,40 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  changes:
+    name: repository checks and change selection
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      runtime: ${{ steps.filter.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: .github/filters/ci.yml
+          predicate-quantifier: some-with-excludes
+          token: ''
+      - name: Install the declared Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - name: Rustfmt
+        run: cargo fmt --all --check
+      - name: Repository rules
+        run: cargo xtask lint
+      - name: Repository task tests
+        run: cargo test --locked -p xtask
+      - name: Workflow lint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
   check:
     name: check (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -71,6 +103,8 @@ jobs:
 
   linux:
     name: linux verify (Docker + libfprint)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -128,6 +162,8 @@ jobs:
 
   unit:
     name: systemd unit (Alias takes the seat)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -141,6 +177,8 @@ jobs:
 
   msrv:
     name: msrv (1.82, published pure crates)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     env:
       # rust-toolchain.toml pins stable for a bare `cargo`. RUSTUP_TOOLCHAIN outranks the file, so
@@ -162,6 +200,8 @@ jobs:
 
   publish:
     name: publish-check (the registry's rules)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -179,6 +219,8 @@ jobs:
 
   deny:
     name: supply chain (advisories, licences, bans, sources)
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -197,10 +239,39 @@ jobs:
           persist-credentials: false
       - uses: fsfe/reuse-action@bb774aa972c2a89ff34781233d275075cbddf542 # v5
 
+  codeql:
+    name: selected code analysis (${{ matrix.language }})
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read # read workflow metadata for code scanning
+      security-events: write # upload the selected source analysis
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [rust, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ce5e7eeac396d720fe2d802714996c8ce561e311 # v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - name: Analyze selected source
+        uses: github/codeql-action/analyze@ce5e7eeac396d720fe2d802714996c8ce561e311 # v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
   ci-required:
     name: ci-required
     if: always()
-    needs: [check, linux, unit, msrv, publish, deny, reuse]
+    needs: [changes, check, linux, unit, msrv, publish, deny, reuse, codeql]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions: {}
@@ -208,10 +279,17 @@ jobs:
       - name: Require success from every verification job
         env:
           ALL_REQUIRED_PASSED: >-
-            ${{ needs.check.result == 'success' && needs.linux.result == 'success' &&
+            ${{ needs.changes.result == 'success' && needs.reuse.result == 'success' && (
+            (needs.changes.outputs.runtime == 'true' &&
+            needs.check.result == 'success' && needs.linux.result == 'success' &&
             needs.unit.result == 'success' && needs.msrv.result == 'success' &&
             needs.publish.result == 'success' && needs.deny.result == 'success' &&
-            needs.reuse.result == 'success' }}
+            needs.codeql.result == 'success') ||
+            (needs.changes.outputs.runtime == 'false' &&
+            needs.check.result == 'skipped' && needs.linux.result == 'skipped' &&
+            needs.unit.result == 'skipped' && needs.msrv.result == 'skipped' &&
+            needs.publish.result == 'skipped' && needs.deny.result == 'skipped' &&
+            needs.codeql.result == 'skipped')) }}
         run: test "$ALL_REQUIRED_PASSED" = true
 
   required:
