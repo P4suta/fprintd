@@ -61,10 +61,8 @@ hand.
 
 ## Where to next
 
-- [Architecture & provenance](ARCHITECTURE.md) — the traits, the layering, and
-  where each byte-exact guarantee comes from. Implementing a backend starts from
-  the `fprint-core` traits documented in the [API docs](api/fprint_core/index.html).
-- [The BOZORTH3 matcher](bozorth3-algorithm.md) and
-  [The MINDTCT detector](mindtct-algorithm.md) — the kernel specs.
+- [Architecture & provenance](https://github.com/P4suta/fprintd/blob/main/ARCHITECTURE.md) — the traits, the layering, and where each byte-exact guarantee comes from.
+  Implementing a backend starts from the `fprint-core` traits documented in the [API docs](api/fprint_core/index.html).
+- [The BOZORTH3 matcher](bozorth3-algorithm.md) and [The MINDTCT detector](mindtct-algorithm.md) — the kernel specs.
 - [The FP3 print format](fp3-format.md) — the serialization contract.
 - [Adding a native driver](adding-a-driver.md) — the capture seam.
