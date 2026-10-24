@@ -43,9 +43,6 @@ jobs:
       - name: Install the declared Rust toolchain
         run: rustup toolchain install stable --profile minimal --component rustfmt
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
-        with:
-          tool: actionlint@1.7.12
       - name: Rustfmt
         run: cargo fmt --all --check
       - name: Repository rules
@@ -53,7 +50,7 @@ jobs:
       - name: Repository task tests
         run: cargo test --locked -p xtask
       - name: Workflow lint
-        run: actionlint
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 
   check:
     name: check (${{ matrix.os }})
