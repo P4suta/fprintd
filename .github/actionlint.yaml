@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+# Actionlint 1.7.12 predates GitHub's Ubuntu 26.04 hosted image.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
