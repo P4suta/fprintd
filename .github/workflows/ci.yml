@@ -42,7 +42,7 @@ jobs:
           token: ''
       - name: Install the declared Rust toolchain
         run: rustup toolchain install stable --profile minimal --component rustfmt
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Rustfmt
         run: cargo fmt --all --check
       - name: Repository rules
@@ -67,7 +67,7 @@ jobs:
           persist-credentials: false
       - name: Install the declared Rust toolchain
         run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - uses: taiki-e/install-action@07b4745e0c39a41822af610387492e3e53aa222b # v2
         with:
           tool: cargo-nextest
@@ -171,7 +171,7 @@ jobs:
           persist-credentials: false
       - name: Install the declared Rust toolchain
         run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: Verify the unit against real systemd
         run: cargo xtask unit-verify
 
@@ -190,7 +190,7 @@ jobs:
           persist-credentials: false
       - name: Install the minimum Rust toolchain
         run: rustup toolchain install 1.82 --profile minimal
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       # The Linux-only crates are absent: they declare higher Rust floors. Their floor is
       # enforced by cargo's `rust-version` and exercised by `linux`.
       - name: Check the pure crates on the declared MSRV
@@ -209,7 +209,7 @@ jobs:
           persist-credentials: false
       - name: Install the declared Rust toolchain
         run: rustup toolchain install stable --profile minimal
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       # publish-check dry-runs `cargo publish --workspace`, which builds the shim crate; its
       # libfprint-sys FFI links libfprint-2 and glib-2.0 through pkg-config.
       - name: install libfprint
