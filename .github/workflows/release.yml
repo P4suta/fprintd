@@ -27,6 +27,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   # Publish + GitHub release. Runs on every push to main but no-ops unless a Release PR merge
   # introduced a new version (release_always = false); merging that PR is the human gate.
@@ -63,11 +67,19 @@ jobs:
         with:
           client-id: ${{ steps.doppler_automation_0.outputs.GITHUB_APP_CLIENT_ID }}
           private-key: ${{ steps.doppler_automation_0.outputs.GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: read
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # release-plz reads the full tag history to derive the bump
           token: ${{ steps.app-token.outputs.token }}
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+          persist-credentials: false
+      - name: Install the stable Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Refresh the package index
+        run: sudo apt-get update
+      - name: Install native library development packages
+        run: sudo apt-get install -y libfprint-2-dev libclang-dev pkg-config
       - uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
         with:
           command: release
@@ -80,9 +92,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
-      id-token: write
-      contents: write
-      pull-requests: write
+      id-token: write # fetch the proposal credentials from Doppler
+      contents: write # prepare release commits
+      pull-requests: write # update the release proposal
     # Serialize PR updates; a second push must not race the first. cancel-in-progress is false.
     concurrency:
       group: release-plz-pr
@@ -113,11 +125,19 @@ jobs:
         with:
           client-id: ${{ steps.doppler_automation_0.outputs.GITHUB_APP_CLIENT_ID }}
           private-key: ${{ steps.doppler_automation_0.outputs.GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+          persist-credentials: false
+      - name: Install the stable Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Refresh the package index
+        run: sudo apt-get update
+      - name: Install native library development packages
+        run: sudo apt-get install -y libfprint-2-dev libclang-dev pkg-config
       - uses: release-plz/action@8b5bf233ecb5779f63508db7cd050e948ee77cc2 # v0.5.144
         with:
           command: release-pr
