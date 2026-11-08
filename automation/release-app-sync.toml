@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 fprintd (pure-Rust) contributors
+# SPDX-License-Identifier: MIT OR Apache-2.0
+
+workplace = "8f95af89faf8535b63a6"
+repository = "P4suta/fprintd"
+repository_id = 1304353893
+owner_id = 42543015
+environment = "release"
+branches = ["main"]
+project = "fprintd"
+source_config = "automation"
+config = "github_automation"
+
+[fields]
+RELEASE_APP_CLIENT_ID = "GITHUB_APP_CLIENT_ID"
+RELEASE_APP_PRIVATE_KEY = "GITHUB_APP_PRIVATE_KEY"
