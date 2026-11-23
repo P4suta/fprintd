@@ -90,7 +90,7 @@ jobs:
         run: cargo test --doc --workspace --all-features
       - name: Test summary
         if: always()
-        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3 # v5
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6
         with:
           report_paths: target/nextest/ci/junit.xml
           annotate_only: true
